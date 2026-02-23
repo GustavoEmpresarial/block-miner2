@@ -2,9 +2,9 @@ const express = require("express");
 const router = express.Router();
 const shortlinkController = require("../controllers/shortlinkController");
 const { requireAuth } = require("../middleware/auth");
-const { rateLimit } = require("../middleware/rateLimit");
+const { createRateLimiter } = require("../middleware/rateLimit");
 
-const shortlinkLimiter = rateLimit({
+const shortlinkLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   max: 10
 });
