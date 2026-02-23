@@ -735,8 +735,61 @@ async function monitorDeposit(userId, txHash, depositAddress, depositId) {
   }
 }
 
+async function getMiningRewards(req, res) {
+  try {
+    const userId = req.user.id;
+    const { get, all } = require("../src/db/sqlite");
+
+    // Get last 20 mining rewards for this user
+    const rewards = await all(
+      `
+        SELECT
+          id,
+          block_number,
+          work_accumulated,
+          total_network_work,
+          share_percentage,
+          reward_amount,
+          balance_after_reward,
+          created_at
+        FROM mining_rewards_log
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 20
+      `,
+      [userId]
+    );
+
+    // Format rewards for display
+    const formattedRewards = rewards.map((reward) => ({
+      id: reward.id,
+      blockNumber: reward.block_number,
+      workAccumulated: Number(reward.work_accumulated).toFixed(2),
+      totalNetworkWork: Number(reward.total_network_work).toFixed(2),
+      sharePercentage: Number(reward.share_percentage).toFixed(2),
+      rewardAmount: Number(reward.reward_amount).toFixed(8),
+      balanceAfterReward: Number(reward.balance_after_reward).toFixed(8),
+      createdAt: new Date(reward.created_at).toISOString(),
+      timestamp: reward.created_at
+    }));
+
+    res.json({
+      ok: true,
+      rewards: formattedRewards,
+      total: formattedRewards.length
+    });
+  } catch (error) {
+    logger.error("Error getting mining rewards", { error: error.message });
+    res.status(500).json({
+      ok: false,
+      message: "Failed to retrieve mining rewards"
+    });
+  }
+}
+
 module.exports = {
   getBalance,
+  getMiningRewards,
   updateWalletAddress,
   withdraw,
   getTransactions,

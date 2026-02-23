@@ -40,3 +40,108 @@
     align-items: flex-start;
   }
 }
+/* Mining Rewards List */
+.rewards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.reward-item {
+  padding: 1rem;
+  background-color: rgba(13, 26, 47, 0.6);
+  border: 1px solid rgba(75, 130, 184, 0.2);
+  border-radius: 0.5rem;
+  transition: box-shadow 0.2s;
+}
+
+.reward-item:hover {
+  box-shadow: 0 0 12px rgba(75, 130, 184, 0.15);
+  border-color: rgba(75, 130, 184, 0.4);
+}
+
+.reward-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(75, 130, 184, 0.15);
+}
+
+.reward-block {
+  font-weight: 700;
+  color: #4b82b8;
+  font-size: 0.95rem;
+}
+
+.reward-time {
+  font-size: 0.85rem;
+  color: #9ab4d8;
+}
+
+.reward-details {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.reward-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.reward-row.highlight {
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(75, 130, 184, 0.1);
+  border-radius: 0.3rem;
+  margin: 0.25rem -0.75rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.reward-row .label {
+  color: #b5bfda;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.reward-row .value {
+  color: #e0e6f0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.reward-row .value-reward {
+  color: #4baf50;
+  font-weight: 700;
+  text-align: right;
+  font-size: 1rem;
+}
+
+.text-muted {
+  color: #9ab4d8;
+}
+
+.text-center {
+  text-align: center;
+}
+
+@media (max-width: 680px) {
+  .reward-item {
+    padding: 0.75rem;
+  }
+
+  .reward-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .reward-row .value,
+  .reward-row .value-reward {
+    text-align: left;
+  }
+}

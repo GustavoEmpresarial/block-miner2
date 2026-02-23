@@ -36,6 +36,9 @@ const depositSchema = z
 // Get balance and wallet info
 router.get("/balance", requireAuth, walletGetLimiter, walletController.getBalance);
 
+// Get mining rewards history (last 20 rewards)
+router.get("/mining-rewards", requireAuth, walletGetLimiter, walletController.getMiningRewards);
+
 // Update wallet address
 router.post("/address", requireAuth, walletPostLimiter, validateBody(walletAddressSchema), walletController.updateWalletAddress);
 

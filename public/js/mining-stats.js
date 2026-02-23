@@ -105,11 +105,86 @@ async function loadNetworkStats() {
     }
 
     await updateEstimatedReward();
+    await loadMiningRewards();
 
     if (statusEl) statusEl.textContent = "Updated just now.";
   } catch {
     if (statusEl) statusEl.textContent = "Failed to load stats.";
   }
+}
+
+async function loadMiningRewards() {
+  const container = document.getElementById("miningRewardsContainer");
+  if (!container) return;
+
+  try {
+    const response = await fetch("/api/wallet/mining-rewards", {
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      container.innerHTML = '<p class="text-muted">Unable to load rewards...</p>';
+      return;
+    }
+
+    const data = await response.json();
+    if (!data.ok || !data.rewards || data.rewards.length === 0) {
+      container.innerHTML = '<p class="text-muted text-center">No mining rewards yet. Start mining to earn!</p>';
+      return;
+    }
+
+    const rewardsHTML = data.rewards.map((reward) => {
+      const date = new Date(reward.createdAt);
+      const timeAgo = getTimeAgo(reward.timestamp);
+      
+      return `
+        <div class="reward-item">
+          <div class="reward-header">
+            <span class="reward-block">Block #${reward.blockNumber}</span>
+            <span class="reward-time">${timeAgo}</span>
+          </div>
+          <div class="reward-details">
+            <div class="reward-row">
+              <span class="label">Your Share:</span>
+              <span class="value">${reward.sharePercentage}%</span>
+            </div>
+            <div class="reward-row">
+              <span class="label">Work Accumulated:</span>
+              <span class="value">${reward.workAccumulated} GH</span>
+            </div>
+            <div class="reward-row highlight">
+              <span class="label"><i class="bi bi-coin"></i> Reward:</span>
+              <span class="value-reward">${reward.rewardAmount} POL</span>
+            </div>
+            <div class="reward-row">
+              <span class="label">New Balance:</span>
+              <span class="value">${reward.balanceAfterReward} POL</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    container.innerHTML = rewardsHTML;
+  } catch (error) {
+    console.error("Error loading mining rewards:", error);
+    container.innerHTML = '<p class="text-muted">Failed to load rewards</p>';
+  }
+}
+
+function getTimeAgo(timestamp) {
+  const now = Date.now();
+  const elapsed = now - timestamp;
+  
+  const seconds = Math.floor(elapsed / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+  return "Just now";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -120,5 +195,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   updateEstimatedReward();
   loadNetworkStats();
-  setInterval(loadNetworkStats, 20000);
+  loadMiningRewards();
+  setInterval(() => {
+    loadNetworkStats();
+    loadMiningRewards();
+  }, 20000);
 });

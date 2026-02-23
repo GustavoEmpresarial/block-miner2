@@ -20,6 +20,11 @@ class MiningEngine {
     this.activeMiners = 0;
     this.currentNetworkHashRate = 0;
     this.blockHistory = [];
+    this.logRewardCallback = null; // Callback to log rewards to database
+  }
+
+  setRewardLogger(callback) {
+    this.logRewardCallback = callback;
   }
 
   findMinerByUserId(userId) {
@@ -192,6 +197,19 @@ class MiningEngine {
         reward: reward.toFixed(8),
         newBalance: miner.balance.toFixed(8)
       });
+
+      // Log reward to database for user visibility
+      if (this.logRewardCallback && miner.userId) {
+        this.logRewardCallback({
+          userId: miner.userId,
+          blockNumber: minedBlockNumber,
+          workAccumulated: work,
+          totalNetworkWork: totalWork,
+          sharePercentage: (share * 100),
+          rewardAmount: reward,
+          balanceAfter: miner.balance
+        });
+      }
     }
 
     // Log distribution details

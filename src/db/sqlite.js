@@ -975,6 +975,34 @@ async function initializeDatabase() {
   await run(`
     CREATE INDEX IF NOT EXISTS idx_callback_queue_next_retry_at ON callback_queue(next_retry_at)
   `);
+
+  // Mining rewards history - log every reward paid to users for visibility
+  await run(`
+    CREATE TABLE IF NOT EXISTS mining_rewards_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      block_number INTEGER NOT NULL,
+      work_accumulated REAL NOT NULL,
+      total_network_work REAL NOT NULL,
+      share_percentage REAL NOT NULL,
+      reward_amount REAL NOT NULL,
+      balance_after_reward REAL NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_mining_rewards_log_user_id ON mining_rewards_log(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_mining_rewards_log_block_number ON mining_rewards_log(block_number)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_mining_rewards_log_created_at ON mining_rewards_log(created_at)
+  `);
 }
 
 module.exports = {

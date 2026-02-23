@@ -13,6 +13,7 @@ const { authRouter } = require("./routes/auth");
 const { initializeDatabase, run, get, all } = require("./src/db/sqlite");
 const { createHealthController } = require("./controllers/healthController");
 const { createShopController } = require("./controllers/shopController");
+const { logMiningReward } = require("./utils/miningRewardsLogger");
 const { createInventoryController } = require("./controllers/inventoryController");
 const { createMachinesController } = require("./controllers/machinesController");
 const { createMachinesDeprecatedController } = require("./controllers/machinesDeprecatedController");
@@ -56,6 +57,7 @@ app.set("trust proxy", 1);
 const server = http.createServer(app);
 const io = new Server(server);
 const engine = new MiningEngine();
+engine.setRewardLogger(logMiningReward); // Register reward logging callback
 const publicStateService = createPublicStateService({ engine, get, run });
 
 const CHECKIN_RECEIVER = process.env.CHECKIN_RECEIVER || "0x95EA8E99063A3EF1B95302aA1C5bE199653EEb13";
