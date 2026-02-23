@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const { get, all, run } = require("../models/db");
 const logger = require("../utils/logger").child("ZerAdsController");
 
-const ZERADS_SITE_ID = String(process.env.ZERADS_SITE_ID || "10146").trim();
+const ZERADS_SITE_ID = String(process.env.ZERADS_SITE_ID || "10776").trim();
 const ZERADS_CALLBACK_PASSWORD = String(process.env.ZERADS_CALLBACK_PASSWORD || "password");
 const ZERADS_ALLOWED_IPS = new Set(
   String(process.env.ZERADS_ALLOWED_IPS || "162.0.208.108")
@@ -11,7 +11,8 @@ const ZERADS_ALLOWED_IPS = new Set(
     .filter(Boolean)
 );
 const parsedExchangeRate = Number(process.env.ZERADS_PTC_EXCHANGE_RATE);
-const ZERADS_PTC_EXCHANGE_RATE = Number.isFinite(parsedExchangeRate) && parsedExchangeRate > 0 ? parsedExchangeRate : 0.03775;
+const ZERADS_PTC_EXCHANGE_RATE = Number.isFinite(parsedExchangeRate) && parsedExchangeRate >= 0 ? parsedExchangeRate : 0;
+const ZERADS_REWARD_NAME = String(process.env.ZERADS_REWARD_NAME || "").trim();
 const ZERADS_OFFERWALL_URL_TEMPLATE = String(
   process.env.ZERADS_OFFERWALL_URL_TEMPLATE || "https://zerads.com/?ref={siteId}&user={username}"
 ).trim();
@@ -125,7 +126,7 @@ async function getPtcLink(req, res) {
     const externalUser = buildExternalUserToken(userId);
 
     const ptcUrl = getPtcUrlForUsername(externalUser);
-    res.json({ ok: true, siteId: ZERADS_SITE_ID, externalUser, ptcUrl, exchangeRate: ZERADS_PTC_EXCHANGE_RATE, rewardName: "USDC" });
+    res.json({ ok: true, siteId: ZERADS_SITE_ID, externalUser, ptcUrl, exchangeRate: ZERADS_PTC_EXCHANGE_RATE, rewardName: ZERADS_REWARD_NAME });
   } catch (error) {
     logger.error("Failed to get ZerAds PTC link", { error: error.message, userId: req.user?.id });
     res.status(500).json({ ok: false, message: "Unable to generate ZerAds link." });
