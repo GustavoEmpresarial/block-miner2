@@ -25,13 +25,22 @@ function baseDirectives({ allowWebSockets }) {
     defaultSrc: ["'self'"],
     baseUri: ["'self'"],
     frameAncestors: ["'self'"],
-    frameSrc: ["'self'", "https://www.youtube.com", "https://www.youtube-nocookie.com", "https://ad.a-ads.com"],
+    frameSrc: [
+      "'self'",
+      "https://www.youtube.com",
+      "https://www.youtube-nocookie.com",
+      "https://ad.a-ads.com",
+      "https://neon.today",
+      "https://*.neon.today",
+      "https://webtrafic.ru",
+      "https://*.webtrafic.ru"
+    ],
     objectSrc: ["'none'"],
     imgSrc: ["'self'", "data:", "https:"],
     fontSrc: ["'self'", "https://cdn.jsdelivr.net", "data:"],
 
     // Keep compatibility with current HTML (inline styles) and CDN scripts.
-    scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+    scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://webtrafic.ru", "https://*.webtrafic.ru"],
     styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
 
     connectSrc: allowWebSockets ? ["'self'", "https:", "ws:", "wss:"] : ["'self'", "https:"],
