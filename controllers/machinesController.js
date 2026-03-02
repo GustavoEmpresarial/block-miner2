@@ -1,8 +1,10 @@
 const machineModel = require("../models/machineModel");
 const inventoryModel = require("../models/inventoryModel");
+const minersModel = require("../models/minersModel");
 const { getOrCreateMinerProfile } = require("../models/minerProfileModel");
 const { getMinerNameFromHashRate } = require("../utils/minerUtils");
 const { run } = require("../models/db");
+const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 
 function normalizeMachineIdentifier(value) {
   return String(value || "")
@@ -14,23 +16,72 @@ function normalizeMachineIdentifier(value) {
     .replace(/^-|-$/g, "");
 }
 
+function createMinersIdentifierMap(miners) {
+  const byId = new Map();
+  const byIdentifier = new Map();
+
+  for (const miner of miners || []) {
+    const minerId = Number(miner?.id || 0);
+    if (minerId > 0) {
+      byId.set(minerId, miner);
+    }
+
+    const lowerName = String(miner?.name || "").trim().toLowerCase();
+    const normalizedName = normalizeMachineIdentifier(miner?.name);
+    const normalizedSlug = normalizeMachineIdentifier(miner?.slug);
+
+    if (lowerName) byIdentifier.set(lowerName, miner);
+    if (normalizedName) byIdentifier.set(normalizedName, miner);
+    if (normalizedSlug) byIdentifier.set(normalizedSlug, miner);
+  }
+
+  return { byId, byIdentifier };
+}
+
 function createMachinesController({ io, syncUserBaseHashRate }) {
   const SLOTS_PER_RACK = 8;
 
   async function listMachines(req, res) {
     try {
       const machines = await machineModel.listUserMachines(req.user.id);
+      const miners = await minersModel.listAllMiners();
+      const minersMap = createMinersIdentifierMap(miners);
+
       const normalized = machines.map((machine) => {
         let image_url = machine.image_url || null;
+
+        if (!image_url) {
+          const minerId = Number(machine.miner_id || 0);
+          const byIdMatch = minerId > 0 ? minersMap.byId.get(minerId) : null;
+          if (byIdMatch?.image_url) {
+            image_url = byIdMatch.image_url;
+          }
+        }
+
+        if (!image_url) {
+          const lowerName = String(machine.miner_name || "").trim().toLowerCase();
+          const normalizedName = normalizeMachineIdentifier(machine.miner_name);
+          const byNameMatch =
+            minersMap.byIdentifier.get(lowerName) ||
+            minersMap.byIdentifier.get(normalizedName) ||
+            null;
+
+          if (byNameMatch?.image_url) {
+            image_url = byNameMatch.image_url;
+          }
+        }
+
         if (!image_url) {
           const normalizedName = normalizeMachineIdentifier(machine.miner_name);
           if (normalizedName === "gpu-1-ghs" || normalizedName === "auto-mining-gpu-1") {
             image_url = "/assets/machines/auto_mining_gpu1.png";
           }
         }
+
         if (!image_url) {
-          image_url = "/assets/machines/1.png";
+          image_url = DEFAULT_MINER_IMAGE_URL;
         }
+
         return {
           ...machine,
           image_url
