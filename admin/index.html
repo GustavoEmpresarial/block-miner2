@@ -147,6 +147,13 @@
             Upload Image
             <input name="imageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
           </label>
+          <label>
+            Image Preview
+            <div id="createImagePreview" class="miner-image-preview-wrap">
+              <img id="createImagePreviewImg" class="miner-image-preview" alt="Miner preview" />
+              <span id="createImagePreviewEmpty" class="miner-image-preview-empty">No image</span>
+            </div>
+          </label>
           <label class="checkbox">
             <input name="isActive" type="checkbox" checked />
             Active
@@ -174,9 +181,11 @@
                 <th>GHS</th>
                 <th>Price</th>
                 <th>Slot</th>
+                <th>Preview</th>
                 <th>Image URL</th>
                 <th>Active</th>
                 <th>Shop</th>
+                <th>Shop Action</th>
                 <th>Save</th>
               </tr>
             </thead>

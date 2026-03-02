@@ -90,6 +90,14 @@ async function updateMiner(minerId, { name, slug, baseHashRate, price, slotSize,
   return getMinerById(minerId);
 }
 
+async function setMinerShowInShop(minerId, showInShop) {
+  await run(
+    "UPDATE miners SET show_in_shop = ? WHERE id = ?",
+    [showInShop ? 1 : 0, minerId]
+  );
+  return getMinerById(minerId);
+}
+
 module.exports = {
   listActiveMiners,
   getActiveMinerById,
@@ -97,6 +105,7 @@ module.exports = {
   getMinerById,
   createMiner,
   updateMiner,
+  setMinerShowInShop,
   getMinerByName,
   getMinerBySlug
 };

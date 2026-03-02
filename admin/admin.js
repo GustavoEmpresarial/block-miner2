@@ -18,6 +18,9 @@ const withdrawalsStatus = document.getElementById("withdrawalsStatus");
 const withdrawalsTable = document.getElementById("withdrawalsTable");
 const createImageUrlInput = createForm?.querySelector('[name="imageUrl"]') || null;
 const createImageFileInput = createForm?.querySelector('[name="imageFile"]') || null;
+const createImagePreviewImg = document.getElementById("createImagePreviewImg");
+const createImagePreviewEmpty = document.getElementById("createImagePreviewEmpty");
+const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -107,6 +110,32 @@ function sanitizeMinerImageName(fileName) {
     .slice(0, 50) || "miner-image";
 
   return baseName;
+}
+
+function updateImagePreview(imgEl, emptyEl, imageUrl) {
+  if (!imgEl || !emptyEl) return;
+  const normalizedUrl = String(imageUrl || "").trim();
+
+  if (!normalizedUrl) {
+    imgEl.style.display = "none";
+    imgEl.removeAttribute("src");
+    emptyEl.style.display = "inline";
+    return;
+  }
+
+  imgEl.style.display = "block";
+  emptyEl.style.display = "none";
+  imgEl.onerror = () => {
+    if (imgEl.dataset.fallbackApplied === "1") {
+      imgEl.style.display = "none";
+      emptyEl.style.display = "inline";
+      return;
+    }
+    imgEl.dataset.fallbackApplied = "1";
+    imgEl.src = DEFAULT_MINER_IMAGE_URL;
+  };
+  imgEl.dataset.fallbackApplied = "0";
+  imgEl.src = normalizedUrl;
 }
 
 async function request(url, options = {}) {
@@ -252,6 +281,11 @@ createImageFileInput?.addEventListener("change", () => {
   const ext = extByMime[file.type] || fallbackExt;
   const safeName = sanitizeMinerImageName(file.name);
   createImageUrlInput.value = `/assets/machines/uploaded/${safeName}${ext}`;
+  updateImagePreview(createImagePreviewImg, createImagePreviewEmpty, createImageUrlInput.value);
+});
+
+createImageUrlInput?.addEventListener("input", () => {
+  updateImagePreview(createImagePreviewImg, createImagePreviewEmpty, createImageUrlInput.value);
 });
 
 function renderStats(stats) {
@@ -523,6 +557,7 @@ function renderTable(miners) {
   miners.forEach((miner) => {
     const row = document.createElement("tr");
     row.dataset.id = String(miner.id);
+    const isInShop = Number(miner.show_in_shop) === 1;
 
     row.innerHTML = `
       <td>${miner.id}</td>
@@ -536,15 +571,52 @@ function renderTable(miners) {
           <option value="2" ${Number(miner.slot_size) === 2 ? "selected" : ""}>2</option>
         </select>
       </td>
+      <td>
+        <div class="miner-image-preview-wrap">
+          <img class="miner-image-preview" data-role="row-preview-img" alt="Miner preview" />
+          <span class="miner-image-preview-empty" data-role="row-preview-empty">No image</span>
+        </div>
+      </td>
       <td><input type="text" name="imageUrl" value="${escapeHtml(miner.image_url || "")}" /></td>
       <td><input type="checkbox" name="isActive" ${Number(miner.is_active) === 1 ? "checked" : ""} /></td>
       <td><input type="checkbox" name="showInShop" ${Number(miner.show_in_shop) === 1 ? "checked" : ""} /></td>
+      <td>
+        <button class="btn small ${isInShop ? "shop-remove" : "shop-add"}" type="button" data-action="toggle-shop">
+          ${isInShop ? "Remove do Shop" : "Mostrar no Shop"}
+        </button>
+      </td>
       <td><button class="btn small" type="button">Save</button></td>
     `;
 
-    row.querySelector("button")?.addEventListener("click", () => saveRow(row));
+    const saveButton = row.querySelector("td:last-child button");
+    const toggleShopButton = row.querySelector('[data-action="toggle-shop"]');
+    const imageUrlInput = row.querySelector('[name="imageUrl"]');
+    const previewImg = row.querySelector('[data-role="row-preview-img"]');
+    const previewEmpty = row.querySelector('[data-role="row-preview-empty"]');
+
+    updateImagePreview(previewImg, previewEmpty, miner.image_url || "");
+    imageUrlInput?.addEventListener("input", () => {
+      updateImagePreview(previewImg, previewEmpty, imageUrlInput.value);
+    });
+
+    saveButton?.addEventListener("click", () => saveRow(row));
+    toggleShopButton?.addEventListener("click", () => toggleMinerShopOnly(miner.id, !isInShop));
     tableBody.appendChild(row);
   });
+}
+
+async function toggleMinerShopOnly(minerId, showInShop) {
+  try {
+    setStatus(showInShop ? "Adding miner to shop..." : "Removing miner from shop...", "info");
+    const result = await request(`/api/admin/miners/${minerId}/shop`, {
+      method: "PATCH",
+      body: JSON.stringify({ showInShop })
+    });
+    await loadMiners();
+    setStatus(result?.message || "Shop visibility updated.", "success");
+  } catch (error) {
+    setStatus(error.message || "Failed to update shop visibility.", "error");
+  }
 }
 
 async function loadMiners() {
@@ -604,6 +676,7 @@ createForm?.addEventListener("submit", async (event) => {
       imageUrl = await uploadMinerImage(imageFile);
       if (createImageUrlInput && imageUrl) {
         createImageUrlInput.value = imageUrl;
+        updateImagePreview(createImagePreviewImg, createImagePreviewEmpty, imageUrl);
       }
     }
 
@@ -626,6 +699,7 @@ createForm?.addEventListener("submit", async (event) => {
     createForm.reset();
     createForm.querySelector("[name='isActive']").checked = true;
     createForm.querySelector("[name='showInShop']").checked = true;
+    updateImagePreview(createImagePreviewImg, createImagePreviewEmpty, "");
     await loadMiners();
     setStatus("Miner created.", "success");
   } catch (error) {
@@ -643,6 +717,8 @@ refreshButton?.addEventListener("click", () => {
   loadWithdrawals();
   loadMiners();
 });
+
+updateImagePreview(createImagePreviewImg, createImagePreviewEmpty, createImageUrlInput?.value || "");
 
 loadStats();
 loadUsers();

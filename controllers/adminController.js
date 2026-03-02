@@ -563,6 +563,37 @@ function createAdminController() {
     }
   }
 
+  async function setMinerShopVisibility(req, res) {
+    const minerId = Number(req.params?.id);
+    if (!Number.isInteger(minerId) || minerId <= 0) {
+      res.status(400).json({ ok: false, message: "Invalid miner ID." });
+      return;
+    }
+
+    if (typeof req.body?.showInShop !== "boolean") {
+      res.status(400).json({ ok: false, message: "showInShop must be boolean." });
+      return;
+    }
+
+    try {
+      const existing = await minersModel.getMinerById(minerId);
+      if (!existing) {
+        res.status(404).json({ ok: false, message: "Miner not found." });
+        return;
+      }
+
+      const miner = await minersModel.setMinerShowInShop(minerId, req.body.showInShop);
+      res.json({
+        ok: true,
+        miner,
+        message: req.body.showInShop ? "Miner added to shop." : "Miner removed from shop."
+      });
+    } catch (error) {
+      console.error("Admin set miner shop visibility error:", error);
+      res.status(500).json({ ok: false, message: "Unable to update shop visibility." });
+    }
+  }
+
   // === Manual Withdrawal Management ===
 
   async function listPendingWithdrawals(req, res) {
@@ -716,6 +747,7 @@ function createAdminController() {
     listMiners,
     createMiner,
     updateMiner,
+    setMinerShopVisibility,
     listPendingWithdrawals,
     approveWithdrawal,
     rejectWithdrawal,

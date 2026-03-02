@@ -1261,6 +1261,7 @@ app.post(
 );
 app.post("/api/admin/miners", requireAdminAuth, adminLimiter, adminController.createMiner);
 app.put("/api/admin/miners/:id", requireAdminAuth, adminLimiter, adminController.updateMiner);
+app.patch("/api/admin/miners/:id/shop", requireAdminAuth, adminLimiter, adminController.setMinerShopVisibility);
 
 // Manual withdrawal management
 app.get("/api/admin/withdrawals/pending", requireAdminAuth, adminLimiter, adminController.listPendingWithdrawals);
