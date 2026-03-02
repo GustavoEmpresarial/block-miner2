@@ -7,6 +7,13 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
+const IMAGE_FALLBACK_CANDIDATES = [
+  "/assets/machines/reward2.png",
+  "/assets/machines/reward3.png",
+  "/assets/machines/1.png",
+  "/assets/machines/2.png",
+  "/assets/machines/3.png"
+];
 
 function captureCpuSnapshot() {
   const cpus = os.cpus() || [];
@@ -235,6 +242,120 @@ async function validateUploadedImageUniqueness(imageUrl, currentMinerId = null) 
   }
 
   return { ok: true };
+}
+
+function normalizeStoredImageUrl(value) {
+  return String(value || "").replace(/\\/g, "/").trim();
+}
+
+function isUploadedMachineImage(imageUrl) {
+  return normalizeStoredImageUrl(imageUrl).startsWith("/assets/machines/uploaded/");
+}
+
+async function listDuplicateImageUrlGroups({ uploadedOnly = false } = {}) {
+  const whereParts = ["image_url IS NOT NULL", "TRIM(image_url) <> ''"];
+  const params = [];
+
+  if (uploadedOnly) {
+    whereParts.push("image_url LIKE ?");
+    params.push("/assets/machines/uploaded/%");
+  }
+
+  const rows = await all(
+    `
+      SELECT image_url,
+             COUNT(*) AS total,
+             GROUP_CONCAT(id || ':' || name, ' | ') AS miners
+      FROM miners
+      WHERE ${whereParts.join(" AND ")}
+      GROUP BY image_url
+      HAVING COUNT(*) > 1
+      ORDER BY total DESC, image_url ASC
+    `,
+    params
+  );
+
+  return rows.map((row) => ({
+    imageUrl: row.image_url,
+    total: Number(row.total || 0),
+    miners: String(row.miners || "")
+  }));
+}
+
+async function fixDuplicateImageUrls({ uploadedOnly = true } = {}) {
+  const miners = await all(
+    "SELECT id, name, image_url FROM miners WHERE image_url IS NOT NULL AND TRIM(image_url) <> '' ORDER BY id ASC"
+  );
+
+  const usedUrls = new Set();
+  for (const miner of miners) {
+    const imageUrl = normalizeStoredImageUrl(miner.image_url);
+    if (imageUrl) {
+      usedUrls.add(imageUrl);
+    }
+  }
+
+  const groupedByImageUrl = new Map();
+  for (const miner of miners) {
+    const imageUrl = normalizeStoredImageUrl(miner.image_url);
+    if (!imageUrl) continue;
+    if (uploadedOnly && !isUploadedMachineImage(imageUrl)) continue;
+
+    if (!groupedByImageUrl.has(imageUrl)) {
+      groupedByImageUrl.set(imageUrl, []);
+    }
+    groupedByImageUrl.get(imageUrl).push({
+      id: Number(miner.id),
+      name: String(miner.name || ""),
+      imageUrl
+    });
+  }
+
+  const updates = [];
+  for (const [, grouped] of groupedByImageUrl) {
+    if (grouped.length <= 1) continue;
+
+    for (let index = 1; index < grouped.length; index += 1) {
+      const miner = grouped[index];
+      const currentUrl = miner.imageUrl;
+
+      let replacement = null;
+      for (const candidate of IMAGE_FALLBACK_CANDIDATES) {
+        if (!usedUrls.has(candidate) && candidate !== currentUrl) {
+          replacement = candidate;
+          break;
+        }
+      }
+
+      if (replacement) {
+        usedUrls.add(replacement);
+      }
+
+      updates.push({
+        id: miner.id,
+        name: miner.name,
+        from: currentUrl,
+        to: replacement
+      });
+    }
+  }
+
+  if (!updates.length) {
+    return [];
+  }
+
+  await run("BEGIN TRANSACTION");
+  try {
+    for (const change of updates) {
+      await run("UPDATE miners SET image_url = ? WHERE id = ?", [change.to, change.id]);
+    }
+    await run("COMMIT");
+  } catch (error) {
+    await run("ROLLBACK");
+    throw error;
+  }
+
+  return updates;
 }
 
 function validateMinerPayload(body) {
@@ -632,6 +753,56 @@ function createAdminController() {
     }
   }
 
+  async function auditMinerImageDuplicates(_req, res) {
+    try {
+      const [duplicatesAll, duplicatesUploaded] = await Promise.all([
+        listDuplicateImageUrlGroups({ uploadedOnly: false }),
+        listDuplicateImageUrlGroups({ uploadedOnly: true })
+      ]);
+
+      res.json({
+        ok: true,
+        duplicatesAll,
+        duplicatesUploaded,
+        summary: {
+          allGroups: duplicatesAll.length,
+          uploadedGroups: duplicatesUploaded.length
+        }
+      });
+    } catch (error) {
+      console.error("Admin audit miner image duplicates error:", error);
+      res.status(500).json({ ok: false, message: "Unable to audit duplicate image URLs." });
+    }
+  }
+
+  async function fixMinerImageDuplicates(req, res) {
+    try {
+      const scope = String(req.body?.scope || "uploaded").trim().toLowerCase();
+      const uploadedOnly = scope !== "all";
+
+      const updates = await fixDuplicateImageUrls({ uploadedOnly });
+      const [duplicatesAll, duplicatesUploaded] = await Promise.all([
+        listDuplicateImageUrlGroups({ uploadedOnly: false }),
+        listDuplicateImageUrlGroups({ uploadedOnly: true })
+      ]);
+
+      res.json({
+        ok: true,
+        updated: updates,
+        updatedCount: updates.length,
+        scope: uploadedOnly ? "uploaded" : "all",
+        duplicatesAll,
+        duplicatesUploaded,
+        message: updates.length > 0
+          ? `Updated ${updates.length} miner image URL(s).`
+          : "No duplicate image URLs needed fixes for this scope."
+      });
+    } catch (error) {
+      console.error("Admin fix miner image duplicates error:", error);
+      res.status(500).json({ ok: false, message: "Unable to fix duplicate image URLs." });
+    }
+  }
+
   // === Manual Withdrawal Management ===
 
   async function listPendingWithdrawals(req, res) {
@@ -786,6 +957,8 @@ function createAdminController() {
     createMiner,
     updateMiner,
     setMinerShopVisibility,
+    auditMinerImageDuplicates,
+    fixMinerImageDuplicates,
     listPendingWithdrawals,
     approveWithdrawal,
     rejectWithdrawal,

@@ -1262,6 +1262,8 @@ app.post(
 app.post("/api/admin/miners", requireAdminAuth, adminLimiter, adminController.createMiner);
 app.put("/api/admin/miners/:id", requireAdminAuth, adminLimiter, adminController.updateMiner);
 app.patch("/api/admin/miners/:id/shop", requireAdminAuth, adminLimiter, adminController.setMinerShopVisibility);
+app.get("/api/admin/miners/image-duplicates", requireAdminAuth, adminLimiter, adminController.auditMinerImageDuplicates);
+app.post("/api/admin/miners/fix-image-duplicates", requireAdminAuth, adminLimiter, adminController.fixMinerImageDuplicates);
 
 // Manual withdrawal management
 app.get("/api/admin/withdrawals/pending", requireAdminAuth, adminLimiter, adminController.listPendingWithdrawals);

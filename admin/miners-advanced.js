@@ -182,6 +182,58 @@ async function replaceRowImage(row) {
   };
 }
 
+function summarizeDuplicateRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return "none";
+  }
+
+  return rows
+    .slice(0, 3)
+    .map((entry) => `${entry.imageUrl} (${entry.total})`)
+    .join(" · ");
+}
+
+async function auditDuplicateImageUrls() {
+  try {
+    setStatus("Auditing duplicate image URLs...", "info");
+    const data = await request("/api/admin/miners/image-duplicates");
+    const allGroups = Number(data?.summary?.allGroups || 0);
+    const uploadedGroups = Number(data?.summary?.uploadedGroups || 0);
+
+    if (allGroups === 0) {
+      setStatus("No duplicate image URLs found.", "success");
+      return;
+    }
+
+    setStatus(
+      `Duplicates found: all=${allGroups}, uploaded=${uploadedGroups}. ${summarizeDuplicateRows(data?.duplicatesAll)}`,
+      "error"
+    );
+  } catch (error) {
+    setStatus(error.message || "Failed to audit duplicate images.", "error");
+  }
+}
+
+async function fixDuplicateImageUrls() {
+  const accepted = window.confirm("Fix duplicate uploaded image URLs now?");
+  if (!accepted) {
+    return;
+  }
+
+  try {
+    setStatus("Fixing duplicate uploaded image URLs...", "info");
+    const data = await request("/api/admin/miners/fix-image-duplicates", {
+      method: "POST",
+      body: JSON.stringify({ scope: "uploaded" })
+    });
+
+    await loadMiners();
+    setStatus(data?.message || `Updated ${Number(data?.updatedCount || 0)} miner image URL(s).`, "success");
+  } catch (error) {
+    setStatus(error.message || "Failed to fix duplicate image URLs.", "error");
+  }
+}
+
 function render(miners) {
   const query = String(searchInput?.value || "").trim().toLowerCase();
   const filtered = (miners || []).filter((item) => {
@@ -283,6 +335,8 @@ async function loadMiners() {
 }
 
 document.getElementById("refreshBtn")?.addEventListener("click", loadMiners);
+document.getElementById("auditDuplicatesBtn")?.addEventListener("click", auditDuplicateImageUrls);
+document.getElementById("fixDuplicatesBtn")?.addEventListener("click", fixDuplicateImageUrls);
 document.getElementById("applyBtn")?.addEventListener("click", () => {
   currentPage = 1;
   render(allMiners);
