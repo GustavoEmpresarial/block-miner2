@@ -69,6 +69,41 @@ async function request(url, options = {}) {
   return data;
 }
 
+async function uploadMinerImage(file) {
+  if (!(file instanceof File) || file.size <= 0) {
+    return null;
+  }
+
+  const csrf = getCookie("blockminer_csrf");
+  const adminToken = localStorage.getItem("adminToken");
+
+  const headers = {
+    ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+    ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+    "X-File-Name": file.name
+  };
+
+  const response = await fetch("/api/admin/miners/upload-image", {
+    method: "POST",
+    headers,
+    body: file,
+    credentials: "include"
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) {
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminTokenExpiry");
+    window.location.href = "/admin/login";
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(data?.message || "Image upload failed");
+  }
+
+  return data?.imageUrl || null;
+}
+
 function payloadFromRow(row) {
   const getValue = (name) => row.querySelector(`[name="${name}"]`)?.value ?? "";
   const checked = (name) => row.querySelector(`[name="${name}"]`)?.checked ?? false;
@@ -109,6 +144,42 @@ async function saveRow(row) {
   } catch (error) {
     setStatus(error.message || "Failed to save miner.", "error");
   }
+}
+
+async function replaceRowImage(row) {
+  const imagePicker = row.querySelector('[data-action="pick-image"]');
+  const imageUrlInput = row.querySelector('[name="imageUrl"]');
+  const previewImg = row.querySelector('[data-role="row-preview-img"]');
+  const previewEmpty = row.querySelector('[data-role="row-preview-empty"]');
+  const minerId = row.dataset.id;
+
+  if (!imagePicker || !imageUrlInput || !minerId) return;
+
+  imagePicker.value = "";
+  imagePicker.click();
+
+  imagePicker.onchange = async () => {
+    const selectedFile = imagePicker.files?.[0];
+    if (!(selectedFile instanceof File)) {
+      return;
+    }
+
+    try {
+      setStatus(`Uploading image for miner #${minerId}...`, "info");
+      const imageUrl = await uploadMinerImage(selectedFile);
+      if (!imageUrl) {
+        setStatus("Image upload was cancelled.", "error");
+        return;
+      }
+
+      imageUrlInput.value = imageUrl;
+      updateImagePreview(previewImg, previewEmpty, imageUrl);
+      await saveRow(row);
+      setStatus(`Image updated for miner #${minerId}.`, "success");
+    } catch (error) {
+      setStatus(error.message || "Failed to replace image.", "error");
+    }
+  };
 }
 
 function render(miners) {
@@ -153,6 +224,10 @@ function render(miners) {
         <input type="hidden" name="slotSize" value="${Number(m.slot_size || 1)}" />
       </td>
       <td><input type="text" name="imageUrl" value="${esc(m.image_url || "")}" placeholder="/assets/machines/..." /></td>
+      <td>
+        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-action="pick-image" style="display:none;" />
+        <button class="btn small" type="button" data-action="replace-image">Trocar</button>
+      </td>
       <td><input type="checkbox" name="showInShop" ${Number(m.show_in_shop) === 1 ? "checked" : ""} /></td>
       <td><input type="checkbox" name="isActive" ${Number(m.is_active) === 1 ? "checked" : ""} /></td>
       <td>
@@ -167,6 +242,7 @@ function render(miners) {
     const previewEmpty = row.querySelector('[data-role="row-preview-empty"]');
     const imageUrlInput = row.querySelector('[name="imageUrl"]');
     const saveButton = row.querySelector('[data-action="save-row"]');
+    const replaceImageButton = row.querySelector('[data-action="replace-image"]');
     const toggleButton = row.querySelector('[data-action="toggle-shop"]');
 
     const initialImageUrl = String(m.image_url || "").trim();
@@ -183,6 +259,7 @@ function render(miners) {
     });
 
     saveButton?.addEventListener("click", () => saveRow(row));
+    replaceImageButton?.addEventListener("click", () => replaceRowImage(row));
     toggleButton?.addEventListener("click", () => toggleMinerShopOnly(m.id, !isInShop));
     table.appendChild(row);
   }
