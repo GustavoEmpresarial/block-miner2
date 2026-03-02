@@ -28,6 +28,7 @@ const elements = {
 const rackConfigs = {};
 const RACKS_COUNT = 10;
 const SLOTS_PER_RACK = 8;
+const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -528,7 +529,13 @@ function renderInventory() {
     image.src = descriptor.image;
     image.alt = descriptor.name;
     image.addEventListener("error", () => {
-      image.style.display = "none";
+      if (image.dataset.fallbackApplied === "1") {
+        image.style.display = "none";
+        return;
+      }
+
+      image.dataset.fallbackApplied = "1";
+      image.src = DEFAULT_MINER_IMAGE_URL;
     });
 
     const meta = document.createElement("div");
@@ -715,7 +722,13 @@ function renderMiningRoom(miner) {
         image.src = descriptor.image;
         image.alt = descriptor.name;
         image.addEventListener("error", () => {
-          image.style.display = "none";
+          if (image.dataset.fallbackApplied === "1") {
+            image.style.display = "none";
+            return;
+          }
+
+          image.dataset.fallbackApplied = "1";
+          image.src = DEFAULT_MINER_IMAGE_URL;
         });
         machineSlot.append(image);
         machineSlot.addEventListener("click", () => handleSlotClick(rackIndex, localSlotIndex, machine));

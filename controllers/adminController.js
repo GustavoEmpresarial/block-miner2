@@ -185,6 +185,32 @@ function normalizeImageUrl(value) {
   return text.length > 0 ? text : null;
 }
 
+async function validateUploadedMinerImagePath(imageUrl) {
+  if (!imageUrl) {
+    return { ok: true };
+  }
+
+  const normalizedUrl = String(imageUrl).replace(/\\/g, "/").trim();
+  const uploadPrefix = "/assets/machines/uploaded/";
+
+  if (!normalizedUrl.startsWith(uploadPrefix)) {
+    return { ok: true };
+  }
+
+  const safePublicPath = path.posix.normalize(normalizedUrl);
+  if (!safePublicPath.startsWith(uploadPrefix) || safePublicPath.includes("..")) {
+    return { ok: false, message: "Invalid uploaded image path." };
+  }
+
+  const absoluteFilePath = path.join(__dirname, "..", "public", safePublicPath.replace(/^\//, ""));
+  try {
+    await fs.access(absoluteFilePath);
+    return { ok: true };
+  } catch {
+    return { ok: false, message: "Uploaded image file was not found. Upload the image again before saving the miner." };
+  }
+}
+
 function validateMinerPayload(body) {
   const name = toTrimmedString(body?.name);
   const slug = toTrimmedString(body?.slug);
@@ -480,6 +506,12 @@ function createAdminController() {
       return;
     }
 
+    const imageValidation = await validateUploadedMinerImagePath(validation.value.imageUrl);
+    if (!imageValidation.ok) {
+      res.status(400).json({ ok: false, message: imageValidation.message });
+      return;
+    }
+
     try {
       const miner = await minersModel.createMiner(validation.value);
       res.json({ ok: true, miner });
@@ -503,6 +535,12 @@ function createAdminController() {
     const validation = validateMinerPayload(req.body);
     if (!validation.ok) {
       res.status(400).json({ ok: false, message: validation.message });
+      return;
+    }
+
+    const imageValidation = await validateUploadedMinerImagePath(validation.value.imageUrl);
+    if (!imageValidation.ok) {
+      res.status(400).json({ ok: false, message: imageValidation.message });
       return;
     }
 
