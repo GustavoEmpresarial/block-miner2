@@ -15,7 +15,13 @@ require.cache[auditLogModelPath].exports = {
 };
 
 const walletModel = require("../models/walletModel");
+const depositsCron = require("../cron/depositsCron");
 const walletController = require("../controllers/walletController");
+const { close } = require("../src/db/sqlite");
+
+test.after(async () => {
+  await close();
+});
 
 function createRes() {
   return {

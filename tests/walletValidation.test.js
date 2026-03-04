@@ -6,6 +6,11 @@ process.env.DB_PATH = process.env.DB_PATH || "./data/blockminer.db";
 process.env.CHECKIN_RECEIVER = "0x0000000000000000000000000000000000000000";
 
 const { __test } = require("../controllers/walletController");
+const { close } = require("../src/db/sqlite");
+
+test.after(async () => {
+  await close();
+});
 
 test("normalizeAmountInput accepts up to 6 decimal places", () => {
   const value = __test.normalizeAmountInput("10.123456");

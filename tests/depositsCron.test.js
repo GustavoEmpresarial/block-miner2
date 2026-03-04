@@ -6,6 +6,11 @@ process.env.DB_PATH = process.env.DB_PATH || "./data/blockminer.db";
 
 const walletModel = require("../models/walletModel");
 const depositsCron = require("../cron/depositsCron");
+const { close } = require("../src/db/sqlite");
+
+test.after(async () => {
+  await close();
+});
 
 test("checkPendingDeposits exits cleanly when no pending deposits", async () => {
   const originalGetPendingDeposits = walletModel.getPendingDeposits;
