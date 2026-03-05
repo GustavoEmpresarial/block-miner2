@@ -1,0 +1,1263 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import sqlite3 from "sqlite3";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const rawDbPath = process.env.DB_PATH || path.join(__dirname, "..", "..", "data", "blockminer.db");
+const dbPath = path.resolve(rawDbPath);
+
+// Ensure the database directory exists
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+const db = new (sqlite3.verbose().Database)(dbPath);
+
+export function run(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function onRun(error) {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+}
+
+export function get(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (error, row) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(row || null);
+    });
+  });
+}
+
+export function all(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (error, rows) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(rows || []);
+    });
+  });
+}
+
+export async function initializeDatabase() {
+  // ... (rest of the initialization logic remains exactly the same)
+
+  try {
+    await run("ALTER TABLE miner_profiles RENAME TO users_temp_power");
+  } catch {
+    // Table already renamed or does not exist.
+  }
+
+  try {
+    await run("ALTER TABLE game_rewards RENAME TO users_powers_games");
+  } catch {
+    // Table already renamed or does not exist.
+  }
+
+  try {
+    await run("ALTER TABLE machines RENAME TO user_miners");
+  } catch {
+    // Table already renamed or does not exist.
+  }
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      username TEXT,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_login_at INTEGER,
+      ip TEXT,
+      user_agent TEXT,
+      is_banned INTEGER NOT NULL DEFAULT 0,
+      pol_balance REAL NOT NULL DEFAULT 0,
+      btc_balance REAL NOT NULL DEFAULT 0,
+      eth_balance REAL NOT NULL DEFAULT 0,
+      usdt_balance REAL NOT NULL DEFAULT 0,
+      usdc_balance REAL NOT NULL DEFAULT 0,
+      zer_balance REAL NOT NULL DEFAULT 0
+    )
+  `);
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN pol_balance REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN btc_balance REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN eth_balance REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN usdt_balance REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN usdc_balance REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN zer_balance REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN username TEXT");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN last_login_at INTEGER");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN ip TEXT");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN user_agent TEXT");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN is_banned INTEGER NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN ref_code TEXT");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE users ADD COLUMN referred_by INTEGER");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_id TEXT NOT NULL UNIQUE,
+      token_hash TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      replaced_by TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      action TEXT NOT NULL,
+      ip TEXT,
+      user_agent TEXT,
+      details_json TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS auth_lockouts (
+      kind TEXT NOT NULL,
+      value TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      locked_until INTEGER NOT NULL DEFAULT 0,
+      last_at INTEGER NOT NULL,
+      PRIMARY KEY (kind, value)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auth_lockouts_locked_until ON auth_lockouts(locked_until)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auth_lockouts_last_at ON auth_lockouts(last_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      referrer_id INTEGER NOT NULL,
+      referred_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (referrer_id) REFERENCES users(id),
+      FOREIGN KEY (referred_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_referrals_referred_id
+      ON referrals(referred_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_referrals_referrer_id
+      ON referrals(referrer_id)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS referral_earnings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      referrer_id INTEGER NOT NULL,
+      referred_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      source TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (referrer_id) REFERENCES users(id),
+      FOREIGN KEY (referred_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_referral_earnings_referrer
+      ON referral_earnings(referrer_id)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS users_temp_power (
+      user_id INTEGER PRIMARY KEY,
+      username TEXT NOT NULL,
+      wallet_address TEXT,
+      rigs INTEGER NOT NULL DEFAULT 1,
+      base_hash_rate REAL NOT NULL DEFAULT 0,
+      balance REAL NOT NULL DEFAULT 0,
+      lifetime_mined REAL NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_users_temp_power_username ON users_temp_power(username)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS users_wallets (
+      user_id INTEGER PRIMARY KEY,
+      wallet_address TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_wallets_wallet_address
+      ON users_wallets(wallet_address)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS miners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      base_hash_rate REAL NOT NULL DEFAULT 0,
+      price REAL NOT NULL DEFAULT 0.5,
+      slot_size INTEGER NOT NULL DEFAULT 1,
+      image_url TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      show_in_shop INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  try {
+    await run("ALTER TABLE miners ADD COLUMN show_in_shop INTEGER NOT NULL DEFAULT 1");
+  } catch {
+    // Column already exists.
+  }
+
+  const faucetMinerSlug = config.faucet?.rewardMinerSlug || "faucet-1ghs";
+  const faucetMinerName = "Faucet Miner";
+  const faucetMinerImage = "/assets/machines/reward1.png";
+  const faucetMinerRow = await get("SELECT id, image_url FROM miners WHERE slug = ?", [faucetMinerSlug]);
+  let faucetMinerId = null;
+  if (!faucetMinerRow) {
+    const faucetNow = Date.now();
+    const result = await run(
+      "INSERT INTO miners (name, slug, base_hash_rate, price, slot_size, image_url, is_active, show_in_shop, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [faucetMinerName, faucetMinerSlug, 1, 0, 1, faucetMinerImage, 1, 0, faucetNow]
+    );
+    faucetMinerId = result.lastID;
+  } else {
+    faucetMinerId = faucetMinerRow.id;
+    const currentImage = String(faucetMinerRow.image_url || "").trim();
+    if (!currentImage || currentImage === "/assets/machines/auto_mining_gpu1.png") {
+      await run("UPDATE miners SET image_url = ? WHERE id = ?", [faucetMinerImage, faucetMinerId]);
+    }
+    await run("UPDATE miners SET show_in_shop = 0 WHERE id = ?", [faucetMinerId]);
+  }
+
+  // Create faucet_rewards table
+  await run(`
+    CREATE TABLE IF NOT EXISTS faucet_rewards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      miner_id INTEGER NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (miner_id) REFERENCES miners(id)
+    )
+  `);
+
+  // Ensure faucet reward is in faucet_rewards table
+  const faucetRewardRow = await get("SELECT id FROM faucet_rewards WHERE miner_id = ?", [faucetMinerId]);
+  if (!faucetRewardRow) {
+    await run(
+      "INSERT INTO faucet_rewards (miner_id, is_active, created_at) VALUES (?, ?, ?)",
+      [faucetMinerId, 1, Date.now()]
+    );
+  }
+
+  await run(
+    `
+      UPDATE miners
+      SET show_in_shop = 0
+      WHERE id IN (
+        SELECT miner_id FROM faucet_rewards
+        UNION
+        SELECT miner_id FROM shortlink_rewards
+      )
+    `
+  ).catch(() => {
+    // shortlink_rewards may not exist yet on fresh migrations at this point.
+  });
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS daily_checkins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      checkin_date TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      confirmed_at INTEGER,
+      tx_hash TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      amount REAL NOT NULL DEFAULT 0.01,
+      chain_id INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS faucet_claims (
+      user_id INTEGER PRIMARY KEY,
+      claimed_at INTEGER NOT NULL,
+      total_claims INTEGER NOT NULL DEFAULT 0,
+      day_key TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS faucet_partner_visits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      day_key TEXT NOT NULL,
+      opened_at INTEGER NOT NULL,
+      eligible_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_faucet_partner_visits_user_day
+      ON faucet_partner_visits(user_id, day_key)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_faucet_partner_visits_eligible_at
+      ON faucet_partner_visits(eligible_at)
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_checkins_user_date
+      ON daily_checkins(user_id, checkin_date)
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_checkins_tx_hash
+      ON daily_checkins(tx_hash)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_daily_checkins_status
+      ON daily_checkins(status)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS users_powers_games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      game_id INTEGER NOT NULL,
+      hash_rate REAL NOT NULL,
+      played_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      checkin_id INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (game_id) REFERENCES games(id),
+      FOREIGN KEY (checkin_id) REFERENCES daily_checkins(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_users_powers_games_user_id ON users_powers_games(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_users_powers_games_expires_at ON users_powers_games(expires_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS youtube_watch_user_powers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      hash_rate REAL NOT NULL,
+      claimed_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      source_video_id TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_youtube_watch_user_powers_user_id
+      ON youtube_watch_user_powers(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_youtube_watch_user_powers_expires_at
+      ON youtube_watch_user_powers(expires_at)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_youtube_watch_user_powers_claimed_at
+      ON youtube_watch_user_powers(claimed_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS youtube_watch_power_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      hash_rate REAL NOT NULL,
+      claimed_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      source_video_id TEXT,
+      status TEXT NOT NULL DEFAULT 'granted',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_youtube_watch_power_history_user_id
+      ON youtube_watch_power_history(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_youtube_watch_power_history_claimed_at
+      ON youtube_watch_power_history(claimed_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS payouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      amount_pol REAL NOT NULL,
+      source TEXT NOT NULL,
+      tx_hash TEXT,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_payouts_user_id ON payouts(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_payouts_created_at ON payouts(created_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS user_miners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      miner_id INTEGER,
+      slot_index INTEGER NOT NULL,
+      level INTEGER NOT NULL DEFAULT 1,
+      hash_rate REAL NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      purchased_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (miner_id) REFERENCES miners(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_miners_user_slot
+      ON user_miners(user_id, slot_index)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_user_miners_user_id ON user_miners(user_id)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS user_inventory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      miner_id INTEGER,
+      miner_name TEXT NOT NULL,
+      level INTEGER NOT NULL DEFAULT 1,
+      hash_rate REAL NOT NULL DEFAULT 0,
+      slot_size INTEGER NOT NULL DEFAULT 1,
+      image_url TEXT,
+      acquired_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (miner_id) REFERENCES miners(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_user_inventory_user_id ON user_inventory(user_id)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS rack_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      rack_index INTEGER NOT NULL,
+      custom_name TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_rack_configs_user_rack
+      ON rack_configs(user_id, rack_index)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS ptp_ads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL,
+      hash TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status TEXT DEFAULT 'active',
+      views INTEGER DEFAULT 0,
+      paid_usd REAL DEFAULT 0.10,
+      target_views INTEGER DEFAULT 0,
+      asset TEXT DEFAULT 'POOL',
+      cost_usd REAL DEFAULT 0.10,
+      cost_asset REAL DEFAULT 0,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+
+  try {
+    await run("ALTER TABLE ptp_ads ADD COLUMN target_views INTEGER DEFAULT 0");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE ptp_ads ADD COLUMN asset TEXT DEFAULT 'POOL'");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE ptp_ads ADD COLUMN cost_usd REAL DEFAULT 0.10");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE ptp_ads ADD COLUMN cost_asset REAL DEFAULT 0");
+  } catch {
+    // Column already exists.
+  }
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS ptp_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ad_id INTEGER NOT NULL,
+      viewer_hash TEXT NOT NULL,
+      viewed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(ad_id) REFERENCES ptp_ads(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS ptp_earnings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      ad_id INTEGER NOT NULL,
+      amount_usd REAL NOT NULL,
+      paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(ad_id) REFERENCES ptp_ads(id)
+    )
+  `);
+
+  await run("CREATE INDEX IF NOT EXISTS idx_ptp_ads_user_id ON ptp_ads(user_id)");
+  await run("CREATE INDEX IF NOT EXISTS idx_ptp_ads_hash ON ptp_ads(hash)");
+  await run("CREATE INDEX IF NOT EXISTS idx_ptp_views_ad_id ON ptp_views(ad_id)");
+  await run("CREATE INDEX IF NOT EXISTS idx_ptp_earnings_user_id ON ptp_earnings(user_id)");
+  await run("CREATE UNIQUE INDEX IF NOT EXISTS idx_ptp_views_ad_viewer ON ptp_views(ad_id, viewer_hash)");
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS zerads_ptc_callbacks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      amount_zer REAL NOT NULL,
+      exchange_rate REAL NOT NULL,
+      payout_amount REAL NOT NULL,
+      clicks INTEGER NOT NULL DEFAULT 0,
+      request_ip TEXT,
+      callback_hash TEXT NOT NULL UNIQUE,
+      callback_at INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run("CREATE INDEX IF NOT EXISTS idx_zerads_ptc_callbacks_user_id ON zerads_ptc_callbacks(user_id)");
+  await run("CREATE INDEX IF NOT EXISTS idx_zerads_ptc_callbacks_callback_at ON zerads_ptc_callbacks(callback_at)");
+
+  try {
+    await run("ALTER TABLE user_miners ADD COLUMN miner_id INTEGER");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE user_miners ADD COLUMN slot_size INTEGER NOT NULL DEFAULT 1");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE miners ADD COLUMN slot_size INTEGER NOT NULL DEFAULT 1");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE user_inventory ADD COLUMN miner_id INTEGER");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE user_inventory ADD COLUMN slot_size INTEGER NOT NULL DEFAULT 1");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE user_inventory ADD COLUMN image_url TEXT");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE faucet_claims ADD COLUMN day_key TEXT");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS faucet_rewards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      miner_id INTEGER NOT NULL,
+      cooldown_ms INTEGER NOT NULL DEFAULT 3600000,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (miner_id) REFERENCES miners(id)
+    )
+  `);
+
+  const existingFaucetReward = await get("SELECT id FROM faucet_rewards WHERE is_active = 1 LIMIT 1");
+  if (!existingFaucetReward) {
+    const faucetMiner = await get("SELECT id FROM miners WHERE slug = ?", [faucetMinerSlug]);
+    if (faucetMiner?.id) {
+      const now = Date.now();
+      const cooldownMs = Number(config.faucet?.cooldownMs || 3600000);
+      await run(
+        "INSERT INTO faucet_rewards (miner_id, cooldown_ms, is_active, created_at, updated_at) VALUES (?, ?, 1, ?, ?)",
+        [faucetMiner.id, cooldownMs, now, now]
+      );
+    }
+  }
+
+  const autoRewardDefaultImage = "/assets/machines/reward2.png";
+  try {
+    await run(
+      `UPDATE auto_mining_rewards
+         SET image_url = ?, updated_at = ?
+       WHERE (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/assets/machines/auto_mining_gpu1.png')`,
+      [autoRewardDefaultImage, Date.now()]
+    );
+  } catch {
+    // Table may not exist yet on first run.
+  }
+
+  await run(
+    `UPDATE user_inventory
+       SET image_url = ?
+     WHERE miner_name = 'GPU 1 GHS'
+       AND (image_url IS NULL OR TRIM(image_url) = '' OR image_url = '/assets/machines/auto_mining_gpu1.png')`,
+    [autoRewardDefaultImage]
+  );
+
+  // Update existing Elite Miners to have slot_size = 2
+  try {
+    await run("UPDATE user_miners SET slot_size = 2 WHERE hash_rate >= 100 AND (slot_size IS NULL OR slot_size = 1)");
+  } catch (error) {
+    console.error("Failed to update Elite Miners slot_size:", error);
+  }
+
+  try {
+    await run(
+      "UPDATE user_miners SET miner_id = (SELECT id FROM miners WHERE base_hash_rate = user_miners.hash_rate ORDER BY id ASC LIMIT 1) WHERE miner_id IS NULL"
+    );
+  } catch (error) {
+    console.error("Failed to backfill user_miners miner_id:", error);
+  }
+
+  try {
+    await run("UPDATE miners SET slot_size = 2 WHERE base_hash_rate >= 100 AND (slot_size IS NULL OR slot_size = 1)");
+  } catch (error) {
+    console.error("Failed to update miners slot_size:", error);
+  }
+
+  try {
+    await run("UPDATE user_inventory SET slot_size = 2 WHERE hash_rate >= 100 AND (slot_size IS NULL OR slot_size = 1)");
+  } catch (error) {
+    console.error("Failed to update inventory slot_size:", error);
+  }
+
+  // Transactions table for withdrawals and deposits
+  await run(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      address TEXT,
+      tx_hash TEXT,
+      raw_tx TEXT,
+      tx_nonce INTEGER,
+      tx_gas_price TEXT,
+      tx_gas_limit INTEGER,
+      from_address TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      funds_reserved INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER,
+      completed_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  try {
+    await run("ALTER TABLE transactions ADD COLUMN raw_tx TEXT");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE transactions ADD COLUMN tx_nonce INTEGER");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE transactions ADD COLUMN tx_gas_price TEXT");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE transactions ADD COLUMN tx_gas_limit INTEGER");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE transactions ADD COLUMN funds_reserved INTEGER NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE transactions ADD COLUMN from_address TEXT");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  try {
+    await run("ALTER TABLE transactions ADD COLUMN updated_at INTEGER");
+  } catch {
+    // Column already exists in most cases.
+  }
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_transactions_tx_hash ON transactions(tx_hash)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)
+  `);
+
+  // Deposits table
+  await run(`
+    CREATE TABLE IF NOT EXISTS deposits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      tx_hash TEXT NOT NULL,
+      from_address TEXT NOT NULL,
+      to_address TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER,
+      confirmed_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_deposits_tx_hash ON deposits(tx_hash)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits(status)
+  `);
+
+  // Add total_withdrawn column to users_temp_power if it doesn't exist
+  try {
+    await run("ALTER TABLE users_temp_power ADD COLUMN total_withdrawn REAL NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists
+  }
+
+  // Auto Mining Rewards table - configuração das GPUs para auto mining
+  await run(`
+    CREATE TABLE IF NOT EXISTS auto_mining_rewards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      gpu_hash_rate REAL NOT NULL DEFAULT 1,
+      image_url TEXT,
+      description TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_rewards_slug ON auto_mining_rewards(slug)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_rewards_is_active ON auto_mining_rewards(is_active)
+  `);
+
+  // Auto Mining GPU table - armazena permissões de GPU liberadas
+  await run(`
+    CREATE TABLE IF NOT EXISTS auto_mining_gpu (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      reward_id INTEGER NOT NULL,
+      gpu_hash_rate REAL NOT NULL DEFAULT 1,
+      is_available INTEGER NOT NULL DEFAULT 1,
+      is_claimed INTEGER NOT NULL DEFAULT 0,
+      released_at INTEGER NOT NULL,
+      claimed_at INTEGER,
+      expires_at INTEGER,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (reward_id) REFERENCES auto_mining_rewards(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_user_id ON auto_mining_gpu(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_reward_id ON auto_mining_gpu(reward_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_is_available ON auto_mining_gpu(is_available)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_is_claimed ON auto_mining_gpu(is_claimed)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_released_at ON auto_mining_gpu(released_at)
+  `);
+
+  // Auto Mining GPU Logs - registra quando usuários ganham GPUs
+  await run(`
+    CREATE TABLE IF NOT EXISTS auto_mining_gpu_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      gpu_id INTEGER NOT NULL,
+      reward_id INTEGER,
+      gpu_hash_rate REAL NOT NULL,
+      action TEXT NOT NULL,
+      source TEXT NOT NULL,
+      claimed_at INTEGER NOT NULL,
+      expires_at INTEGER,
+      notes TEXT,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (gpu_id) REFERENCES auto_mining_gpu(id),
+      FOREIGN KEY (reward_id) REFERENCES auto_mining_rewards(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_user_id ON auto_mining_gpu_logs(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_gpu_id ON auto_mining_gpu_logs(gpu_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_reward_id ON auto_mining_gpu_logs(reward_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_claimed_at ON auto_mining_gpu_logs(claimed_at)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_auto_mining_gpu_logs_action ON auto_mining_gpu_logs(action)
+  `);
+
+  // Callback queue table - stores callbacks for async processing
+  await run(`
+    CREATE TABLE IF NOT EXISTS callback_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      callback_type TEXT NOT NULL,
+      user_id INTEGER,
+      username TEXT,
+      amount REAL,
+      exchange_rate REAL,
+      payout_amount REAL,
+      data JSON,
+      status TEXT NOT NULL DEFAULT 'pending',
+      error_message TEXT,
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      max_retries INTEGER NOT NULL DEFAULT 3,
+      request_ip TEXT,
+      callback_hash TEXT,
+      created_at INTEGER NOT NULL,
+      processed_at INTEGER,
+      next_retry_at INTEGER
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_callback_queue_status ON callback_queue(status)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_callback_queue_user_id ON callback_queue(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_callback_queue_created_at ON callback_queue(created_at)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_callback_queue_next_retry_at ON callback_queue(next_retry_at)
+  `);
+
+  // Mining rewards history - log every reward paid to users for visibility
+  await run(`
+    CREATE TABLE IF NOT EXISTS mining_rewards_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      block_number INTEGER NOT NULL,
+      work_accumulated REAL NOT NULL,
+      total_network_work REAL NOT NULL,
+      share_percentage REAL NOT NULL,
+      reward_amount REAL NOT NULL,
+      balance_after_reward REAL NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_mining_rewards_log_user_id ON mining_rewards_log(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_mining_rewards_log_block_number ON mining_rewards_log(block_number)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_mining_rewards_log_created_at ON mining_rewards_log(created_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS dashboard_updates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      starts_at INTEGER,
+      ends_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_dashboard_updates_active_dates
+    ON dashboard_updates(is_active, starts_at, created_at)
+  `);
+
+  const hasDashboardUpdates = await get("SELECT id FROM dashboard_updates LIMIT 1");
+  if (!hasDashboardUpdates) {
+    const now = Date.now();
+    await run(
+      `INSERT INTO dashboard_updates (version, title, description, is_active, starts_at, ends_at, created_at, updated_at)
+       VALUES (?, ?, ?, 1, ?, NULL, ?, ?)` ,
+      [
+        "2026.03.04",
+        "Latest Updates",
+        "Welcome to the new BlockMiner dashboard updates popup.\n- Security and stability improvements\n- RPC and logging refactors\n- Financial safeguards and test coverage",
+        now,
+        now,
+        now
+      ]
+    );
+  }
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS shortlink_completions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      shortlink_type TEXT NOT NULL DEFAULT 'internal',
+      current_step INTEGER NOT NULL DEFAULT 0,
+      daily_runs INTEGER NOT NULL DEFAULT 0,
+      completed_at INTEGER,
+      reset_at INTEGER,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_shortlink_completions_user_id ON shortlink_completions(user_id)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_shortlink_completions_completed_at ON shortlink_completions(completed_at)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS shortlink_rewards (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shortlink_type TEXT NOT NULL,
+      miner_id INTEGER NOT NULL,
+      reward_name TEXT NOT NULL,
+      hash_rate REAL NOT NULL DEFAULT 0,
+      slot_size INTEGER NOT NULL DEFAULT 1,
+      image_url TEXT,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (miner_id) REFERENCES miners(id)
+    )
+  `);
+
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_shortlink_rewards_type ON shortlink_rewards(shortlink_type)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_shortlink_rewards_miner_id ON shortlink_rewards(miner_id)
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at)
+  `);
+
+  await run(`
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id)
+  `);
+
+  await run(
+    `
+      UPDATE miners
+      SET show_in_shop = 0
+      WHERE id IN (
+        SELECT miner_id FROM faucet_rewards
+        UNION
+        SELECT miner_id FROM shortlink_rewards
+      )
+    `
+  );
+
+  try {
+    await run("ALTER TABLE shortlink_completions ADD COLUMN daily_runs INTEGER NOT NULL DEFAULT 0");
+  } catch {
+    // Column already exists.
+  }
+
+  try {
+    await run("ALTER TABLE shortlink_completions ADD COLUMN reset_at INTEGER");
+  } catch {
+    // Column already exists.
+  }
+}
+
+export function close() {
+  return new Promise((resolve, reject) => {
+    db.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+export default {
+  db,
+  run,
+  get,
+  all,
+  close,
+  initializeDatabase
+};

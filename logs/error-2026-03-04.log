@@ -1,0 +1,1 @@
+[2026-03-04T18:14:32.013Z] [ERROR] [App:Server] Bootstrap failed | {"error":"\nInvalid `prisma.miningRewardsLog.aggregate()` invocation:\n\n\n"}

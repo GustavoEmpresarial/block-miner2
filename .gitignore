@@ -33,3 +33,5 @@ Thumbs.db
 # Certs / backups (should not be committed)
 nginx/certs/
 backups/
+
+/src/generated/prisma

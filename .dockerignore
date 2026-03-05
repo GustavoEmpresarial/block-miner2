@@ -1,42 +1,17 @@
-# Dependencies (always exclude from build context)
 node_modules
-npm-debug.log*
-
-# Environment files (sensitive - use docker-compose env_file instead)
-.env
-.env.local
-.env.production
-
-# Git and IDE
-.git
-.gitignore
-.githooks
-.github
-.vscode
-.idea
-
-# Development configs
-.eslintrc.json
-.prettierrc.json
-eslint.config.js
-prettier.config.js
-
-# Data volumes (mounted via docker-compose, not baked into image)
-data
+client/node_modules
+client/dist
+data/*.db
+data/*.sqlite
 backups
 logs
-storage
-
-# Diagnostic and dev-only scripts (not needed in production image)
-scripts/check-db-tables.js
-scripts/inspect-faucet.js
-scripts/inspect-faucet-inventory.js
-scripts/seed-rewards-data.js
-scripts/rpc-bench.js
-
-# Tests (not needed in production runtime)
-tests
-
-# Local backups
-*.backup
-*.bak
+.env
+.git
+.github
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.idea
+.vscode
+.DS_Store

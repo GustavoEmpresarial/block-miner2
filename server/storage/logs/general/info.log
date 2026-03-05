@@ -1,0 +1,376 @@
+[2026-03-02T20:00:13.779Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":59,"totalMinted":5.800000000000001,"restoredHistory":12}
+[2026-03-02T20:00:13.782Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-02T20:00:13.787Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-02T20:00:13.788Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-02T20:00:13.789Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-02T20:00:13.789Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-02T20:00:13.789Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-02T20:00:13.790Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1200 minutes"}
+[2026-03-02T20:00:13.790Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-02T20:00:13.802Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-02T20:00:13.806Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.23.0.1:3000 | {"address":"172.23.0.1"}
+[2026-03-02T20:00:13.806Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.3.88:3000 | {"address":"192.168.3.88"}
+[2026-03-02T20:00:13.808Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":19,"deletedRows":0}
+[2026-03-02T20:00:13.811Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T17:42:33.796Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":59,"totalMinted":5.800000000000001,"restoredHistory":12}
+[2026-03-03T17:42:33.799Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-03T17:42:33.804Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-03T17:42:33.805Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-03T17:42:33.806Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-03T17:42:33.806Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-03T17:42:33.806Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-03T17:42:33.807Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1337 minutes"}
+[2026-03-03T17:42:33.807Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-03T17:42:33.820Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-03T17:42:33.824Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.22.224.1:3000 | {"address":"172.22.224.1"}
+[2026-03-03T17:42:33.824Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.3.88:3000 | {"address":"192.168.3.88"}
+[2026-03-03T17:42:33.827Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":22,"deletedRows":0}
+[2026-03-03T17:42:33.829Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T17:42:43.814Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10009,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772560353765,"blockNumber":59}}
+[2026-03-03T17:44:26.167Z] [INFO] [BlockMiner] Server shutdown complete | {"signal":"SIGINT"}
+[2026-03-03T17:44:33.730Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":59,"totalMinted":5.800000000000001,"restoredHistory":12}
+[2026-03-03T17:44:33.732Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-03T17:44:33.737Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-03T17:44:33.738Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-03T17:44:33.739Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-03T17:44:33.739Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-03T17:44:33.739Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-03T17:44:33.740Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1335 minutes"}
+[2026-03-03T17:44:33.740Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-03T17:44:33.753Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-03T17:44:33.758Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.22.224.1:3000 | {"address":"172.22.224.1"}
+[2026-03-03T17:44:33.758Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.3.88:3000 | {"address":"192.168.3.88"}
+[2026-03-03T17:44:33.760Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":20,"deletedRows":0}
+[2026-03-03T17:44:33.760Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":0,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T17:44:43.750Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10010,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772560473706,"blockNumber":59}}
+[2026-03-03T17:54:33.752Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-03T17:54:33.755Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T17:54:34.000Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":59,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7152}]}
+[2026-03-03T17:54:34.002Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":59,"blockReward":0.1,"totalWork":"7152.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7152.00","share":"100.00","reward":"0.10000000","newBalance":"5.90000000"}]}
+[2026-03-03T18:04:33.763Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":2,"deletedRows":0}
+[2026-03-03T18:04:33.765Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T18:04:34.770Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":60,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-03T18:04:34.771Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":60,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.00000000"}]}
+[2026-03-03T18:14:33.765Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-03T18:14:33.766Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T18:14:35.481Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":61,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-03T18:14:35.483Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":61,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.10000000"}]}
+[2026-03-03T18:24:33.767Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":0,"deletedRows":0}
+[2026-03-03T18:24:33.769Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T18:24:36.203Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":62,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-03T18:24:36.204Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":62,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.20000000"}]}
+[2026-03-03T18:34:33.770Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":0,"deletedRows":0}
+[2026-03-03T18:34:33.771Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T18:34:36.564Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":63,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-03T18:34:36.565Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":63,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.30000000"}]}
+[2026-03-03T18:44:33.783Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-03T18:44:33.784Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T18:44:37.059Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":64,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-03T18:44:37.060Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":64,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.40000000"}]}
+[2026-03-03T18:54:33.798Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-03T18:54:33.799Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T18:54:37.662Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":65,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-03T18:54:37.662Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":65,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.50000000"}]}
+[2026-03-03T19:04:33.808Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-03T19:04:33.809Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-03T19:04:38.246Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":66,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-03T19:04:38.247Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":66,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"8e6f12b9-b5d1-4a43-bb89-704491ceebb4","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.60000000"}]}
+[2026-03-04T13:24:11.157Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":1,"blockReward":0.1,"totalWork":"400.00","minerCount":2,"totalDistributed":"0.10000000","miners":[{"minerId":"99975812-fce5-4b94-8d43-c8c708d66c9c","username":"alpha","work":"100.00","share":"25.00","reward":"0.02500000","newBalance":"0.02500000"},{"minerId":"a6ac750c-b651-4a06-a791-79de0598945b","username":"beta","work":"300.00","share":"75.00","reward":"0.07500000","newBalance":"0.07500000"}]}
+[2026-03-04T13:24:51.380Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":1,"blockReward":0.1,"totalWork":"400.00","minerCount":2,"totalDistributed":"0.10000000","miners":[{"minerId":"a0199e25-eeef-4c8d-b3ea-54d5dfb9b96a","username":"alpha","work":"100.00","share":"25.00","reward":"0.02500000","newBalance":"0.02500000"},{"minerId":"e26930d7-c8f8-4468-852b-99c5bd070f9b","username":"beta","work":"300.00","share":"75.00","reward":"0.07500000","newBalance":"0.07500000"}]}
+[2026-03-04T13:24:51.492Z] [INFO] [BlockMiner:DepositsCron] Cron action started | {"cron":"DepositsCron","action":"check_pending_deposits_batch","trigger":"scheduler"}
+[2026-03-04T13:27:52.227Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":67,"totalMinted":6.6000000000000005,"restoredHistory":12}
+[2026-03-04T13:27:52.230Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T13:27:52.235Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T13:27:52.236Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T13:27:52.237Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T13:27:52.237Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T13:27:52.238Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T13:27:52.239Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"152 minutes"}
+[2026-03-04T13:27:52.239Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T13:27:52.252Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T13:27:52.256Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.27.64.1:3000 | {"address":"172.27.64.1"}
+[2026-03-04T13:27:52.256Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.3.88:3000 | {"address":"192.168.3.88"}
+[2026-03-04T13:27:52.259Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":22,"deletedRows":0}
+[2026-03-04T13:27:52.260Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T13:28:02.252Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10014,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772631472192,"blockNumber":67}}
+[2026-03-04T13:37:52.246Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-04T13:37:52.248Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":2,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T13:37:52.945Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":67,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7152}]}
+[2026-03-04T13:37:52.947Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":67,"blockReward":0.1,"totalWork":"7152.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"4f446b44-16ea-44b0-8124-384fd1c56065","username":"ElonMuskBR","work":"7152.00","share":"100.00","reward":"0.10000000","newBalance":"6.70000000"}]}
+[2026-03-04T13:47:52.254Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-04T13:47:52.255Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T13:47:53.564Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":68,"activeMiners":1,"totalHashRate":"12.00","minerCount":1,"minerDetails":[{"userId":1,"username":"ElonMuskBR","baseHashRate":12,"active":true,"connected":true,"hashRate":12,"accumulatedWork":7140}]}
+[2026-03-04T13:47:53.565Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":68,"blockReward":0.1,"totalWork":"7140.00","minerCount":1,"totalDistributed":"0.10000000","miners":[{"minerId":"4f446b44-16ea-44b0-8124-384fd1c56065","username":"ElonMuskBR","work":"7140.00","share":"100.00","reward":"0.10000000","newBalance":"6.80000000"}]}
+[2026-03-04T13:51:47.331Z] [INFO] [BlockMiner] Server shutdown complete | {"signal":"SIGINT"}
+[2026-03-04T13:51:53.856Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T13:51:53.859Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T13:51:53.865Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T13:51:53.866Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T13:51:53.866Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T13:51:53.866Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T13:51:53.867Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T13:51:53.867Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"128 minutes"}
+[2026-03-04T13:51:53.867Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T13:51:53.878Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T13:51:53.881Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.27.64.1:3000 | {"address":"172.27.64.1"}
+[2026-03-04T13:51:53.881Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.3.88:3000 | {"address":"192.168.3.88"}
+[2026-03-04T13:51:53.884Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":18,"deletedRows":0}
+[2026-03-04T13:51:53.885Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T13:52:03.870Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10004,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772632913823,"blockNumber":69}}
+[2026-03-04T14:39:28.464Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":1,"blockReward":0.1,"totalWork":"400.00","minerCount":2,"totalDistributed":"0.10000000"}
+[2026-03-04T14:39:28.636Z] [INFO] [BlockMiner:DepositsCron] Cron action started | {"cron":"DepositsCron","action":"check_pending_deposits_batch","trigger":"scheduler"}
+[2026-03-04T14:41:41.925Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":1,"blockReward":0.1,"totalWork":"400.00","minerCount":2,"totalDistributed":"0.10000000"}
+[2026-03-04T14:41:42.083Z] [INFO] [BlockMiner:DepositsCron] Cron action started | {"cron":"DepositsCron","action":"check_pending_deposits_batch","trigger":"scheduler"}
+[2026-03-04T14:47:26.282Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:47:26.285Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:47:26.294Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:47:26.295Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T14:47:26.296Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T14:47:26.296Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T14:47:26.296Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T14:47:26.297Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"13 minutes"}
+[2026-03-04T14:47:26.297Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T14:47:26.313Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T14:47:26.317Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T14:47:26.317Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T14:47:26.318Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T14:47:26.320Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":25,"deletedRows":0}
+[2026-03-04T14:47:26.322Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":2,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T14:47:36.305Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10010,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772636246215,"blockNumber":69}}
+[2026-03-04T14:50:45.556Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:50:45.558Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:50:45.564Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:50:45.565Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T14:50:45.566Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T14:50:45.566Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T14:50:45.567Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T14:50:45.568Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"9 minutes"}
+[2026-03-04T14:50:45.568Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T14:50:45.582Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T14:50:45.587Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T14:50:45.588Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T14:50:45.588Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T14:50:45.589Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":23,"deletedRows":0}
+[2026-03-04T14:50:45.590Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":0,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T14:50:45.794Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:50:45.797Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:50:45.808Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:50:53.198Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:50:53.200Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:50:53.209Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:50:53.210Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T14:50:53.211Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T14:50:53.211Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T14:50:53.212Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T14:50:53.213Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"9 minutes"}
+[2026-03-04T14:50:53.213Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T14:50:53.227Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T14:50:53.232Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T14:50:53.232Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T14:50:53.233Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T14:50:53.234Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":24,"deletedRows":0}
+[2026-03-04T14:50:53.235Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T14:50:53.375Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:50:53.376Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:50:53.384Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:51:02.342Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":1,"blockReward":0.1,"totalWork":"400.00","minerCount":2,"totalDistributed":"0.10000000"}
+[2026-03-04T14:51:02.472Z] [INFO] [BlockMiner:DepositsCron] Cron action started | {"cron":"DepositsCron","action":"check_pending_deposits_batch","trigger":"scheduler"}
+[2026-03-04T14:51:03.225Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10015,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772636453162,"blockNumber":69}}
+[2026-03-04T14:57:46.220Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:57:46.224Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:57:46.233Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:57:46.235Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T14:57:46.236Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T14:57:46.236Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T14:57:46.237Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T14:57:46.237Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"2 minutes"}
+[2026-03-04T14:57:46.237Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T14:57:46.255Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T14:57:46.261Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T14:57:46.261Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T14:57:46.261Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T14:57:46.263Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":28,"deletedRows":0}
+[2026-03-04T14:57:46.265Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T14:57:46.461Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:57:46.463Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:57:46.473Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:57:56.249Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10015,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772636866177,"blockNumber":69}}
+[2026-03-04T14:58:18.315Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:58:18.318Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:58:18.326Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:58:18.327Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T14:58:18.328Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T14:58:18.329Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T14:58:18.329Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T14:58:18.330Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"2 minutes"}
+[2026-03-04T14:58:18.330Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T14:58:18.350Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T14:58:18.357Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T14:58:18.358Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T14:58:18.358Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T14:58:18.360Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":31,"deletedRows":0}
+[2026-03-04T14:58:18.361Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":0,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T14:58:18.627Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:58:18.631Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:58:18.647Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:58:28.329Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10003,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772636898261,"blockNumber":69}}
+[2026-03-04T14:58:30.931Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:58:30.933Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:58:30.944Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:58:30.946Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T14:58:30.946Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T14:58:30.947Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T14:58:30.947Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T14:58:30.948Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1 minutes"}
+[2026-03-04T14:58:30.948Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T14:58:30.965Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T14:58:30.970Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T14:58:30.970Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T14:58:30.970Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T14:58:30.973Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":26,"deletedRows":0}
+[2026-03-04T14:58:30.974Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T14:58:31.152Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T14:58:31.154Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T14:58:31.162Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T14:58:40.960Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10015,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772636910882,"blockNumber":69}}
+[2026-03-04T15:00:00.003Z] [INFO] [BlockMiner:ShortlinkResetCron] Cron action completed | {"cron":"ShortlinkResetCron","action":"reset_shortlinks","durationMs":2,"updatedRows":0}
+[2026-03-04T15:08:30.950Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":1,"deletedRows":0}
+[2026-03-04T15:08:30.968Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":16,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:08:31.670Z] [INFO] [BlockMiner:MiningEngine] Block time reached, distributing rewards | {"blockNumber":69,"activeMiners":1,"totalHashRate":"12.00","minerCount":1}
+[2026-03-04T15:08:31.680Z] [INFO] [BlockMiner:MiningEngine] Block rewards distributed | {"blockNumber":69,"blockReward":0.1,"totalWork":"7152.00","minerCount":1,"totalDistributed":"0.10000000"}
+[2026-03-04T15:09:50.755Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:09:50.757Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T15:09:50.773Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:09:50.774Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T15:09:50.774Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T15:09:50.775Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T15:09:50.776Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T15:09:50.776Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1430 minutes"}
+[2026-03-04T15:09:50.777Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T15:09:50.793Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T15:09:50.799Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T15:09:50.799Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T15:09:50.799Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T15:09:50.799Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.20.224.1:3000 | {"address":"172.20.224.1"}
+[2026-03-04T15:09:50.801Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":27,"deletedRows":0}
+[2026-03-04T15:09:50.803Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":2,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:09:50.993Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:09:50.995Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T15:09:51.016Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:10:00.783Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10009,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772637590719,"blockNumber":69}}
+[2026-03-04T15:10:04.143Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:10:04.144Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T15:10:04.150Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:10:04.151Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T15:10:04.151Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T15:10:04.152Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T15:10:04.152Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T15:10:04.152Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1430 minutes"}
+[2026-03-04T15:10:04.153Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T15:10:04.173Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T15:10:04.186Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T15:10:04.187Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T15:10:04.187Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T15:10:04.187Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.20.224.1:3000 | {"address":"172.20.224.1"}
+[2026-03-04T15:10:04.191Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":39,"deletedRows":0}
+[2026-03-04T15:10:04.194Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":2,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:10:04.491Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:10:04.494Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T15:10:04.507Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:10:12.189Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:10:12.193Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T15:10:12.216Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:10:12.218Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T15:10:12.218Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T15:10:12.219Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T15:10:12.219Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T15:10:12.219Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1430 minutes"}
+[2026-03-04T15:10:12.220Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T15:10:12.231Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T15:10:12.236Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T15:10:12.236Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T15:10:12.237Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T15:10:12.237Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.20.224.1:3000 | {"address":"172.20.224.1"}
+[2026-03-04T15:10:12.238Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":20,"deletedRows":0}
+[2026-03-04T15:10:12.239Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:10:12.385Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:10:12.387Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":1}
+[2026-03-04T15:10:12.406Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:10:22.218Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10002,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772637612136,"blockNumber":69}}
+[2026-03-04T15:11:04.843Z] [INFO] [BlockMiner] Server shutdown complete | {"signal":"SIGINT"}
+[2026-03-04T15:54:54.112Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:54:54.116Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":2}
+[2026-03-04T15:54:54.129Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:54:54.131Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T15:54:54.131Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T15:54:54.132Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T15:54:54.132Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T15:54:54.133Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1385 minutes"}
+[2026-03-04T15:54:54.133Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T15:54:54.162Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T15:54:54.171Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T15:54:54.171Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T15:54:54.171Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T15:54:54.171Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.20.224.1:3000 | {"address":"172.20.224.1"}
+[2026-03-04T15:54:54.173Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":42,"deletedRows":0}
+[2026-03-04T15:54:54.174Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:55:04.131Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10001,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772640294040,"blockNumber":69}}
+[2026-03-04T15:55:36.256Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:55:36.258Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":2}
+[2026-03-04T15:55:36.286Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:56:26.098Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:56:26.101Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":2}
+[2026-03-04T15:56:26.136Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:58:35.833Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:58:35.835Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":2}
+[2026-03-04T15:58:35.859Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:58:35.862Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T15:58:35.862Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T15:58:35.863Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T15:58:35.863Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T15:58:35.864Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1381 minutes"}
+[2026-03-04T15:58:35.864Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T15:58:35.880Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T15:58:35.886Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T15:58:35.886Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T15:58:35.887Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T15:58:35.887Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.20.224.1:3000 | {"address":"172.20.224.1"}
+[2026-03-04T15:58:35.889Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":27,"deletedRows":0}
+[2026-03-04T15:58:35.890Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:58:45.666Z] [INFO] [BlockMiner] Server shutdown complete | {"signal":"SIGINT"}
+[2026-03-04T15:58:59.640Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:58:59.642Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":2}
+[2026-03-04T15:58:59.660Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:58:59.661Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T15:58:59.661Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T15:58:59.662Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T15:58:59.662Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T15:58:59.662Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1381 minutes"}
+[2026-03-04T15:58:59.662Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T15:58:59.677Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T15:58:59.681Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T15:58:59.681Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T15:58:59.681Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T15:58:59.682Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.20.224.1:3000 | {"address":"172.20.224.1"}
+[2026-03-04T15:58:59.683Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":22,"deletedRows":0}
+[2026-03-04T15:58:59.684Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":1,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:59:09.673Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10013,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772640539599,"blockNumber":69}}
+[2026-03-04T15:59:12.492Z] [INFO] [BlockMiner] Server shutdown complete | {"signal":"SIGINT"}
+[2026-03-04T15:59:26.467Z] [INFO] [BlockMiner] Mining engine state restored | {"blockNumber":69,"totalMinted":6.800000000000001,"restoredHistory":12}
+[2026-03-04T15:59:26.470Z] [INFO] [BlockMiner] Syncing baseHashRate for all users on startup | {"userCount":2}
+[2026-03-04T15:59:26.493Z] [INFO] [BlockMiner] BaseHashRate sync completed
+[2026-03-04T15:59:26.494Z] [INFO] [BlockMiner:MiningCron] Mining cron started | {"tickMs":1000,"persistMs":15000,"startupProbeMs":10000}
+[2026-03-04T15:59:26.494Z] [INFO] [BlockMiner:GamePowerCleanup] Game cleanup cron started | {"cleanupMs":600000}
+[2026-03-04T15:59:26.495Z] [INFO] [BlockMiner:BackupCron] Backup cron disabled via BACKUP_ENABLED
+[2026-03-04T15:59:26.495Z] [INFO] [BlockMiner:CallbackQueueCron] Callback queue processing started | {"processInterval":1000,"batchSize":10}
+[2026-03-04T15:59:26.496Z] [INFO] [BlockMiner:ShortlinkResetCron] Shortlink reset cron scheduled | {"nextResetIn":"1381 minutes"}
+[2026-03-04T15:59:26.496Z] [INFO] [BlockMiner:BackupCron] Full site backup on startup disabled
+[2026-03-04T15:59:26.512Z] [INFO] [BlockMiner] BlockMiner server started on port 3000 | {"env":"development"}
+[2026-03-04T15:59:26.519Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://26.88.122.186:3000 | {"address":"26.88.122.186"}
+[2026-03-04T15:59:26.519Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.56.1:3000 | {"address":"192.168.56.1"}
+[2026-03-04T15:59:26.519Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://192.168.18.79:3000 | {"address":"192.168.18.79"}
+[2026-03-04T15:59:26.519Z] [INFO] [BlockMiner] BlockMiner LAN accessible at http://172.20.224.1:3000 | {"address":"172.20.224.1"}
+[2026-03-04T15:59:26.523Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_expired_game_powers","durationMs":29,"deletedRows":0}
+[2026-03-04T15:59:26.525Z] [INFO] [BlockMiner:GamePowerCleanup] Cron action completed | {"cron":"GamePowerCleanup","action":"cleanup_youtube_powers_older_24h","durationMs":0,"deletedExpiredRows":0,"deletedOlderThan24hRows":0}
+[2026-03-04T15:59:36.507Z] [INFO] [BlockMiner:MiningCron] Mining startup check (10s) | {"uptimeMs":10014,"tick":{"ok":true,"success":10,"failed":0,"lastReason":null},"persist":{"ok":true,"checked":false,"success":0,"failed":0,"lastReason":null},"payout":{"status":"ok","lastReward":0.1,"nextBlockAt":1772640566428,"blockNumber":69}}
+[2026-03-04T15:59:37.965Z] [INFO] [BlockMiner] Server shutdown complete | {"signal":"SIGINT"}

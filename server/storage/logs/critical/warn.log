@@ -1,0 +1,31 @@
+[2026-03-04T13:24:51.495Z] [WARN] [BlockMiner:DepositsCron] Cron action not executed | {"cron":"DepositsCron","action":"check_pending_deposits_batch","stage":"validate","reason":"no_pending_deposits","count":0,"trigger":"scheduler"}
+[2026-03-04T14:39:28.637Z] [WARN] [BlockMiner:DepositsCron] Cron action not executed | {"cron":"DepositsCron","action":"check_pending_deposits_batch","stage":"validate","reason":"no_pending_deposits","count":0,"trigger":"scheduler"}
+[2026-03-04T14:41:42.084Z] [WARN] [BlockMiner:DepositsCron] Cron action not executed | {"cron":"DepositsCron","action":"check_pending_deposits_batch","stage":"validate","reason":"no_pending_deposits","count":0,"trigger":"scheduler"}
+[2026-03-04T14:47:26.218Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:50:45.520Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:50:45.741Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:50:53.166Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:50:53.345Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:51:02.473Z] [WARN] [BlockMiner:DepositsCron] Cron action not executed | {"cron":"DepositsCron","action":"check_pending_deposits_batch","stage":"validate","reason":"no_pending_deposits","count":0,"trigger":"scheduler"}
+[2026-03-04T14:57:46.182Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:57:46.418Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:58:18.267Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:58:18.571Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:58:30.886Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T14:58:31.118Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:09:50.723Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:09:50.961Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:10:04.115Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:10:04.413Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:10:12.142Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:10:12.354Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:11:04.842Z] [WARN] [BlockMiner] Shutdown signal received | {"signal":"SIGINT"}
+[2026-03-04T15:54:54.056Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:55:36.213Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:56:26.048Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:58:35.796Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:58:45.662Z] [WARN] [BlockMiner] Shutdown signal received | {"signal":"SIGINT"}
+[2026-03-04T15:58:59.602Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:59:12.491Z] [WARN] [BlockMiner] Shutdown signal received | {"signal":"SIGINT"}
+[2026-03-04T15:59:26.432Z] [WARN] [BlockMiner:AdminAuthController] Admin authentication disabled: ADMIN_EMAIL or ADMIN_SECURITY_CODE not configured
+[2026-03-04T15:59:37.962Z] [WARN] [BlockMiner] Shutdown signal received | {"signal":"SIGINT"}

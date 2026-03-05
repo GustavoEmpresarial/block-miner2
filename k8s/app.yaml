@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blockminer-config
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  DATABASE_URL: "postgresql://blockminer:blockminer_password@blockminer-db-service:5432/blockminer_db?schema=public"
+  POLYGON_RPC_URL: "https://polygon-bor-rpc.publicnode.com"
+  POLYGON_CHAIN_ID: "137"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: blockminer-secrets
+type: Opaque
+data:
+  # Base64 encoded: dev-secret-keep-it-safe-for-local-development-32-chars
+  JWT_SECRET: ZGV2LXNlY3JldC1rZWVwLWl0LXNhZmUtZm9yLWxvY2FsLWRldmVsb3BtZW50LTMyLWNoYXJz
+  # Base64 encoded: 0x00...
+  WITHDRAWAL_PRIVATE_KEY: MHgwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blockminer-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blockminer-app
+  template:
+    metadata:
+      labels:
+        app: blockminer-app
+    spec:
+      containers:
+        - name: blockminer-app
+          image: blockminer:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: blockminer-config
+            - secretRef:
+                name: blockminer-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/auth/session
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/auth/session
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blockminer-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: blockminer-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000

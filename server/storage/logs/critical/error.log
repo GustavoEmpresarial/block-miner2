@@ -1,0 +1,1 @@
+[2026-03-04T15:08:31.686Z] [ERROR] [BlockMiner:MiningEngine] CRITICAL: Block reward persistence failed — rolling back in-memory balances | {"blockNumber":69,"error":"SQLITE_ERROR: table mining_rewards_log has no column named balance_after"}
