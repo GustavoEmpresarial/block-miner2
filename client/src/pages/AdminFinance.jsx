@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { 
-    Wallet, CheckCircle2, XCircle, RefreshCw, ArrowUpCircle, ArrowDownCircle, Search 
+import {
+    Wallet, CheckCircle2, XCircle, RefreshCw, ArrowUpCircle, ArrowDownCircle, Search
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -62,6 +62,21 @@ export default function AdminFinance() {
         }
     };
 
+    const handleComplete = async (id) => {
+        const txHash = prompt("Insira o Hash da Transação (opcional):");
+        if (txHash === null) return; // Cancelled
+
+        try {
+            const res = await api.post(`/admin/withdrawals/${id}/complete`, { txHash });
+            if (res.data.ok) {
+                toast.success('Saque marcado como concluído!');
+                fetchData();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao concluir saque.');
+        }
+    };
+
     if (isLoading && !overview) return <div className="p-8 text-slate-400 font-bold uppercase tracking-widest animate-pulse text-center py-40">Carregando financeiro...</div>;
 
     return (
@@ -73,7 +88,7 @@ export default function AdminFinance() {
                     </h2>
                     <p className="text-slate-500 text-sm font-medium mt-1">Aprovação de saques e visão geral do sistema.</p>
                 </div>
-                <button 
+                <button
                     onClick={fetchData}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-700/50 w-fit"
                 >
@@ -89,7 +104,7 @@ export default function AdminFinance() {
                             <Wallet className="w-6 h-6" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Saques Pendentes</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Saques Pendentes/Aprovados</p>
                             <h3 className="text-xl font-black text-white">{withdrawals.length}</h3>
                         </div>
                     </div>
@@ -116,13 +131,13 @@ export default function AdminFinance() {
 
             {/* Tabs */}
             <div className="flex gap-4 border-b border-slate-800 pb-px">
-                <button 
+                <button
                     onClick={() => setTab('withdrawals')}
                     className={`px-6 py-3 font-black text-xs uppercase tracking-widest transition-all ${tab === 'withdrawals' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                    Saques Pendentes
+                    Saques à Processar
                 </button>
-                <button 
+                <button
                     onClick={() => setTab('activity')}
                     className={`px-6 py-3 font-black text-xs uppercase tracking-widest transition-all ${tab === 'activity' ? 'text-emerald-500 border-b-2 border-emerald-500' : 'text-slate-500 hover:text-slate-300'}`}
                 >
@@ -139,47 +154,71 @@ export default function AdminFinance() {
                                 <tr>
                                     <th className="px-8 py-4">Data</th>
                                     <th className="px-8 py-4">Usuário</th>
-                                    <th className="px-8 py-4">Endereço</th>
+                                    <th className="px-8 py-4">Endereço (POLYGON)</th>
                                     <th className="px-8 py-4">Valor</th>
+                                    <th className="px-8 py-4">Status</th>
                                     <th className="px-8 py-4 text-right">Ação</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800 font-medium">
                                 {withdrawals.map((w) => (
                                     <tr key={w.id} className="hover:bg-slate-800/30 transition-colors group">
-                                        <td className="px-8 py-5 text-xs">
+                                        <td className="px-8 py-5 text-xs whitespace-nowrap">
                                             {new Date(w.created_at || w.createdAt).toLocaleString()}
                                         </td>
                                         <td className="px-8 py-5">
-                                            <span className="text-white font-bold text-xs">User #{w.user_id || w.userId}</span>
+                                            <span className="text-white font-bold text-xs">{w.user?.username || `User #${w.userId}`}</span>
                                         </td>
                                         <td className="px-8 py-5">
-                                            <span className="text-[10px] font-mono text-slate-500 truncate block w-48">{w.address}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] font-mono text-slate-300 bg-slate-950 px-2 py-1 rounded border border-slate-800">{w.address}</span>
+                                                <button onClick={() => { navigator.clipboard.writeText(w.address); toast.success('Endereço copiado!'); }} className="p-1 hover:text-white transition-colors">
+                                                    <RefreshCw className="w-3 h-3" />
+                                                </button>
+                                            </div>
                                         </td>
                                         <td className="px-8 py-5">
                                             <span className="text-amber-500 font-black">{Number(w.amount).toFixed(4)} POL</span>
                                         </td>
+                                        <td className="px-8 py-5">
+                                            {w.status === 'pending' ? (
+                                                <span className="text-[9px] font-black uppercase px-2 py-1 bg-amber-500/10 text-amber-500 rounded">Pendente</span>
+                                            ) : (
+                                                <span className="text-[9px] font-black uppercase px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded">Aprovado</span>
+                                            )}
+                                        </td>
                                         <td className="px-8 py-5 text-right">
                                             <div className="flex gap-2 justify-end">
-                                                <button 
-                                                    onClick={() => handleApprove(w.id)}
-                                                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
-                                                >
-                                                    <CheckCircle2 className="w-3 h-3" /> Aprovar
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleReject(w.id)}
-                                                    className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
-                                                >
-                                                    <XCircle className="w-3 h-3" /> Rejeitar
-                                                </button>
+                                                {w.status === 'pending' ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleApprove(w.id)}
+                                                            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
+                                                        >
+                                                            <CheckCircle2 className="w-3 h-3" /> Aprovar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleReject(w.id)}
+                                                            className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
+                                                        >
+                                                            <XCircle className="w-3 h-3" /> Rejeitar
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleComplete(w.id)}
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-sky-500 border border-sky-400/20 hover:bg-sky-400 text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-500/20"
+                                                    >
+                                                        <CheckCircle2 className="w-3 h-3" /> Marcar Enviado
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
                                 {withdrawals.length === 0 && (
                                     <tr>
-                                        <td colSpan="5" className="px-8 py-12 text-center text-slate-500 italic font-medium">
+                                        <td colSpan="6" className="px-8 py-12 text-center text-slate-500 italic font-medium">
                                             Não há saques pendentes no momento. Tudo limpo!
                                         </td>
                                     </tr>
@@ -211,9 +250,9 @@ export default function AdminFinance() {
                                         </td>
                                         <td className="px-8 py-4 text-xs uppercase font-bold tracking-widest">
                                             {t.type === 'deposit' ? (
-                                                <span className="text-emerald-500 flex items-center gap-1"><ArrowDownCircle className="w-3 h-3"/> Depósito</span>
+                                                <span className="text-emerald-500 flex items-center gap-1"><ArrowDownCircle className="w-3 h-3" /> Depósito</span>
                                             ) : (
-                                                <span className="text-amber-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3"/> Saque</span>
+                                                <span className="text-amber-500 flex items-center gap-1"><ArrowUpCircle className="w-3 h-3" /> Saque</span>
                                             )}
                                         </td>
                                         <td className="px-8 py-4 text-xs text-white">

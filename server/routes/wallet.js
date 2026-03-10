@@ -9,7 +9,7 @@ const walletLimiter = createRateLimiter({ windowMs: 60_000, max: 10 });
 walletRouter.get("/balance", requireAuth, walletLimiter, walletController.getBalance);
 walletRouter.get("/transactions", requireAuth, walletLimiter, walletController.getTransactions);
 walletRouter.post("/deposit", requireAuth, walletLimiter, walletController.requestDeposit);
-walletRouter.post("/address", requireAuth, walletLimiter, walletController.updateAddress);
+walletRouter.post("/update-address", requireAuth, walletLimiter, walletController.updateAddress);
 walletRouter.post("/withdraw", requireAuth, walletLimiter, walletController.requestWithdrawal);
 
 export { walletRouter };

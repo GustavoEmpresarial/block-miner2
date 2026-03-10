@@ -12,18 +12,20 @@ export async function requireAuth(req, res, next) {
     const antiBotPayload = req.headers['x-anti-bot-payload'];
     const antiBotKey = req.headers['x-anti-bot-key'];
 
-    if (antiBotFlag === '1') {
-      logger.warn(`Iron Dome: Bot flag direct rejection for IP: ${req.ip}`);
+    const isAction = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method.toUpperCase());
+
+    if (antiBotFlag === '1' && isAction) {
+      logger.warn(`Iron Dome: Bot flag direct rejection for IP: ${req.ip} during ${req.method}`);
       return res.status(403).json({ ok: false, message: "Acesso negado. Automação detectada (Flag)." });
     }
 
     if (antiBotPayload && antiBotKey) {
       try {
         const decodedBase64 = Buffer.from(antiBotPayload, 'base64').toString('latin1');
-        const decrypted = decodedBase64.split('').map(c => 
+        const decrypted = decodedBase64.split('').map(c =>
           String.fromCharCode(c.charCodeAt(0) ^ antiBotKey.charCodeAt(0))
         ).join('');
-        
+
         const data = JSON.parse(decrypted);
         const isBot = data.b === true;
         const isAction = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method.toUpperCase());
@@ -37,8 +39,8 @@ export async function requireAuth(req, res, next) {
       } catch (err) {
         // If decryption fails, we only block if it's a critical POST action
         if (['POST', 'PUT', 'DELETE'].includes(req.method.toUpperCase())) {
-           logger.error("Iron Dome: Action decryption failed", { error: err.message });
-           return res.status(403).json({ ok: false, message: "Sessão de segurança inválida." });
+          logger.error("Iron Dome: Action decryption failed", { error: err.message });
+          return res.status(403).json({ ok: false, message: "Sessão de segurança inválida." });
         }
       }
     }
@@ -61,14 +63,14 @@ export async function requireAuth(req, res, next) {
     }
 
     const userId = Number(payload?.sub);
-    
+
     if (!userId) {
       res.status(401).json({ ok: false, message: "Session invalid." });
       return;
     }
 
     const user = await getUserById(userId);
-    
+
     if (!user) {
       res.status(401).json({ ok: false, message: "Session invalid." });
       return;

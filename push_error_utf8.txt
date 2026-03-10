@@ -1,0 +1,49 @@
+﻿git : remote: error: 
+Trace: 60c33e57c20351de
+ffc0138543396c2a1c62445
+bea5a78aea2485b5209c9d9
+66        
+No linha:1 caractere:1
++ git push github main 
+--force 2>&1 | 
+Out-File -FilePath 
+push_error_utf ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (remote: error   
+ : ...9c9d966          
+  :String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+remote: error: See 
+https://gh.io/lfs for 
+more information.      
+  
+remote: error: File 
+migration_log.txt is 
+166.73 MB; this 
+exceeds GitHub's file 
+size limit of 100.00 
+MB        
+remote: error: GH001: 
+Large files detected. 
+You may want to try 
+Git Large File Storage 
+- https://git-lfs.githu
+b.com.        
+To https://github.com/B
+lock-Miner/blockminer.s
+pace.git
+ ! [remote rejected]   
+main -> main 
+(pre-receive hook 
+declined)
+error: failed to push 
+some refs to 'https://g
+ithub.com/Block-Miner/b
+lockminer.space.git'

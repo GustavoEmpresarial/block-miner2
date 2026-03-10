@@ -10,7 +10,7 @@ class IronDome {
         this.secretKey = Math.random().toString(36).substring(7);
         this.startTime = Date.now();
         this.isBotDetected = false;
-        
+
         if (typeof window !== 'undefined') {
             this.init();
         }
@@ -20,22 +20,7 @@ class IronDome {
         // 1. Basic automation check
         if (navigator.webdriver) this.isBotDetected = true;
 
-        // 2. Simple Honeytrap (Passive)
-        // We check if something is lying about event trust
-        const trapType = 'heartbeat-' + this.secretKey;
-        const handler = (e) => {
-            if (e.isTrusted === true) {
-                this.isBotDetected = true;
-                this.flags.add("HONEYTRAP_TRIGGERED");
-            }
-            window.removeEventListener(trapType, handler);
-        };
-        window.addEventListener(trapType, handler);
-        setTimeout(() => {
-            try {
-                window.dispatchEvent(new CustomEvent(trapType));
-            } catch(e) {}
-        }, 500);
+        // 2. Honeytrap (Passive) removed - it was causing false positives
     }
 
     generatePayload() {
@@ -48,7 +33,7 @@ class IronDome {
         };
 
         const raw = JSON.stringify(data);
-        const encoded = btoa(raw.split('').map(c => 
+        const encoded = btoa(raw.split('').map(c =>
             String.fromCharCode(c.charCodeAt(0) ^ this.secretKey.charCodeAt(0))
         ).join(''));
 

@@ -47,6 +47,7 @@ export default function Wallet() {
         amount: '',
         txHash: ''
     });
+    const [showManualForm, setShowManualForm] = useState(false);
     const [polPrice, setPolPrice] = useState(0);
 
     const fetchPrice = async () => {
@@ -115,7 +116,9 @@ export default function Wallet() {
         try {
             if (!isConnected) {
                 await connect();
-                // If it fails to connect, stop
+                // We add a small delay or check isConnected again to allow state to sync if possible,
+                // but usually the user will need to click again. Let's at least explain it.
+                toast.info('Wallet connected. Please click "Express Deposit" again to authorize the transaction.');
                 return;
             }
 
@@ -145,9 +148,13 @@ export default function Wallet() {
 
             toast.info('Requesting transaction authorized...');
 
+            // We use a manual gasLimit to force MetaMask to open even if 
+            // the user has 0 funds. This allows the user to see the 
+            // "Insufficient Funds" warning INSIDE MetaMask.
             const tx = await signer.sendTransaction({
                 to: systemDepositAddress,
-                value: parseEther(amount.toString())
+                value: parseEther(amount.toString()),
+                gasLimit: 21000 // Standard transfer gas
             });
 
             toast.info('Transaction sent! Verifying on-chain...');
@@ -174,6 +181,45 @@ export default function Wallet() {
             } else {
                 toast.error(error.reason || error.message || 'Transaction failed');
             }
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    const handleManualDeposit = async () => {
+        setIsActionLoading(true);
+        try {
+            const amount = parseFloat(depositForm.amount);
+            const txHash = depositForm.txHash.trim();
+
+            if (isNaN(amount) || amount <= 0) {
+                toast.error(t('wallet.invalid_amount', 'Please enter a valid amount'));
+                return;
+            }
+
+            if (!txHash) {
+                toast.error('Please enter the transaction hash');
+                return;
+            }
+
+            toast.info('Verifying transaction on-chain...');
+
+            const res = await api.post('/wallet/deposit', {
+                amount: amount,
+                txHash: txHash
+            });
+
+            if (res.data.ok) {
+                toast.success('Deposit confirmed! Balance updated.');
+                setDepositForm({ amount: '', txHash: '' });
+                setShowManualForm(false);
+                fetchWalletData();
+            } else {
+                toast.error(res.data.message || 'Deposit verification failed');
+            }
+        } catch (error) {
+            console.error("Manual deposit error", error);
+            toast.error(error.response?.data?.message || error.message || 'Verification failed');
         } finally {
             setIsActionLoading(false);
         }
@@ -480,19 +526,46 @@ export default function Wallet() {
                                             type="button"
                                             onClick={handleAutoDeposit}
                                             disabled={isActionLoading || !systemDepositAddress}
-                                            className="flex-[2] py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
+                                            className={`flex-[2] py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50 ${showManualForm ? 'opacity-50' : ''}`}
                                         >
                                             <Smartphone className="w-5 h-5" />
                                             Express Deposit via Web3 Wallet
                                         </button>
                                         <button
                                             type="button"
-                                            className="flex-1 py-5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-3xl font-bold text-xs uppercase tracking-widest transition-all border border-slate-700/50 flex items-center justify-center gap-2"
-                                            onClick={() => toast.info('Submit TxHash for manual verification')}
+                                            className={`flex-1 py-5 rounded-3xl font-bold text-xs uppercase tracking-widest transition-all border flex items-center justify-center gap-2 ${showManualForm ? 'bg-primary text-white border-primary shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/50'}`}
+                                            onClick={() => setShowManualForm(!showManualForm)}
                                         >
-                                            Manual Transfer
+                                            {showManualForm ? <XCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                                            {showManualForm ? 'Cancel Manual' : 'Manual Transfer'}
                                         </button>
                                     </div>
+
+                                    {showManualForm && (
+                                        <div className="p-6 bg-slate-900/80 border border-primary/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-500">
+                                            <div className="space-y-3">
+                                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2 italic">Paste Transaction Hash (TxHash)</label>
+                                                <input
+                                                    type="text"
+                                                    value={depositForm.txHash}
+                                                    onChange={(e) => setDepositForm(prev => ({ ...prev, txHash: e.target.value }))}
+                                                    placeholder="0x..."
+                                                    className="w-full bg-slate-950 border border-slate-800 focus:border-primary rounded-2xl py-4 px-5 text-slate-200 text-xs font-mono transition-all outline-none"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleManualDeposit}
+                                                disabled={isActionLoading}
+                                                className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
+                                            >
+                                                {isActionLoading ? 'Verifying...' : 'Verify Transfer & Update Balance'}
+                                            </button>
+                                            <p className="text-[9px] text-slate-500 font-bold italic text-center">
+                                                Verification is automatic. If the hash is valid, your balance updates instantly.
+                                            </p>
+                                        </div>
+                                    )}
 
                                     <div className="flex flex-col lg:flex-row gap-8 items-center bg-indigo-500/5 border border-indigo-500/10 rounded-3xl p-6">
                                         <div className="bg-white p-4 rounded-2xl shadow-2xl shadow-indigo-500/20">

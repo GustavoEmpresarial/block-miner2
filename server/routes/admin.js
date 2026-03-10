@@ -11,8 +11,8 @@ import { fileURLToPath } from "url";
 export const adminRouter = express.Router();
 
 const adminLimiter = createRateLimiter({
-  windowMs: 1 * 60 * 1000,
-  max: 100
+    windowMs: 1 * 60 * 1000,
+    max: 100
 });
 
 // Protect all admin routes
@@ -34,12 +34,13 @@ adminRouter.put("/miners/:id", adminController.updateMiner);
 adminRouter.get("/withdrawals/pending", adminController.listPendingWithdrawals);
 adminRouter.post("/withdrawals/:withdrawalId/approve", adminController.approveWithdrawal);
 adminRouter.post("/withdrawals/:withdrawalId/reject", adminController.rejectWithdrawal);
+adminRouter.post("/withdrawals/:withdrawalId/complete", adminController.completeWithdrawal);
 
 // Finance Overview & Activity
 adminRouter.get("/finance/overview", async (req, res) => {
     try {
         const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        
+
         const [deposits24h, withdrawals24h] = await Promise.all([
             prisma.transaction.aggregate({
                 where: { type: 'deposit', createdAt: { gte: dayAgo }, status: 'completed' },
@@ -124,14 +125,14 @@ adminRouter.get("/backups", async (req, res) => {
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = path.dirname(__filename);
         const backupsDir = path.join(__dirname, "../../backups");
-        
+
         try {
             await fs.mkdir(backupsDir, { recursive: true });
-        } catch(e) {}
+        } catch (e) { }
 
         const files = await fs.readdir(backupsDir);
         const backups = [];
-        
+
         for (const file of files) {
             if (file.endsWith('.sql') || file.endsWith('.db')) {
                 const stat = await fs.stat(path.join(backupsDir, file));
@@ -142,7 +143,7 @@ adminRouter.get("/backups", async (req, res) => {
                 });
             }
         }
-        
+
         backups.sort((a, b) => b.created - a.created);
         res.json({ ok: true, backups });
     } catch (error) {
@@ -154,14 +155,14 @@ adminRouter.get("/backups/download", async (req, res) => {
     try {
         const { file } = req.query;
         if (!file) return res.status(400).send("File name required");
-        
+
         // Basic path traversal protection
         if (file.includes("..") || file.includes("/")) return res.status(400).send("Invalid file name");
 
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = path.dirname(__filename);
         const filePath = path.join(__dirname, "../../backups", file);
-        
+
         res.download(filePath);
     } catch (error) {
         res.status(500).send("Download failed");
@@ -174,13 +175,13 @@ adminRouter.post("/backups", async (req, res) => {
         const __dirname = path.dirname(__filename);
         const backupsDir = path.join(__dirname, "../../backups");
         await fs.mkdir(backupsDir, { recursive: true });
-        
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `backup-${timestamp}.sql`;
-        
+
         // Mocking a backup creation (normally pg_dump)
         await fs.writeFile(path.join(backupsDir, filename), "-- Mock DB Backup\n");
-        
+
         res.json({ ok: true, message: "Backup created" });
     } catch (error) {
         res.status(500).json({ ok: false, message: "Error" });
@@ -191,11 +192,11 @@ adminRouter.delete("/backups", async (req, res) => {
     try {
         const { filename } = req.body;
         if (!filename) return res.status(400).json({ ok: false });
-        
+
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = path.dirname(__filename);
         const filePath = path.join(__dirname, "../../backups", filename);
-        
+
         await fs.unlink(filePath);
         res.json({ ok: true, message: "Deleted" });
     } catch (error) {

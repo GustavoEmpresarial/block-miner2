@@ -168,3 +168,14 @@ export async function rejectWithdrawal(req, res) {
     res.status(500).json({ ok: false, message: "Rejection failed" });
   }
 }
+
+export async function completeWithdrawal(req, res) {
+  try {
+    const { withdrawalId } = req.params;
+    const { txHash } = req.body;
+    await walletModel.updateTransactionStatus(Number(withdrawalId), "completed", txHash);
+    res.json({ ok: true, message: "Withdrawal marked as completed" });
+  } catch (error) {
+    res.status(500).json({ ok: false, message: "Marking as completed failed" });
+  }
+}

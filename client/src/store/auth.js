@@ -6,6 +6,8 @@ import { generateSecurityPayload } from '../utils/security';
 export const api = axios.create({
     baseURL: '/api',
     withCredentials: true, // Need this to send cookies
+    xsrfCookieName: 'blockminer_csrf',
+    xsrfHeaderName: 'x-csrf-token',
 });
 
 // Interceptor to attach Anti-Bot payload to every API request
