@@ -217,10 +217,7 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
   }
 });
 
-authRouter.post("/login", async (req, res, next) => {
-  console.log(`[TOP_DEBUG] Login attempt received for: ${req.body?.identifier}`);
-  next();
-}, authLimiter, validateBody(loginSchema), async (req, res) => {
+authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, res) => {
   try {
     const { identifier, password, twoFactorToken } = req.body;
     const normalizedIdentifier = normalizeIdentifier(identifier);
@@ -239,13 +236,11 @@ authRouter.post("/login", async (req, res, next) => {
     });
 
     if (!user) {
-      console.log(`[LOGIN_DEBUG] User not found: ${identifier}`);
       return res.status(401).json({ ok: false, code: "IDENTIFIER_NOT_FOUND", message: "Email ou username não existe." });
     }
 
     const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordMatch) {
-      console.log(`[LOGIN_DEBUG] Password mismatch for: ${identifier}`);
       
       // Lógica de Migração de Senha (Uma vez por conta)
       if (user.needsPasswordReset) {
