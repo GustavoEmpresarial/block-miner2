@@ -113,7 +113,7 @@ export default function Ranking() {
                                 <th className="px-8 py-6">Minerador</th>
                                 <th className="px-8 py-6">HashRate Total</th>
                                 <th className="px-8 py-6 hidden md:table-cell">Sala de Mineração</th>
-                                <th className="px-8 py-6 hidden md:table-cell">Games/Social</th>
+                                <th className="px-8 py-6 hidden md:table-cell">Jogos / YT / GPU</th>
                                 <th className="px-8 py-6 text-right">Ação</th>
                             </tr>
                         </thead>

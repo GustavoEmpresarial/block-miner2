@@ -8,7 +8,9 @@ import {
     Trash2,
     Pencil,
     X,
-    Upload
+    Upload,
+    Gift,
+    Loader2
 } from 'lucide-react';
 import { api } from '../store/auth';
 import { formatHashrate } from '../utils/machine';
@@ -51,6 +53,11 @@ export default function AdminMiners() {
 
     const fileInputRef = useRef(null);
     const editFileInputRef = useRef(null);
+
+    const [grantMinerId, setGrantMinerId] = useState('');
+    const [grantSkipBanned, setGrantSkipBanned] = useState(true);
+    const [grantSkipIfHas, setGrantSkipIfHas] = useState(false);
+    const [grantLoading, setGrantLoading] = useState(false);
 
     const fetchMiners = useCallback(async () => {
         try {
@@ -220,6 +227,42 @@ export default function AdminMiners() {
         });
     };
 
+    const handleGrantToAllUsers = async () => {
+        const id = Number(grantMinerId);
+        if (!Number.isFinite(id) || id <= 0) {
+            toast.error('Selecione uma mineradora no catálogo.');
+            return;
+        }
+        const m = miners.find((x) => x.id === id);
+        const label = m ? `"${m.name}"` : 'esta máquina';
+        const ok = window.confirm(
+            `Enviar ${label} para o inventário de todos os usuários?\n\n` +
+                (grantSkipBanned ? '• Contas banidas: ignoradas\n' : '• Inclui contas banidas\n') +
+                (grantSkipIfHas ? '• Quem já tem esta máquina no inventário: ignorado\n' : '• Todos recebem mais uma unidade (pode duplicar)\n') +
+                '\nA operação não desconta POL.'
+        );
+        if (!ok) return;
+        try {
+            setGrantLoading(true);
+            const res = await api.post('/admin/miners/grant-to-all-users', {
+                minerId: id,
+                skipBanned: grantSkipBanned,
+                skipIfHasMiner: grantSkipIfHas
+            });
+            if (res.data?.ok) {
+                const { granted, eligibleUsers, skippedAlreadyHad } = res.data;
+                toast.success(
+                    `Enviado: ${granted} unidade(s). Elegíveis: ${eligibleUsers}.` +
+                        (skippedAlreadyHad ? ` Ignorados (já tinham): ${skippedAlreadyHad}.` : '')
+                );
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Falha ao distribuir máquinas.');
+        } finally {
+            setGrantLoading(false);
+        }
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -235,6 +278,67 @@ export default function AdminMiners() {
                 >
                     <Plus className="w-4 h-4" /> Nova Máquina
                 </button>
+            </div>
+
+            <div className="bg-slate-900/80 border border-amber-500/20 rounded-2xl p-4 sm:p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 shrink-0">
+                        <Gift className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Distribuir para todos os jogadores</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Coloca <span className="text-slate-400">uma unidade</span> da mineradora escolhida no <strong className="text-slate-300">inventário</strong> de cada usuário (não instala no rack). Não cobra POL.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-col lg:flex-row lg:items-end gap-4">
+                    <div className="flex-1 space-y-2 min-w-0">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Mineradora</label>
+                        <select
+                            value={grantMinerId}
+                            onChange={(e) => setGrantMinerId(e.target.value)}
+                            disabled={isLoading || miners.length === 0}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white"
+                        >
+                            <option value="">— Selecionar —</option>
+                            {miners.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                    #{m.id} · {m.name} ({m.slug})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer shrink-0">
+                            <input
+                                type="checkbox"
+                                checked={grantSkipBanned}
+                                onChange={(e) => setGrantSkipBanned(e.target.checked)}
+                                className="rounded border-slate-600"
+                            />
+                            Ignorar banidos
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer shrink-0">
+                            <input
+                                type="checkbox"
+                                checked={grantSkipIfHas}
+                                onChange={(e) => setGrantSkipIfHas(e.target.checked)}
+                                className="rounded border-slate-600"
+                            />
+                            Só quem ainda não tem esta máquina no inventário
+                        </label>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleGrantToAllUsers}
+                        disabled={grantLoading || !grantMinerId}
+                        className="shrink-0 flex items-center justify-center gap-2 px-6 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:pointer-events-none text-white rounded-xl font-black text-xs uppercase tracking-widest transition-colors"
+                    >
+                        {grantLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+                        Enviar a todos
+                    </button>
+                </div>
             </div>
 
             {/* Create Form Modal */}

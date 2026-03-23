@@ -25,15 +25,21 @@ rankingRouter.get("/", requireAuth, async (req, res) => {
         ytPowers: {
           where: { expiresAt: { gt: now } },
           select: { hashRate: true }
+        },
+        gpuAccess: {
+          where: { isClaimed: true, expiresAt: { gt: now } },
+          select: { gpuHashRate: true }
         }
       }
     });
 
-    // Calculate aggregated hashrates for each user
+    // Calculate aggregated hashrates for each user (alinhado a minerProfileModel)
     const ranking = users.map(user => {
       const baseHashRate = user.miners.reduce((sum, m) => sum + (m.hashRate || 0), 0);
-      const gameHashRate = user.gamePowers.reduce((sum, g) => sum + (g.hashRate || 0), 0) +
-        user.ytPowers.reduce((sum, y) => sum + (y.hashRate || 0), 0);
+      const gameHashRate =
+        user.gamePowers.reduce((sum, g) => sum + (g.hashRate || 0), 0) +
+        user.ytPowers.reduce((sum, y) => sum + (y.hashRate || 0), 0) +
+        user.gpuAccess.reduce((sum, g) => sum + (g.gpuHashRate || 0), 0);
       const totalHashRate = baseHashRate + gameHashRate;
 
       return {
@@ -96,6 +102,10 @@ rankingRouter.get("/room/:username", requireAuth, async (req, res) => {
           where: { expiresAt: { gt: now } },
           select: { hashRate: true }
         },
+        gpuAccess: {
+          where: { isClaimed: true, expiresAt: { gt: now } },
+          select: { gpuHashRate: true }
+        },
         rackConfigs: {
           select: {
             rackIndex: true,
@@ -120,8 +130,10 @@ rankingRouter.get("/room/:username", requireAuth, async (req, res) => {
       minerName: m.miner?.name || "Miner"
     }));
 
-    const gamePower = targetUser.gamePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0) +
-                      targetUser.ytPowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
+    const gamePower =
+      targetUser.gamePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0) +
+      targetUser.ytPowers.reduce((sum, p) => sum + (p.hashRate || 0), 0) +
+      targetUser.gpuAccess.reduce((sum, g) => sum + (g.gpuHashRate || 0), 0);
 
     const racks = {};
     targetUser.rackConfigs.forEach(config => {

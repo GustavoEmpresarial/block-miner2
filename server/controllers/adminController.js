@@ -18,6 +18,8 @@ const __dirname = path.dirname(__filename);
 const logger = loggerLib.child("AdminController");
 const execFileAsync = promisify(execFile);
 
+const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
+
 /** Normalize admin JSON (camelCase or legacy snake_case) into a miner patch */
 function minerPatchFromBody(body) {
   if (!body || typeof body !== "object") return {};
@@ -218,6 +220,240 @@ export async function updateMiner(req, res) {
     }
     logger.error("Admin updateMiner", { error: error?.message, code: error?.code });
     res.status(500).json({ ok: false, message: "Update failed" });
+  }
+}
+
+/**
+ * Adiciona uma unidade da mineradora ao inventário de todos os usuários (ou subset com filtros).
+ * Body: { minerId, skipBanned?: true, skipIfHasMiner?: false }
+ */
+export async function grantMinerInventoryToAllUsers(req, res) {
+  try {
+    const minerId = Number(req.body?.minerId ?? req.body?.miner_id);
+    if (!Number.isInteger(minerId) || minerId <= 0) {
+      return res.status(400).json({ ok: false, message: "Envie minerId (número) da mineradora do catálogo." });
+    }
+
+    const skipBanned = req.body?.skipBanned !== false && req.body?.skip_banned !== false;
+    const skipIfHasMiner = Boolean(req.body?.skipIfHasMiner || req.body?.skip_if_has_miner);
+
+    const miner = await prisma.miner.findUnique({ where: { id: minerId } });
+    if (!miner) {
+      return res.status(404).json({ ok: false, message: "Mineradora não encontrada." });
+    }
+
+    const userWhere = skipBanned ? { isBanned: false } : {};
+    let users = await prisma.user.findMany({
+      where: userWhere,
+      select: { id: true }
+    });
+
+    let skippedAlreadyHad = 0;
+    if (skipIfHasMiner) {
+      const existing = await prisma.userInventory.findMany({
+        where: { minerId },
+        select: { userId: true },
+        distinct: ["userId"]
+      });
+      const has = new Set(existing.map((e) => e.userId));
+      const before = users.length;
+      users = users.filter((u) => !has.has(u.id));
+      skippedAlreadyHad = before - users.length;
+    }
+
+    const now = new Date();
+    const hashRate = Number(miner.baseHashRate || 0);
+    const slotSize = Math.max(1, Number(miner.slotSize || 1));
+    const imageUrl = miner.imageUrl || DEFAULT_MINER_IMAGE_URL;
+
+    const rows = users.map((u) => ({
+      userId: u.id,
+      minerId: miner.id,
+      minerName: miner.name,
+      level: 1,
+      hashRate,
+      slotSize,
+      imageUrl,
+      acquiredAt: now,
+      updatedAt: now
+    }));
+
+    const CHUNK = 500;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const r = await prisma.userInventory.createMany({ data: chunk });
+      inserted += r.count;
+    }
+
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: null,
+          action: "admin_grant_miner_inventory_all",
+          ip: req.ip || null,
+          userAgent: req.get?.("user-agent") || null,
+          detailsJson: JSON.stringify({
+            minerId: miner.id,
+            minerName: miner.name,
+            grantedCount: inserted,
+            skipBanned,
+            skipIfHasMiner,
+            skippedAlreadyHad
+          })
+        }
+      });
+    } catch (e) {
+      logger.warn("audit log grant all miners", { error: e?.message });
+    }
+
+    logger.info("grantMinerInventoryToAllUsers", {
+      minerId,
+      inserted,
+      skipBanned,
+      skipIfHasMiner,
+      skippedAlreadyHad
+    });
+
+    res.json({
+      ok: true,
+      granted: inserted,
+      miner: { id: miner.id, name: miner.name, slug: miner.slug },
+      eligibleUsers: users.length,
+      skippedAlreadyHad
+    });
+  } catch (error) {
+    logger.error("grantMinerInventoryToAllUsers", { error: error?.message });
+    res.status(500).json({ ok: false, message: "Falha ao distribuir máquinas." });
+  }
+}
+
+/**
+ * Alinha hash_rate / slot / imagem das instâncias ao catálogo `miners` (rack + inventário).
+ * Corrige discrepâncias quando o catálogo foi calibrado mas as linhas dos jogadores ficaram antigas.
+ * Body opcional: { userId?: number } — se omitido, aplica a todos.
+ */
+export async function resyncMiningPowersFromCatalog(req, res) {
+  try {
+    const raw = req.body?.userId ?? req.body?.user_id;
+    const userId =
+      raw !== undefined && raw !== null && raw !== ""
+        ? Number(raw)
+        : null;
+    if (userId !== null && (!Number.isInteger(userId) || userId <= 0)) {
+      return res.status(400).json({ ok: false, message: "userId inválido (use número ou omita para todos)." });
+    }
+
+    let rackUpdated = 0;
+    let invUpdated = 0;
+
+    if (userId != null) {
+      rackUpdated = Number(
+        await prisma.$executeRaw`
+          UPDATE user_miners um
+          SET
+            hash_rate = m.base_hash_rate,
+            slot_size = m.slot_size,
+            image_url = COALESCE(m.image_url, um.image_url)
+          FROM miners m
+          WHERE um.miner_id = m.id AND um.user_id = ${userId}
+        `
+      );
+      invUpdated = Number(
+        await prisma.$executeRaw`
+          UPDATE user_inventory ui
+          SET
+            miner_name = m.name,
+            hash_rate = m.base_hash_rate,
+            slot_size = m.slot_size,
+            image_url = COALESCE(m.image_url, ui.image_url)
+          FROM miners m
+          WHERE ui.miner_id = m.id AND ui.user_id = ${userId}
+        `
+      );
+    } else {
+      rackUpdated = Number(
+        await prisma.$executeRaw`
+          UPDATE user_miners um
+          SET
+            hash_rate = m.base_hash_rate,
+            slot_size = m.slot_size,
+            image_url = COALESCE(m.image_url, um.image_url)
+          FROM miners m
+          WHERE um.miner_id = m.id
+        `
+      );
+      invUpdated = Number(
+        await prisma.$executeRaw`
+          UPDATE user_inventory ui
+          SET
+            miner_name = m.name,
+            hash_rate = m.base_hash_rate,
+            slot_size = m.slot_size,
+            image_url = COALESCE(m.image_url, ui.image_url)
+          FROM miners m
+          WHERE ui.miner_id = m.id
+        `
+      );
+    }
+
+    let userIdsToReload;
+    if (userId != null) {
+      userIdsToReload = [userId];
+    } else {
+      const rows = await prisma.$queryRaw`
+        SELECT DISTINCT user_id FROM user_miners WHERE miner_id IS NOT NULL
+        UNION
+        SELECT DISTINCT user_id FROM user_inventory WHERE miner_id IS NOT NULL
+      `;
+      userIdsToReload = rows.map((r) => Number(r.user_id));
+    }
+
+    const engine = getMiningEngine();
+    let reloaded = 0;
+    for (const uid of userIdsToReload) {
+      try {
+        if (engine?.reloadMinerProfile) {
+          await engine.reloadMinerProfile(uid);
+          reloaded += 1;
+        }
+      } catch (e) {
+        logger.warn("reloadMinerProfile after catalog resync", { uid, error: e?.message });
+      }
+    }
+
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: null,
+          action: "admin_resync_mining_powers_catalog",
+          ip: req.ip || null,
+          userAgent: req.get?.("user-agent") || null,
+          detailsJson: JSON.stringify({
+            scopeUserId: userId,
+            rackRowsUpdated: rackUpdated,
+            inventoryRowsUpdated: invUpdated,
+            engineProfilesReloaded: reloaded
+          })
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+
+    res.json({
+      ok: true,
+      rackRowsUpdated: rackUpdated,
+      inventoryRowsUpdated: invUpdated,
+      engineProfilesReloaded: reloaded,
+      message:
+        userId != null
+          ? `Catálogo aplicado ao usuário #${userId}: ${rackUpdated} no rack, ${invUpdated} no inventário.`
+          : `Catálogo aplicado globalmente: ${rackUpdated} linhas no rack, ${invUpdated} no inventário; ${reloaded} perfis recarregados no motor.`
+    });
+  } catch (error) {
+    logger.error("resyncMiningPowersFromCatalog", { error: error?.message });
+    res.status(500).json({ ok: false, message: "Falha ao resincronizar poder com o catálogo." });
   }
 }
 

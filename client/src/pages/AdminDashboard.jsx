@@ -19,7 +19,9 @@ import {
     ChevronRight,
     Server,
     HardDrive,
-    MemoryStick
+    MemoryStick,
+    Zap,
+    Loader2
 } from 'lucide-react';
 import { api } from '../store/auth';
 
@@ -29,6 +31,8 @@ export default function AdminDashboard() {
     const [withdrawals, setWithdrawals] = useState([]);
     const [auditLogs, setAuditLogs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [resyncUserId, setResyncUserId] = useState('');
+    const [resyncLoading, setResyncLoading] = useState(false);
 
     const fetchData = useCallback(async () => {
         try {
@@ -80,6 +84,36 @@ export default function AdminDashboard() {
         }
     };
 
+    const runResyncPowers = async (scopeAll) => {
+        const uid = resyncUserId.trim();
+        if (!scopeAll) {
+            const n = Number(uid);
+            if (!Number.isInteger(n) || n <= 0) {
+                toast.error('Informe um ID de usuário válido ou use “Todos”.');
+                return;
+            }
+        }
+        const msg = scopeAll
+            ? 'Aplicar o poder (hash/slot/imagem) do CATÁLOGO a TODOS os racks e inventários vinculados a miner_id? Isso corrige discrepâncias com o ranking/sala pública.'
+            : `Aplicar o catálogo só ao usuário #${uid}?`;
+        if (!window.confirm(msg)) return;
+        try {
+            setResyncLoading(true);
+            const body = scopeAll ? {} : { userId: Number(uid) };
+            const res = await api.post('/admin/mining/resync-powers-from-catalog', body);
+            if (res.data?.ok) {
+                toast.success(
+                    res.data.message ||
+                        `Rack: ${res.data.rackRowsUpdated} · Inventário: ${res.data.inventoryRowsUpdated} · Motor: ${res.data.engineProfilesReloaded}`
+                );
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Falha na resincronização.');
+        } finally {
+            setResyncLoading(false);
+        }
+    };
+
     if (isLoading && !stats) return <div className="p-8 text-slate-400 font-bold uppercase tracking-widest animate-pulse text-center py-40">Carregando painel administrativo...</div>;
 
     return (
@@ -103,6 +137,56 @@ export default function AdminDashboard() {
                 <AdminStatCard label="Novos (24h)" value={stats?.usersNew24h} icon={Users} color="emerald" />
                 <AdminStatCard label="Mineradoras Ativas" value={stats?.minersActive} icon={Cpu} color="amber" />
                 <AdminStatCard label="Saldo em Custódia" value={stats?.balanceTotal?.toFixed(4)} unit="POL" icon={Wallet} color="purple" />
+            </div>
+
+            <div className="bg-slate-900 border border-amber-500/25 rounded-3xl p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 shrink-0">
+                        <Zap className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Poder de mineração (catálogo → jogadores)</h3>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Atualiza <strong className="text-slate-400">hash_rate</strong>, slots e imagem nas tabelas{' '}
+                            <code className="text-amber-600/90">user_miners</code> (sala) e{' '}
+                            <code className="text-amber-600/90">user_inventory</code> a partir do catálogo{' '}
+                            <code className="text-amber-600/90">miners</code>. Não altera jogos/YT/GPU. Recarrega o motor de mineração por jogador afetado.
+                            O ranking passa a bater com a sala quando o problema era catálogo vs instâncias antigas; o total global também soma{' '}
+                            <strong className="text-slate-400">Auto-Mining GPU</strong> na API.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
+                    <div className="flex-1 min-w-[140px]">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">ID usuário (opcional)</label>
+                        <input
+                            type="number"
+                            min={1}
+                            placeholder="Vazio = operação global"
+                            value={resyncUserId}
+                            onChange={(e) => setResyncUserId(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-white placeholder:text-slate-600"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        disabled={resyncLoading}
+                        onClick={() => runResyncPowers(false)}
+                        className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {resyncLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Só este ID
+                    </button>
+                    <button
+                        type="button"
+                        disabled={resyncLoading}
+                        onClick={() => runResyncPowers(true)}
+                        className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        {resyncLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                        Todos os usuários
+                    </button>
+                </div>
             </div>
 
             {/* Server Health Cards */}
