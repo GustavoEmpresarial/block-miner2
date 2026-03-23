@@ -25,6 +25,10 @@ model User {
   referredBy    Int?     @map("referred_by")
   walletAddress String?  @map("wallet_address")
 
+  // 2FA (usado em userController + auth/login)
+  isTwoFactorEnabled Boolean  @default(false) @map("is_two_factor_enabled")
+  twoFactorSecret    String?   @map("two_factor_secret")
+
   // Balances
   polBalance    Decimal  @default(0) @map("pol_balance") @db.Decimal(20, 8)
   btcBalance    Decimal  @default(0) @map("btc_balance") @db.Decimal(20, 8)

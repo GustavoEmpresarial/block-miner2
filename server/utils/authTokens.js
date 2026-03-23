@@ -5,13 +5,13 @@ const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "12h";
 const REFRESH_TOKEN_TTL_DAYS = Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30);
 const JWT_ISSUER = process.env.JWT_ISSUER || "blockminer";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "blockminer.app";
-const JWT_SECRET = process.env.JWT_SECRET;
 
 function requireJwtSecret() {
-  if (!JWT_SECRET) {
+  const secret = process.env.JWT_SECRET != null ? String(process.env.JWT_SECRET).trim() : "";
+  if (!secret) {
     throw new Error("JWT_SECRET is required. Please set it in your .env file.");
   }
-  return JWT_SECRET;
+  return secret;
 }
 
 export function signAccessToken(user) {

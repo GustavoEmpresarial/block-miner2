@@ -87,6 +87,9 @@ npm run migrate:hashrate
 
 ## 4) Variáveis na VPS
 
+O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/root/block-miner/.env`). O ficheiro **não** vai no tarball/Git — crie-o no servidor.
+
+- **`JWT_SECRET`** — **obrigatório** em produção (string longa e aleatória). Sem isto, o login falha com mensagem genérica (“Login falhou”) porque a assinatura do token lança erro; a app agora **nem arranca** em `NODE_ENV=production` se faltar.
 - `DATABASE_URL` — Postgres (no compose já vem override para o serviço `db`).
 - Opcional: `MEMORY_GAME_REWARD_HS` — recompensa do minigame em **H/s** (ex.: `5000000000` = 5 GH/s).
 
@@ -94,6 +97,8 @@ npm run migrate:hashrate
 
 | Erro | O que fazer |
 |------|-------------|
+| Container `app` a sair logo ao arrancar com `JWT_SECRET is missing` | Crie/edite `/root/block-miner/.env` com `JWT_SECRET=...` (32+ caracteres). `docker compose up -d app`. |
+| “Login falhou” genérico no site (antes: app subia mas login dava 500) | Mesmo: `JWT_SECRET` no `.env` da VPS; ver `docker compose logs app` após tentativa de login. |
 | `Missing script: migrate:hashrate:dry` | `git pull` — o `package.json` da VPS está antigo. |
 | `client password must be a string` | `DATABASE_URL` inválida ou vazia no container / `.env`. |
 | Porta 5432 em uso | Outro Postgres na VPS; pare o outro ou mude a porta no compose. |
@@ -102,3 +107,20 @@ npm run migrate:hashrate
 
 - Testar login, loja, painel admin.
 - Conferir um usuário com hashrate exibido coerente (UI usa `formatHashrate` em H/s).
+- Se o Prisma tiver campos novos (ex.: 2FA no modelo `User`), na VPS:  
+  `docker compose exec app npm run db:push`  
+  (ou o fluxo de migração que você usar).
+
+## 7) Backup manual (só quando estiver tudo validado)
+
+Faça isto **depois** de confirmar que login, loja e dados críticos estão corretos em produção.
+
+Na VPS (utilizador e base do compose como no seu `docker-compose.yml`):
+
+```bash
+cd ~/block-miner
+docker compose exec -T db pg_dump -U blockminer blockminer_db > ~/blockminer-db-$(date +%Y%m%d-%H%M).sql
+tar -czf ~/blockminer-files-$(date +%Y%m%d-%H%M).tar.gz data uploads backups 2>/dev/null || true
+```
+
+Copie os ficheiros gerados (`~/blockminer-*.sql`, `~/blockminer-*.tar.gz`) para o seu PC ou armazenamento externo; não deixe só no servidor.

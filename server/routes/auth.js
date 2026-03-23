@@ -15,7 +15,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { getUserByRefCode, createReferral, listReferredUsers } from "../models/referralModel.js";
 import { getMinerBySlug } from "../models/minersModel.js";
 import { addInventoryItem } from "../models/inventoryModel.js";
-import { getAnonymizedRequestIp } from "../utils/clientIp.js";
+import { getAnonymizedRequestIp, getClientIpForStorage, getUserAgentForStorage } from "../utils/clientIp.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
 import loggerLib from "../utils/logger.js";
@@ -69,7 +69,9 @@ function buildCookie(name, value, maxAgeSeconds) {
 }
 
 function buildAccessCookie(accessToken) {
-  const payload = verifyAccessToken(accessToken);
+  // Usar decode (não verify): o token acabou de ser assinado; verify falharia em edge cases
+  // (relógio, env) e zeraria Max-Age — o browser perdia a sessão logo após "login ok".
+  const payload = jwt.decode(accessToken);
   const expSeconds = Number(payload?.exp || 0);
   const maxAgeSeconds = Math.max(0, expSeconds - Math.floor(Date.now() / 1000));
   return buildCookie(ACCESS_COOKIE_NAME, accessToken, maxAgeSeconds);
@@ -229,7 +231,7 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
     const { username, email, password, refCode: refCodeInput } = req.body;
     const normalizedUsername = normalizeIdentifier(username);
     const normalizedEmail = normalizeEmail(email);
-    const clientIp = req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.ip;
+    const clientIp = getClientIpForStorage(req);
 
     // 1. IP-based Anti-Abuse: Limit accounts per IP (max 2 for families/roommates)
     const accountsWithSameIp = await prisma.user.count({
@@ -341,7 +343,8 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
 authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, res) => {
   try {
     const { identifier, password, twoFactorToken } = req.body;
-    const clientIp = req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.ip;
+    const clientIp = getClientIpForStorage(req);
+    const userAgentStored = getUserAgentForStorage(req);
 
     const user = await findUserByIdentifier(identifier);
 
@@ -349,7 +352,17 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
       return res.status(401).json({ ok: false, code: "IDENTIFIER_NOT_FOUND", message: "Email ou username não existe." });
     }
 
-    const isPasswordMatch = await bcrypt.compare(password, user.passwordHash);
+    const hash = user.passwordHash;
+    if (hash == null || typeof hash !== "string" || hash.trim() === "") {
+      logger.warn("Login blocked: missing password hash", { userId: user.id });
+      return res.status(401).json({
+        ok: false,
+        code: "INVALID_CREDENTIALS",
+        message: "Conta sem senha válida. Use redefinição de senha."
+      });
+    }
+
+    const isPasswordMatch = await bcrypt.compare(password, hash);
     if (!isPasswordMatch) {
       return res.status(401).json({ ok: false, code: "INVALID_CREDENTIALS", message: "Invalid credentials." });
     }
@@ -359,6 +372,15 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
     if (user.isTwoFactorEnabled) {
       if (!twoFactorToken) {
         return res.json({ ok: false, code: "REQUIRE_2FA", require2FA: true, message: "2FA token required." });
+      }
+
+      if (user.twoFactorSecret == null || user.twoFactorSecret === "") {
+        logger.error("Login: 2FA flag set but secret missing", { userId: user.id });
+        return res.status(500).json({
+          ok: false,
+          code: "LOGIN_FAILED",
+          message: "Configuração 2FA inconsistente. Contacte o suporte."
+        });
       }
 
       const isValid = authenticator.check(twoFactorToken, user.twoFactorSecret);
@@ -374,7 +396,7 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
         data: { 
           ip: clientIp,
           lastLoginAt: new Date(),
-          userAgent: req.headers['user-agent']
+          userAgent: userAgentStored
         }
       }),
       prisma.auditLog.create({
@@ -382,7 +404,7 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
           userId: user.id,
           action: "login",
           ip: clientIp,
-          userAgent: req.headers['user-agent']
+          userAgent: userAgentStored
         }
       })
     ]);
@@ -392,8 +414,17 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
     await createRefreshTokenRecord({ userId: user.id, ...refreshToken, createdAt: Date.now() });
 
     res.setHeader("Set-Cookie", [buildAccessCookie(accessToken), buildRefreshCookie(refreshToken.token, refreshToken.expiresAt)]);
-    res.json({ ok: true, user: { id: user.id, name: user.name, email: user.email, unlockedRooms: user.unlockedRooms } });
+    res.json({
+      ok: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        unlockedRooms: user.unlockedRooms ?? []
+      }
+    });
   } catch (error) {
+    logger.error("Login error", { error: error.message, stack: error.stack });
     res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Login failed." });
   }
 });
@@ -409,7 +440,15 @@ authRouter.get("/session", async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
     if (!user || user.isBanned) return res.status(401).json({ ok: false });
 
-    res.json({ ok: true, user: { id: user.id, name: user.name, email: user.email, unlockedRooms: user.unlockedRooms } });
+    res.json({
+      ok: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        unlockedRooms: user.unlockedRooms ?? []
+      }
+    });
   } catch {
     res.status(500).json({ ok: false });
   }

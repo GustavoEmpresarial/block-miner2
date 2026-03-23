@@ -1,4 +1,5 @@
 import "./loadEnv.js";
+import "./assertProductionEnv.js";
 import path from "path";
 import fs from "fs/promises";
 import http from "http";
