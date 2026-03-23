@@ -33,21 +33,30 @@ export async function processHeartbeat(req, res) {
     const now = new Date();
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { lastHeartbeatAt: true }
+      select: {
+        lastYoutubeHeartbeatAt: true,
+        lastAutoMiningHeartbeatAt: true
+      }
     });
 
-    if (user.lastHeartbeatAt) {
-      const diff = (now.getTime() - new Date(user.lastHeartbeatAt).getTime()) / 1000;
+    const lastForType =
+      type === "youtube" ? user?.lastYoutubeHeartbeatAt : user?.lastAutoMiningHeartbeatAt;
+    if (lastForType) {
+      const diff = (now.getTime() - new Date(lastForType).getTime()) / 1000;
       if (diff < 8) {
         return res.json({ ok: true, message: "Too fast, heartbeat throttled", buffered: true });
       }
     }
 
+    const typeHeartbeatField =
+      type === "youtube" ? "lastYoutubeHeartbeatAt" : "lastAutoMiningHeartbeatAt";
+
     await prisma.user.update({
       where: { id: userId },
       data: {
         lastHeartbeatAt: now,
-        [type === 'youtube' ? 'ytSecondsBalance' : 'autoMiningSecondsBalance']: {
+        [typeHeartbeatField]: now,
+        [type === "youtube" ? "ytSecondsBalance" : "autoMiningSecondsBalance"]: {
           increment: 10
         }
       }

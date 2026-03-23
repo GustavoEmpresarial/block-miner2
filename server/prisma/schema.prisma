@@ -37,6 +37,8 @@ model User {
   ytSecondsBalance Int     @default(0) @map("yt_seconds_balance")
   autoMiningSecondsBalance Int @default(0) @map("auto_mining_seconds_balance")
   lastHeartbeatAt DateTime? @map("last_heartbeat_at")
+  lastYoutubeHeartbeatAt     DateTime? @map("last_youtube_heartbeat_at")
+  lastAutoMiningHeartbeatAt  DateTime? @map("last_auto_mining_heartbeat_at")
 
   // Relationships
   miners        UserMiner[]

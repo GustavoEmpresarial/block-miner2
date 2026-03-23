@@ -22,6 +22,13 @@ const REWARD_PER_CLAIM_HS = (() => {
 const DURATION_HOURS = 24;
 
 /**
+ * Custo em segundos de "tempo assistido" por claim.
+ * Heartbeat credita +10 a cada ≥8s; em 60s de countdown só cabem ~5 batimentos (50s).
+ * 60 aqui falhava sempre; 50 alinha com o timer de 1 minuto.
+ */
+const YT_CLAIM_SECONDS_COST = 50;
+
+/**
  * Soma máxima de hash concedido nas últimas 24h (histórico), em H/s.
  * Omissão: 480 × recompensa (equivale ao teto antigo 1440 GH/s ÷ 3 GH/s por claim).
  */
@@ -114,8 +121,12 @@ export async function claimReward(req, res) {
       select: { ytSecondsBalance: true }
     });
 
-    if (!user || user.ytSecondsBalance < 60) {
-      return res.status(400).json({ ok: false, message: "Tempo de visualização insuficiente verificado pelo servidor." });
+    if (!user || user.ytSecondsBalance < YT_CLAIM_SECONDS_COST) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          `Tempo de visualização insuficiente (mínimo ${YT_CLAIM_SECONDS_COST}s acumulados com o ganho ativo e o separador visível).`
+      });
     }
 
     const now = new Date();
@@ -145,7 +156,7 @@ export async function claimReward(req, res) {
       // 3. Deduct time balance
       await tx.user.update({
         where: { id: userId },
-        data: { ytSecondsBalance: { decrement: 60 } }
+        data: { ytSecondsBalance: { decrement: YT_CLAIM_SECONDS_COST } }
       });
       // 4. Log it
       await tx.auditLog.create({

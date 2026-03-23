@@ -108,18 +108,21 @@ export default function YouTubeWatch() {
     // Heartbeat to sync time with server (anti-cheat + focus check)
     useEffect(() => {
         let heartbeatInterval;
-        if (isRunning && !document.hidden) {
-            heartbeatInterval = setInterval(async () => {
-                try {
-                    const security = generateSecurityPayload();
-                    await api.post('/session/heartbeat', { 
-                        type: 'youtube',
-                        security
-                    });
-                } catch (err) {
-                    console.error("Heartbeat sync failed");
-                }
-            }, 10000); // sync every 10s
+        const sendYoutubeHeartbeat = async () => {
+            if (document.hidden) return;
+            try {
+                const security = generateSecurityPayload();
+                await api.post('/session/heartbeat', {
+                    type: 'youtube',
+                    security
+                });
+            } catch (err) {
+                console.error("Heartbeat sync failed");
+            }
+        };
+        if (isRunning) {
+            void sendYoutubeHeartbeat();
+            heartbeatInterval = setInterval(sendYoutubeHeartbeat, 10000);
         }
         return () => clearInterval(heartbeatInterval);
     }, [isRunning]);
