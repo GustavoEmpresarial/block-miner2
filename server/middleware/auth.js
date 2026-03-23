@@ -128,3 +128,49 @@ export async function requirePageAuth(req, res, next) {
     res.redirect(302, "/login");
   }
 }
+
+export async function authenticateTokenOptional(req, res, next) {
+  try {
+    const token = getTokenFromRequest(req);
+
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    let payload = null;
+    try {
+      payload = verifyAccessToken(token);
+    } catch (err) {
+      logger.debug("Optional token verification failed", { error: err.message });
+      req.user = null;
+      return next();
+    }
+
+    const userId = Number(payload?.sub);
+
+    if (!userId) {
+      req.user = null;
+      return next();
+    }
+
+    const user = await getUserById(userId);
+
+    if (!user) {
+      req.user = null;
+      return next();
+    }
+
+    if (user.isBanned) {
+      req.user = null;
+      return next();
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    logger.error("Optional auth middleware error", { error: error.message });
+    req.user = null;
+    next();
+  }
+}
