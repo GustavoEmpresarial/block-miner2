@@ -1,33 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldAlert, X, ExternalLink } from 'lucide-react';
 import { api } from '../store/auth';
 
+const STORAGE_KEY = 'bm_adblock_snooze_until';
+/** Não reexibir o aviso após fechar / “continuar” (evita spam em mobile com falsos positivos). */
+const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
+
+function readSnoozeUntil() {
+    try {
+        const v = localStorage.getItem(STORAGE_KEY);
+        if (!v) return 0;
+        const t = parseInt(v, 10);
+        return Number.isFinite(t) ? t : 0;
+    } catch {
+        return 0;
+    }
+}
+
+function writeSnooze() {
+    try {
+        localStorage.setItem(STORAGE_KEY, String(Date.now() + SNOOZE_MS));
+    } catch {
+        /* ignore */
+    }
+}
+
 const AdBlockDetector = () => {
     const [isDetected, setIsDetected] = useState(false);
-    const [isDismissed, setIsDismissed] = useState(false);
+    const [isDismissed, setIsDismissed] = useState(() => Date.now() < readSnoozeUntil());
+
+    const dismiss = useCallback(() => {
+        writeSnooze();
+        setIsDismissed(true);
+    }, []);
 
     useEffect(() => {
-        const detectAdBlock = async () => {
-            // Logic 1: Attempt to fetch a common ad script URL
-            // AdBlockers often block requests to URLs containing "ads", "google-analytics", etc.
-            const adUrls = [
-                'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
-                'https://www.google-analytics.com/analytics.js'
-            ];
+        if (Date.now() < readSnoozeUntil()) return;
 
-            let blocked = false;
-            
-            try {
-                // We use 'no-cors' to avoid CORS issues, we just want to see if the REQUEST is blocked by the browser
-                await fetch(adUrls[0], { mode: 'no-cors' }).catch(() => {
-                    blocked = true;
-                });
-            } catch (e) {
-                blocked = true;
+        const detectAdBlock = async () => {
+            const isCoarseOrMobile =
+                (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+                (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
+
+            // Em celular, fetch no-cors para URLs de ads costuma dar falso positivo (modo economia, anti-tracking do próprio browser).
+            let fetchBlocked = false;
+            if (!isCoarseOrMobile) {
+                const adUrls = [
+                    'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js',
+                    'https://www.google-analytics.com/analytics.js'
+                ];
+                try {
+                    await fetch(adUrls[0], { mode: 'no-cors' }).catch(() => {
+                        fetchBlocked = true;
+                    });
+                } catch {
+                    fetchBlocked = true;
+                }
             }
 
-            // Logic 2: Create a honeypot element
-            // AdBlockers hide elements with certain classes or IDs
             const honeypot = document.createElement('div');
             honeypot.className = 'ad-banner adsbox ads-google ad-placement public_ads';
             honeypot.style.position = 'absolute';
@@ -36,22 +66,32 @@ const AdBlockDetector = () => {
             honeypot.innerHTML = '&nbsp;';
             document.body.appendChild(honeypot);
 
+            const honeypotDelay = isCoarseOrMobile ? 450 : 120;
+
             window.setTimeout(() => {
-                if (honeypot.offsetHeight === 0 || honeypot.clientHeight === 0 || window.getComputedStyle(honeypot).display === 'none') {
-                    blocked = true;
+                let honeypotBlocked = false;
+                const cs = window.getComputedStyle(honeypot);
+                if (
+                    honeypot.offsetHeight === 0 ||
+                    honeypot.clientHeight === 0 ||
+                    cs.display === 'none' ||
+                    cs.visibility === 'hidden' ||
+                    parseFloat(cs.opacity || '1') === 0
+                ) {
+                    honeypotBlocked = true;
                 }
-                
+
+                const blocked = isCoarseOrMobile ? honeypotBlocked : fetchBlocked || honeypotBlocked;
+
                 if (blocked) {
                     setIsDetected(true);
-                    // Mark in database
                     api.post('/auth/mark-adblock').catch(() => {});
                 }
-                
+
                 document.body.removeChild(honeypot);
-            }, 100);
+            }, honeypotDelay);
         };
 
-        // Delay detection slightly to let adblockers load
         const timer = setTimeout(detectAdBlock, 2000);
         return () => clearTimeout(timer);
     }, []);
@@ -81,30 +121,29 @@ const AdBlockDetector = () => {
                     </p>
 
                     <div className="grid grid-cols-1 gap-4 w-full">
-                        <button 
+                        <button
+                            type="button"
                             onClick={() => window.location.reload()}
-                            className="flex items-center justify-center gap-3 w-full py-5 bg-primary text-white font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all uppercase italic tracking-widest shadow-glow"
+                            className="flex items-center justify-center gap-3 w-full py-5 bg-primary text-white font-black rounded-2xl hover:scale-[1.02] active:scale-95 transition-all uppercase italic tracking-widest shadow-glow touch-manipulation"
                         >
                             Já desativei, recarregar <ExternalLink className="w-5 h-5" />
                         </button>
-                        
-                        <button 
-                            onClick={() => setIsDismissed(true)}
-                            className="w-full py-4 text-slate-500 font-bold hover:text-slate-300 transition-colors uppercase text-xs tracking-[0.3em]"
-                        >
-                            Continuar mesmo assim (Marcado)
-                        </button>
-                    </div>
 
-                    <div className="mt-8 pt-8 border-t border-white/5 w-full flex items-center justify-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                        <span className="text-[10px] font-bold text-red-500/50 uppercase tracking-[0.2em]">User Marked: Security_Flag_ADBLOCK</span>
+                        <button
+                            type="button"
+                            onClick={dismiss}
+                            className="w-full py-4 text-slate-500 font-bold hover:text-slate-300 transition-colors uppercase text-xs tracking-[0.3em] touch-manipulation"
+                        >
+                            Continuar mesmo assim
+                        </button>
                     </div>
                 </div>
 
-                <button 
-                    onClick={() => setIsDismissed(true)}
-                    className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-colors"
+                <button
+                    type="button"
+                    onClick={dismiss}
+                    className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-colors touch-manipulation"
+                    aria-label="Fechar"
                 >
                     <X className="w-6 h-6" />
                 </button>
