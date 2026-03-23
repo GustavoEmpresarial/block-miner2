@@ -2,7 +2,10 @@ import crypto from "crypto";
 import prisma from '../src/db/prisma.js';
 import loggerLib from "../utils/logger.js";
 import { createAuditLog } from "../models/auditLogModel.js";
-import { INTERNAL_REWARD_HASH_RATE } from "../models/shortlinkRewardModel.js";
+import {
+  getActiveRewardByType,
+  INTERNAL_SHORTLINK_TYPE
+} from "../models/shortlinkRewardModel.js";
 
 const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
@@ -25,13 +28,17 @@ export async function getShortlinkStatus(req, res) {
         data: { userId, currentStep: 0, dailyRuns: 0 }
       });
     }
+    const rewardRow = await getActiveRewardByType(INTERNAL_SHORTLINK_TYPE);
+    const rewardName =
+      rewardRow?.rewardName || rewardRow?.miner?.name || "Recompensa shortlink";
     res.json({
       ok: true,
       status: {
         currentStep: status.currentStep,
         dailyRuns: status.dailyRuns,
         shortlinkName: "Internal Shortlink",
-        rewardName: "5 HS Mining Machine",
+        rewardName,
+        rewardHashHs: rewardRow ? Number(rewardRow.hashRate) : null,
         totalSteps: TOTAL_STEPS,
         maxDailyRuns: MAX_DAILY_RUNS,
         inProgress: status.currentStep > 0
@@ -120,21 +127,30 @@ export async function completeShortlinkStep(req, res) {
       // ... rest of transaction (reward)
 
       if (isLastStep) {
-        let miner = await tx.miner.findFirst({ where: { baseHashRate: INTERNAL_REWARD_HASH_RATE, isActive: true } });
-        if (!miner) miner = await tx.miner.findFirst({ where: { isActive: true } });
+        const rewardCfg = await tx.shortlinkReward.findFirst({
+          where: { shortlinkType: INTERNAL_SHORTLINK_TYPE, isActive: true },
+          include: { miner: true }
+        });
+        const miner = rewardCfg?.miner;
         if (miner) {
+          const hashRate =
+            Number(rewardCfg.hashRate) ||
+            Number(miner.baseHashRate) ||
+            0;
           await tx.userInventory.create({
             data: {
               userId,
               minerId: miner.id,
-              minerName: miner.name,
-              hashRate: miner.baseHashRate,
-              slotSize: miner.slotSize,
-              imageUrl: miner.imageUrl,
+              minerName: rewardCfg.rewardName || miner.name,
+              hashRate,
+              slotSize: rewardCfg.slotSize || miner.slotSize,
+              imageUrl: rewardCfg.imageUrl || miner.imageUrl,
               acquiredAt: now
             }
           });
           reward = { message: "Miner added!" };
+        } else {
+          logger.warn("shortlink: último passo sem recompensa internal ativa (shortlink_rewards + miner)");
         }
       }
     });
