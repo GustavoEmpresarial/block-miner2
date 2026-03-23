@@ -13,6 +13,8 @@ export default function Shop() {
     const [isPurchasing, setIsPurchasing] = useState(false);
     const [selectedMiner, setSelectedMiner] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [purchasesEnabled, setPurchasesEnabled] = useState(false);
+    const [shopDisabled, setShopDisabled] = useState(false);
     const { fetchAll } = useGameStore();
 
     useEffect(() => {
@@ -21,9 +23,17 @@ export default function Shop() {
                 const res = await api.get('/shop/miners');
                 if (res.data.ok) {
                     setMiners(res.data.miners);
+                    setPurchasesEnabled(Boolean(res.data.purchasesEnabled));
+                    setShopDisabled(!res.data.purchasesEnabled);
                 }
             } catch (err) {
-                console.error("Erro ao buscar mineradoras", err);
+                if (err.response?.data?.code === 'SHOP_DISABLED' || err.response?.status === 503) {
+                    setShopDisabled(true);
+                    setPurchasesEnabled(false);
+                    setMiners([]);
+                } else {
+                    console.error("Erro ao buscar mineradoras", err);
+                }
             } finally {
                 setIsLoading(false);
             }
@@ -33,6 +43,10 @@ export default function Shop() {
     }, []);
 
     const openConfirmModal = (miner) => {
+        if (!purchasesEnabled) {
+            toast.error('Compras estão temporariamente desativadas.');
+            return;
+        }
         setSelectedMiner(miner);
         setShowConfirmModal(true);
     };
@@ -61,6 +75,22 @@ export default function Shop() {
             <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Carregando Inventário...</p>
         </div>
     );
+
+    if (shopDisabled) {
+        return (
+            <div className="space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-black text-white tracking-tight">{t('shop.title')}</h1>
+                        <p className="text-gray-500 font-medium">{t('shop.subtitle')}</p>
+                    </div>
+                </div>
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 text-amber-300 text-sm font-semibold">
+                    A loja esta temporariamente desativada. Novas compras estao indisponiveis no momento.
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -108,9 +138,10 @@ export default function Shop() {
                                 </div>
                                 <button
                                     onClick={() => openConfirmModal(miner)}
+                                    disabled={!purchasesEnabled}
                                     className="px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50"
                                 >
-                                    {t('shop.buy')}
+                                    {purchasesEnabled ? t('shop.buy') : 'Indisponível'}
                                 </button>
                             </div>
                         </div>
@@ -118,6 +149,12 @@ export default function Shop() {
                     </div>
                 ))}
             </div>
+
+            {!purchasesEnabled && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-amber-300 text-sm font-semibold">
+                    Compras na loja estão temporariamente desativadas. Você ainda pode visualizar os equipamentos.
+                </div>
+            )}
 
             <div className="bg-surface border border-gray-800/50 rounded-3xl p-8 shadow-xl flex items-start gap-6 max-w-2xl">
                 <div className="p-4 bg-blue-500/10 rounded-2xl shrink-0">

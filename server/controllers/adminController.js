@@ -8,6 +8,8 @@ import prisma from "../src/db/prisma.js";
 import * as minersModel from "../models/minersModel.js";
 import * as walletModel from "../models/walletModel.js";
 import * as userModel from "../models/userModel.js";
+import { syncUserBaseHashRate } from "../models/minerProfileModel.js";
+import { getMiningEngine } from "../src/miningEngineInstance.js";
 import loggerLib from "../utils/logger.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +17,44 @@ const __dirname = path.dirname(__filename);
 
 const logger = loggerLib.child("AdminController");
 const execFileAsync = promisify(execFile);
+
+/** Normalize admin JSON (camelCase or legacy snake_case) into a miner patch */
+function minerPatchFromBody(body) {
+  if (!body || typeof body !== "object") return {};
+  const b = body;
+  const patch = {};
+  if (b.name !== undefined) patch.name = String(b.name);
+  if (b.slug !== undefined) patch.slug = String(b.slug);
+  const bh = b.baseHashRate ?? b.base_hash_rate;
+  if (bh !== undefined) patch.baseHashRate = Number(bh);
+  if (b.price !== undefined) patch.price = Number(b.price);
+  const ss = b.slotSize ?? b.slot_size;
+  if (ss !== undefined) patch.slotSize = Number(ss);
+  const iu = b.imageUrl ?? b.image_url;
+  if (iu !== undefined) patch.imageUrl = iu;
+  const ia = b.isActive ?? b.is_active;
+  if (ia !== undefined) patch.isActive = Boolean(ia);
+  const sis = b.showInShop ?? b.show_in_shop;
+  if (sis !== undefined) patch.showInShop = Boolean(sis);
+  return patch;
+}
+
+async function reloadMiningForMinerUsers(minerId) {
+  const [rack, inv] = await Promise.all([
+    prisma.userMiner.findMany({ where: { minerId }, select: { userId: true } }),
+    prisma.userInventory.findMany({ where: { minerId }, select: { userId: true } })
+  ]);
+  const ids = new Set([...rack, ...inv].map((r) => r.userId));
+  const engine = getMiningEngine();
+  for (const userId of ids) {
+    try {
+      await syncUserBaseHashRate(userId);
+      if (engine?.reloadMinerProfile) await engine.reloadMinerProfile(userId);
+    } catch (e) {
+      logger.warn("reloadMiningForMinerUsers skip", { userId, error: e?.message });
+    }
+  }
+}
 
 // Utility: Server Metrics
 async function measureCpuUsagePercent(sampleMs = 300) {
@@ -130,10 +170,45 @@ export async function createMiner(req, res) {
 export async function updateMiner(req, res) {
   try {
     const minerId = Number(req.params.id);
-    const miner = await minersModel.updateMiner(minerId, req.body);
-    res.json({ ok: true, miner });
+    if (!Number.isInteger(minerId) || minerId <= 0) {
+      return res.status(400).json({ ok: false, message: "Invalid miner id." });
+    }
+    const patch = minerPatchFromBody(req.body);
+    const { miner, propagation } = await minersModel.updateMiner(minerId, patch);
+    await reloadMiningForMinerUsers(minerId);
+    res.json({ ok: true, miner, propagation });
   } catch (error) {
+    if (error?.code === "NOT_FOUND") {
+      return res.status(404).json({ ok: false, message: "Miner not found." });
+    }
+    if (error?.code === "P2002") {
+      return res.status(409).json({ ok: false, message: "Slug already in use." });
+    }
+    logger.error("Admin updateMiner", { error: error?.message });
     res.status(500).json({ ok: false, message: "Update failed" });
+  }
+}
+
+export async function deleteMiner(req, res) {
+  try {
+    const minerId = Number(req.params.id);
+    if (!Number.isInteger(minerId) || minerId <= 0) {
+      return res.status(400).json({ ok: false, message: "Invalid miner id." });
+    }
+    await minersModel.deleteMiner(minerId);
+    res.json({ ok: true, message: "Miner removed from catalog." });
+  } catch (error) {
+    if (error?.code === "MINER_IN_USE") {
+      return res.status(409).json({
+        ok: false,
+        code: "MINER_IN_USE",
+        message:
+          "Não é possível excluir: ainda existem máquinas deste modelo com jogadores (rack ou inventário). Desative no catálogo ou remova as instâncias primeiro.",
+        counts: error.counts
+      });
+    }
+    logger.error("Admin deleteMiner", { error: error?.message });
+    res.status(500).json({ ok: false, message: "Delete failed" });
   }
 }
 

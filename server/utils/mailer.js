@@ -6,6 +6,35 @@ const logger = loggerLib.child("Mailer");
 let transporter = null;
 let transporterKey = "";
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizeRecipientEmail(to) {
+  const raw = String(to || "").trim();
+  const lower = raw.toLowerCase();
+  if (!lower || !lower.includes("@")) {
+    throw new Error("Invalid recipient email address");
+  }
+  const [local, ...rest] = lower.split("@");
+  const domain = rest.join("@");
+  if (!local || !domain) {
+    throw new Error("Invalid recipient email address");
+  }
+  return lower;
+}
+
+function recipientDomain(email) {
+  const s = String(email || "").trim().toLowerCase();
+  const i = s.lastIndexOf("@");
+  return i === -1 ? "unknown" : s.slice(i + 1);
+}
+
 function getSmtpConfig() {
   const host = String(process.env.SMTP_HOST || "").trim();
   const port = Number(process.env.SMTP_PORT || 465);
@@ -34,7 +63,8 @@ function getSmtpConfig() {
 
 export function isSmtpConfigured() {
   const cfg = getSmtpConfig();
-  return Boolean(cfg.host && cfg.port && cfg.user && cfg.pass && cfg.from);
+  const fromOk = Boolean(String(cfg.from || cfg.user || "").trim());
+  return Boolean(cfg.host && cfg.port && cfg.user && cfg.pass && fromOk);
 }
 
 function getTransporter() {
@@ -73,42 +103,59 @@ export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes })
     throw new Error("SMTP not configured");
   }
 
-  const safeName = name || "Miner";
+  const toNorm = normalizeRecipientEmail(to);
+  const domain = recipientDomain(toNorm);
+  const safeName = escapeHtml(String(name || "Miner").trim() || "Miner");
+  const safeUrlText = String(resetUrl || "");
+  const safeUrlAttr = escapeHtml(safeUrlText);
   const safeTtl = Number(ttlMinutes || 20);
 
   const html = `
-  <div style="font-family:Arial,Helvetica,sans-serif;background:#020617;color:#e2e8f0;padding:24px;">
-    <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:24px;">
-      <h2 style="margin:0 0 8px 0;color:#60a5fa;">BlockMiner - Redefinicao de Senha</h2>
-      <p style="margin:0 0 16px 0;color:#cbd5e1;">Ola, ${safeName}.</p>
-      <p style="margin:0 0 16px 0;color:#cbd5e1;">Recebemos uma solicitacao para redefinir sua senha.</p>
-      <p style="margin:0 0 20px 0;">
-        <a href="${resetUrl}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">Redefinir senha agora</a>
-      </p>
-      <p style="margin:0 0 6px 0;color:#94a3b8;">Este link expira em ${safeTtl} minutos.</p>
-      <p style="margin:0;color:#64748b;font-size:12px;">Se voce nao solicitou, ignore este e-mail.</p>
-    </div>
+  <div style="font-family:Arial,Helvetica,sans-serif; color:#111; line-height:1.5;">
+    <p>Hello, ${safeName}.</p>
+    <p>We received a request to reset your BlockMiner password.</p>
+    <p>
+      To continue, click the link below:<br />
+      <a href="${safeUrlAttr}">${escapeHtml(safeUrlText)}</a>
+    </p>
+    <p>This link expires in ${safeTtl} minutes.</p>
+    <p>If you did not request this change, you can safely ignore this email.</p>
   </div>`;
 
+  const textName = String(name || "Miner").trim() || "Miner";
   const text = [
-    "BlockMiner - Redefinicao de Senha",
+    "BlockMiner - Password Reset",
     "",
-    `Ola, ${safeName}.`,
-    "Recebemos uma solicitacao para redefinir sua senha.",
+    `Hello, ${textName}.`,
+    "We received a request to reset your password.",
     "",
-    `Abra este link: ${resetUrl}`,
+    `Open this link: ${safeUrlText}`,
     "",
-    `Este link expira em ${safeTtl} minutos.`,
-    "Se voce nao solicitou, ignore este e-mail."
+    `This link expires in ${safeTtl} minutes.`,
+    "If you did not request this change, you can safely ignore this email."
   ].join("\n");
 
-  await tx.sendMail({
-    from: cfg.from,
-    to,
-    subject: "BlockMiner - Redefinicao de Senha",
-    text,
-    html
-  });
+  // From alinhado ao SMTP_USER melhora entrega (SPF/DMARC em vários provedores).
+  const fromAddr = cfg.from || cfg.user;
 
-  logger.info("Password reset email sent", { to });
+  /** Cópia oculta para suporte: confirma que o SMTP aceitou o envio (opcional). */
+  const bccAudit = String(process.env.PASSWORD_RESET_EMAIL_BCC || "").trim();
+  const mailOptions = {
+    from: fromAddr,
+    replyTo: cfg.from || cfg.user,
+    to: toNorm,
+    subject: "BlockMiner - Password Reset",
+    text,
+    html,
+    headers: {
+      "X-Entity-Ref-ID": `bm-reset-${Date.now()}`
+    }
+  };
+  if (bccAudit.includes("@")) {
+    mailOptions.bcc = bccAudit;
+  }
+
+  await tx.sendMail(mailOptions);
+
+  logger.info("Password reset email sent", { recipientDomain: domain });
 }

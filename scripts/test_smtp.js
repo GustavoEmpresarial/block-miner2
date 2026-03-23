@@ -1,5 +1,5 @@
-import "dotenv/config";
-import nodemailer from 'nodemailer';
+import "../server/loadEnv.js";
+import nodemailer from "nodemailer";
 
 async function main() {
   const host = String(process.env.SMTP_HOST || "").trim();

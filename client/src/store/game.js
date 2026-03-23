@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { api } from './auth';
 import { io } from 'socket.io-client';
 
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
 export const useGameStore = create((set, get) => ({
     machines: [],
     inventory: [],
@@ -84,12 +86,12 @@ export const useGameStore = create((set, get) => ({
         });
 
         socket.on('inventory:update', (payload) => {
-            if (payload?.inventory) set({ inventory: payload.inventory });
+            if (Array.isArray(payload?.inventory)) set({ inventory: payload.inventory });
             else get().fetchInventory();
         });
 
         socket.on('machines:update', (payload) => {
-            if (payload?.machines) set({ machines: payload.machines });
+            if (Array.isArray(payload?.machines)) set({ machines: payload.machines });
             else get().fetchMachines();
         });
 
@@ -125,21 +127,21 @@ export const useGameStore = create((set, get) => ({
     fetchMachines: async () => {
         try {
             const res = await api.get('/machines');
-            if (res.data.ok) set({ machines: res.data.machines });
+            if (res.data.ok) set({ machines: asArray(res.data.machines) });
         } catch (err) { console.error(err); }
     },
 
     fetchInventory: async () => {
         try {
             const res = await api.get('/inventory');
-            if (res.data.ok) set({ inventory: res.data.inventory });
+            if (res.data.ok) set({ inventory: asArray(res.data.inventory) });
         } catch (err) { console.error(err); }
     },
 
     fetchRacks: async () => {
         try {
             const res = await api.get('/racks');
-            if (res.data.ok && res.data.racks) {
+            if (res.data.ok && Array.isArray(res.data.racks)) {
                 const racksObj = {};
                 res.data.racks.forEach(r => { racksObj[r.rack_index] = r.custom_name; });
                 set({ racks: racksObj });

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
-import { Cpu, Box, Trash2, Power, Plus, Settings2, Info, ChevronRight, AlertCircle, Zap } from 'lucide-react';
+import { Box, Trash2, Plus, AlertCircle, Zap, Clock } from 'lucide-react';
 import { useGameStore } from '../store/game';
 import {
     getGlobalSlotIndex,
@@ -33,6 +33,9 @@ export default function Inventory() {
 
     const [selectedSlot, setSelectedSlot] = useState(null);
     const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+    const safeMachines = Array.isArray(machines) ? machines : [];
+    const safeInventory = Array.isArray(inventory) ? inventory : [];
+    const safeRacks = racks && typeof racks === 'object' ? racks : {};
 
     useEffect(() => {
         fetchAll();
@@ -46,7 +49,7 @@ export default function Inventory() {
 
     const groupedInventory = useMemo(() => {
         const groups = {};
-        for (const item of inventory) {
+        for (const item of safeInventory) {
             const key = `${item.minerName || item.miner_name}_${item.level}_${item.hashRate || item.hash_rate}`;
             if (!groups[key]) {
                 groups[key] = {
@@ -60,7 +63,7 @@ export default function Inventory() {
             }
         }
         return Object.values(groups);
-    }, [inventory]);
+    }, [safeInventory]);
 
     const handleDragStart = (e, machine) => {
         e.dataTransfer.setData('machineId', machine.id.toString());
@@ -134,8 +137,8 @@ export default function Inventory() {
     };
 
     const activeMachinesHashRate = useMemo(() => {
-        return machines.reduce((sum, machine) => sum + Number(machine.hashRate || machine.hash_rate || 0), 0);
-    }, [machines]);
+        return safeMachines.reduce((sum, machine) => sum + Number(machine.hashRate || machine.hash_rate || 0), 0);
+    }, [safeMachines]);
 
     return (
         <div className="space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -150,10 +153,10 @@ export default function Inventory() {
                         {formatHashrate(activeMachinesHashRate)}
                     </div>
                     <div className="px-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-xs font-bold text-gray-400">
-                        {machines.length} {t('inventory.active_machines')}
+                        {safeMachines.length} {t('inventory.active_machines')}
                     </div>
                     <div className="px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl text-xs font-bold text-primary">
-                        {inventory.length} {t('inventory.in_inventory')}
+                        {safeInventory.length} {t('inventory.in_inventory')}
                     </div>
                 </div>
             </div>
@@ -163,7 +166,7 @@ export default function Inventory() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {Array.from({ length: RACKS_COUNT }).map((_, i) => {
                             const rackIndex = i + 1;
-                            const rackName = racks[rackIndex] || `Rack ${rackIndex}`;
+                            const rackName = safeRacks[rackIndex] || `Rack ${rackIndex}`;
 
                             return (
                                 <div key={rackIndex} className="bg-surface border border-gray-800/50 rounded-3xl overflow-hidden shadow-xl">
@@ -180,7 +183,7 @@ export default function Inventory() {
                                     <div className="p-4 grid grid-cols-4 gap-3">
                                         {Array.from({ length: SLOTS_PER_RACK }).map((_, localI) => {
                                             const globalI = getGlobalSlotIndex(rackIndex, localI);
-                                            const machine = getMachineBySlot(globalI, machines);
+                                            const machine = getMachineBySlot(globalI, safeMachines);
                                             if (machine && machine.isSecondSlot) return null;
                                             const descriptor = machine ? getMachineDescriptor(machine) : null;
                                             const isOccupied = !!machine;
@@ -220,10 +223,10 @@ export default function Inventory() {
                             <h2 className="text-lg font-bold text-white flex items-center gap-2">
                                 <Box className="w-5 h-5 text-primary" /> {t('sidebar.machines')}
                             </h2>
-                            <span className="text-xs font-bold text-gray-500">{inventory.length} ITENS</span>
+                            <span className="text-xs font-bold text-gray-500">{safeInventory.length} ITENS</span>
                         </div>
 
-                        {inventory.length === 0 ? (
+                        {safeInventory.length === 0 ? (
                             <div className="py-12 flex flex-col items-center justify-center text-center px-4 bg-gray-800/20 rounded-2xl border border-dashed border-gray-800">
                                 <AlertCircle className="w-10 h-10 text-gray-700 mb-3" />
                                 <p className="text-gray-500 text-sm font-medium">{t('inventory.empty_inventory')}</p>
@@ -302,7 +305,7 @@ export default function Inventory() {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    {inventory.length === 0 ? <div className="p-8 text-center bg-gray-800/20 rounded-2xl border border-dashed border-gray-800"><p className="text-gray-500 text-sm">{t('inventory.modal.no_machines_avail')}</p></div> : (
+                                    {safeInventory.length === 0 ? <div className="p-8 text-center bg-gray-800/20 rounded-2xl border border-dashed border-gray-800"><p className="text-gray-500 text-sm">{t('inventory.modal.no_machines_avail')}</p></div> : (
                                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                                             {groupedInventory.map(group => (
                                                 <button key={group.id} onClick={() => onInstall(group.items[0].id)} className="w-full p-4 bg-gray-800/30 hover:bg-primary/10 border border-gray-800 hover:border-primary/30 rounded-2xl flex items-center justify-between transition-all group-item">

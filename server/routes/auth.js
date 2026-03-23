@@ -25,7 +25,7 @@ export const authRouter = express.Router();
 
 const WELCOME_MINER_SLUG = "welcome-10ghs";
 const WELCOME_MINER_NAME = "Welcome Miner";
-const WELCOME_MINER_HASH_RATE = 10;
+const WELCOME_MINER_HASH_RATE = 10_000_000_000; // 10 GH/s represented in H/s base
 const WELCOME_MINER_SLOT_SIZE = 1;
 const WELCOME_MINER_IMAGE_URL = "/machines/reward1.png";
 const PASSWORD_RESET_TOKEN_TTL = process.env.PASSWORD_RESET_TOKEN_TTL || "20m";
@@ -102,11 +102,53 @@ const loginSchema = z.object({
 const authLimiter = createRateLimiter({ windowMs: 60_000, max: 12 });
 
 function normalizeIdentifier(value) {
-  return String(value || "").trim();
+  return String(value || "")
+    .normalize("NFKC")
+    .trim();
 }
 
 function normalizeEmail(value) {
   return normalizeIdentifier(value).toLowerCase();
+}
+
+/**
+ * Finds users whose email/username/name in DB has accidental leading/trailing spaces
+ * or differs only by Unicode normalization — Prisma `equals` won't match those.
+ */
+async function findUserByDbTrimFallback(normalizedIdentifier) {
+  const key = normalizeEmail(normalizedIdentifier);
+  const hasAt = normalizedIdentifier.includes("@");
+
+  try {
+    if (hasAt) {
+      const rows = await prisma.$queryRaw`
+        SELECT id FROM users
+        WHERE LOWER(TRIM(BOTH FROM email)) = ${key}
+        LIMIT 1
+      `;
+      const id = rows?.[0]?.id;
+      if (id != null) return prisma.user.findUnique({ where: { id: Number(id) } });
+    } else {
+      const rows = await prisma.$queryRaw`
+        SELECT id FROM users
+        WHERE LOWER(TRIM(BOTH FROM COALESCE(username, ''))) = ${key}
+           OR LOWER(TRIM(BOTH FROM name)) = ${key}
+        LIMIT 1
+      `;
+      const id = rows?.[0]?.id;
+      if (id != null) return prisma.user.findUnique({ where: { id: Number(id) } });
+    }
+  } catch (err) {
+    logger.warn("findUserByDbTrimFallback failed", { message: err?.message });
+  }
+  return null;
+}
+
+function sanitizeResetToken(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^['"]+|['"]+$/g, "")
+    .replace(/\s+/g, "");
 }
 
 function signPasswordResetToken(userId) {
@@ -130,8 +172,20 @@ function verifyPasswordResetToken(token) {
     });
     if (payload?.typ !== "pwd_reset") return null;
     return payload;
-  } catch {
-    return null;
+  } catch (strictError) {
+    // Backward-compatible fallback for legacy reset tokens that may miss issuer/audience.
+    try {
+      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      if (!payload?.sub) return null;
+      if (payload?.typ && payload.typ !== "pwd_reset") return null;
+      return payload;
+    } catch (legacyError) {
+      logger.warn("Invalid password reset token", {
+        strictReason: strictError?.message,
+        legacyReason: legacyError?.message
+      });
+      return null;
+    }
   }
 }
 
@@ -164,6 +218,9 @@ async function findUserByIdentifier(identifier) {
     });
   }
 
+  if (user) return user;
+
+  user = await findUserByDbTrimFallback(normalizedIdentifier);
   return user;
 }
 
@@ -378,11 +435,12 @@ authRouter.post("/mark-adblock", requireAuth, async (req, res) => {
 authRouter.post("/legacy-password-reset", async (req, res) => {
   try {
     const { resetToken, newPassword } = req.body;
-    if (!resetToken || !newPassword || newPassword.length < 8) {
+    const safeResetToken = sanitizeResetToken(resetToken);
+    if (!safeResetToken || !newPassword || newPassword.length < 8) {
       return res.status(400).json({ ok: false, message: "Dados inválidos." });
     }
 
-    const payload = verifyPasswordResetToken(resetToken);
+    const payload = verifyPasswordResetToken(safeResetToken);
     if (!payload?.sub) {
       return res.status(401).json({ ok: false, message: "Token de reset inválido ou expirado." });
     }
@@ -437,18 +495,35 @@ authRouter.post("/reset-password-manual", async (req, res) => {
 // 🔐 Esqueci a Senha - Redefinição Forçada da Conta
 authRouter.post("/forgot-password", authLimiter, async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email || email.trim().length === 0) {
-      return res.status(400).json({ ok: false, message: "Email é obrigatório." });
+    const rawInput = normalizeIdentifier(req.body?.email ?? req.body?.identifier ?? "");
+    if (!rawInput) {
+      return res.status(400).json({ ok: false, message: "E-mail ou nome de usuário é obrigatório." });
     }
 
-    const normalizedEmail = normalizeEmail(email);
-    const user = await findUserByIdentifier(normalizedEmail);
+    const normalizedEmail = normalizeEmail(rawInput);
+    const user = await findUserByIdentifier(rawInput);
 
     if (!user) {
+      const inputDomain =
+        rawInput.includes("@")
+          ? String(rawInput.split("@").pop() || "")
+              .toLowerCase()
+              .trim() || null
+          : null;
+      logger.info("forgot-password outcome", {
+        outcome: "no_user_match",
+        hasAt: rawInput.includes("@"),
+        inputDomain,
+        inputLength: rawInput.length
+      });
       // Não revela se email existe ou não (segurança)
       return res.json({ ok: true, message: "Se o email existe, você receberá instruções de redefinição." });
     }
+
+    const storedEmail = String(user.email || "").trim();
+    const recipientDomain = storedEmail.includes("@")
+      ? storedEmail.split("@").pop().toLowerCase()
+      : "unknown";
 
     const resetToken = signPasswordResetToken(user.id);
     const resetUrl = `${APP_URL.replace(/\/$/, "")}/forgot-password?token=${encodeURIComponent(resetToken)}`;
@@ -458,7 +533,7 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
     if (smtpConfigured) {
       try {
         await sendPasswordResetEmail({
-          to: user.email,
+          to: storedEmail,
           name: user.name,
           resetUrl,
           ttlMinutes: Number(String(PASSWORD_RESET_TOKEN_TTL).replace(/[^0-9]/g, "")) || 20
@@ -467,13 +542,18 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
       } catch (smtpError) {
         // SMTP may be temporarily unavailable; keep forgot-password endpoint functional.
         logger.error("Failed to deliver password reset email", {
-          email: normalizedEmail,
+          userId: user.id,
+          recipientDomain,
           error: smtpError.message
         });
       }
     }
 
-    logger.info(`[SECURITY] Password reset requested for email: ${normalizedEmail}`);
+    logger.info("forgot-password outcome", {
+      outcome: smtpDelivered ? "email_sent" : smtpConfigured ? "smtp_failed" : "no_smtp_token_in_response",
+      userId: user.id,
+      recipientDomain
+    });
     if (smtpDelivered) {
       return res.json({ ok: true, message: "Enviamos um link de redefinição para o seu e-mail." });
     }
@@ -506,8 +586,9 @@ authRouter.post("/admin/force-password-reset", async (req, res) => {
       return res.status(400).json({ ok: false, message: "Nova senha inválida." });
     }
 
-    const normalizedEmail = normalizeEmail(email);
-    const user = await findUserByIdentifier(normalizedEmail);
+    const rawInput = normalizeIdentifier(email ?? "");
+    const normalizedEmail = normalizeEmail(rawInput);
+    const user = await findUserByIdentifier(rawInput);
 
     if (!user) {
       return res.status(404).json({ ok: false, message: "Usuário não encontrado." });

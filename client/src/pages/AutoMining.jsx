@@ -231,7 +231,7 @@ export default function AutoMining() {
                                         <div>
                                             <h4 className="text-sm font-black text-white uppercase italic">{gpu.reward?.name || "Pulse GPU v1"}</h4>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Power: {gpu.gpuHashRate} H/s</span>
+                                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Power: {formatHashrate(gpu.gpuHashRate)}</span>
                                                 <span className="w-1 h-1 rounded-full bg-gray-700" />
                                                 <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Slots: 1</span>
                                             </div>
@@ -265,7 +265,7 @@ export default function AutoMining() {
 
                         <div className="space-y-6">
                             <TrackerBox label="Claims (24h)" value={stats.claims24h || 0} icon={History} color="blue" />
-                            <TrackerBox label="Hash granted (24h)" value={`${(stats.hash24h || 0).toFixed(2)} H/s`} icon={Zap} color="emerald" />
+                            <TrackerBox label="Hash granted (24h)" value={formatHashrate(stats.hash24h || 0)} icon={Zap} color="emerald" />
                             
                             <div className="space-y-3 pt-4 border-t border-gray-800/50">
                                 <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
@@ -284,7 +284,7 @@ export default function AutoMining() {
                             <div className="h-[1px] bg-gray-800 w-full" />
 
                             <TrackerBox label="Total Claims" value={stats.claimsTotal || 0} icon={ShieldCheck} color="purple" />
-                            <TrackerBox label="Lifetime Hash" value={`${(stats.hashTotal || 0).toFixed(2)} H/s`} icon={Trophy} color="amber" />
+                            <TrackerBox label="Lifetime Hash" value={formatHashrate(stats.hashTotal || 0)} icon={Trophy} color="amber" />
                         </div>
                     </div>
 
@@ -303,7 +303,7 @@ export default function AutoMining() {
                                         <p className="text-[8px] font-bold text-gray-600 uppercase tracking-widest">{log.reward?.name || "Pulse GPU v1"}</p>
                                     </div>
                                     <div className="flex flex-col items-end">
-                                        <span className="text-[10px] font-black text-emerald-400">+{log.gpuHashRate} H/s</span>
+                                        <span className="text-[10px] font-black text-emerald-400">+{formatHashrate(log.gpuHashRate)}</span>
                                         <span className="text-[7px] font-bold text-gray-700 uppercase tracking-tighter">verified</span>
                                     </div>
                                 </div>

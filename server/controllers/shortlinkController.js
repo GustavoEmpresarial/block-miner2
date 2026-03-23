@@ -2,6 +2,7 @@ import crypto from "crypto";
 import prisma from '../src/db/prisma.js';
 import loggerLib from "../utils/logger.js";
 import { createAuditLog } from "../models/auditLogModel.js";
+import { INTERNAL_REWARD_HASH_RATE } from "../models/shortlinkRewardModel.js";
 
 const logger = loggerLib.child("ShortlinkController");
 const TOTAL_STEPS = 3;
@@ -119,7 +120,7 @@ export async function completeShortlinkStep(req, res) {
       // ... rest of transaction (reward)
 
       if (isLastStep) {
-        let miner = await tx.miner.findFirst({ where: { baseHashRate: 5, isActive: true } });
+        let miner = await tx.miner.findFirst({ where: { baseHashRate: INTERNAL_REWARD_HASH_RATE, isActive: true } });
         if (!miner) miner = await tx.miner.findFirst({ where: { isActive: true } });
         if (miner) {
           await tx.userInventory.create({

@@ -14,6 +14,7 @@ if (!connectionString) {
 const pool = new pg.Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+const GH = 1_000_000_000;
 
 async function main() {
   // 1. Seed Miners
@@ -21,7 +22,7 @@ async function main() {
     {
       name: "AntMiner S19",
       slug: "antminer-s19",
-      baseHashRate: 95,
+      baseHashRate: 95 * GH,
       price: 150.0,
       slotSize: 2,
       imageUrl: "/assets/machines/3.png",
@@ -31,7 +32,7 @@ async function main() {
     {
       name: "Bitmain T17",
       slug: "bitmain-t17",
-      baseHashRate: 40,
+      baseHashRate: 40 * GH,
       price: 45.0,
       slotSize: 1,
       imageUrl: "/assets/machines/2.png",
@@ -41,7 +42,7 @@ async function main() {
     {
       name: "MicroBT M30S",
       slug: "microbt-m30s",
-      baseHashRate: 88,
+      baseHashRate: 88 * GH,
       price: 120.0,
       slotSize: 2,
       imageUrl: "/assets/machines/1.png",
@@ -51,7 +52,7 @@ async function main() {
     {
       name: "Basic USB Miner",
       slug: "basic-usb-miner",
-      baseHashRate: 2,
+      baseHashRate: 2 * GH,
       price: 5.0,
       slotSize: 1,
       imageUrl: "/assets/machines/reward3.png",
@@ -61,7 +62,7 @@ async function main() {
     {
       name: "Pulse Mini v1",
       slug: "faucet-micro-miner",
-      baseHashRate: 1,
+      baseHashRate: 1 * GH,
       price: 0,
       slotSize: 1,
       imageUrl: "/assets/machines/reward2.png",
@@ -96,7 +97,7 @@ async function main() {
     where: { slug: 'pulse-gpu-v1' },
     update: {
       name: "Pulse GPU v1",
-      gpuHashRate: 1,
+      gpuHashRate: 1 * GH,
       isActive: true,
       imageUrl: "/assets/machines/reward3.png",
       description: "Hardware de mineração automática de baixo consumo."
@@ -104,7 +105,7 @@ async function main() {
     create: {
       name: "Pulse GPU v1",
       slug: "pulse-gpu-v1",
-      gpuHashRate: 1,
+      gpuHashRate: 1 * GH,
       isActive: true,
       imageUrl: "/assets/machines/reward3.png",
       description: "Hardware de mineração automática de baixo consumo."

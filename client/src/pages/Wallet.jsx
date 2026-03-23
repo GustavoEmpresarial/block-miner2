@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import {
@@ -38,6 +38,9 @@ export default function Wallet() {
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('withdraw');
     const [systemDepositAddress, setSystemDepositAddress] = useState(null);
+    /** null | 'not_configured' | 'fetch_failed' */
+    const [depositError, setDepositError] = useState(null);
+    const depositNotConfiguredToastRef = useRef(false);
 
     const [withdrawForm, setWithdrawForm] = useState({
         address: '',
@@ -63,6 +66,7 @@ export default function Wallet() {
     };
 
     const fetchWalletData = useCallback(async () => {
+        setDepositError(null);
         try {
             const [balanceRes, historyRes] = await Promise.all([
                 api.get('/wallet/balance'),
@@ -75,12 +79,30 @@ export default function Wallet() {
                     lifetimeMined: Number(balanceRes.data.lifetimeMined || 0),
                     totalWithdrawn: Number(balanceRes.data.totalWithdrawn || 0)
                 });
-                setSystemDepositAddress(balanceRes.data.depositAddress || null);
+                const addr = balanceRes.data.depositAddress || null;
+                setSystemDepositAddress(addr);
+                if (addr) {
+                    depositNotConfiguredToastRef.current = false;
+                } else {
+                    setDepositError('not_configured');
+                    if (!depositNotConfiguredToastRef.current) {
+                        depositNotConfiguredToastRef.current = true;
+                        toast.error(
+                            t(
+                                'wallet.deposit_not_configured_toast',
+                                'Endereço de depósito não está configurado no servidor. Defina DEPOSIT_WALLET_ADDRESS no .env e reinicie o app.'
+                            )
+                        );
+                    }
+                }
 
                 // If user has a saved address but not connected, pre-fill it for convenience
                 if (!withdrawForm.address && balanceRes.data.walletAddress) {
                     setWithdrawForm(prev => ({ ...prev, address: balanceRes.data.walletAddress }));
                 }
+            } else {
+                setSystemDepositAddress(null);
+                setDepositError('fetch_failed');
             }
 
             if (historyRes.data.ok) {
@@ -88,10 +110,12 @@ export default function Wallet() {
             }
         } catch (err) {
             console.error("Error fetching wallet data", err);
+            setSystemDepositAddress(null);
+            setDepositError('fetch_failed');
         } finally {
             setIsLoading(false);
         }
-    }, [withdrawForm.address]);
+    }, [withdrawForm.address, t]);
 
     useEffect(() => {
         fetchWalletData();
@@ -225,6 +249,23 @@ export default function Wallet() {
         }
     };
 
+    const handleResyncDeposits = async () => {
+        try {
+            setIsActionLoading(true);
+            const res = await api.post('/wallet/resync-deposits', { days: 90 });
+            if (res.data?.ok) {
+                toast.success(`Resync concluido: ${res.data.credited} deposito(s) creditado(s), ${res.data.skipped} ignorado(s).`);
+                fetchWalletData();
+            } else {
+                toast.error(res.data?.message || 'Falha ao sincronizar depositos.');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Falha ao sincronizar depositos.');
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
     const handleWithdraw = async (e) => {
         e.preventDefault();
         const amount = parseFloat(withdrawForm.amount);
@@ -264,9 +305,28 @@ export default function Wallet() {
     };
 
     const copyToClipboard = (text) => {
-        navigator.clipboard.writeText(text);
+        if (!text || String(text).trim() === '') {
+            toast.error(t('wallet.nothing_to_copy', 'Nada para copiar.'));
+            return;
+        }
+        navigator.clipboard.writeText(String(text));
         toast.success(t('common.copied'));
     };
+
+    const depositAddressDisplay = (() => {
+        if (isLoading) return t('wallet.deposit_loading', 'Carregando...');
+        if (systemDepositAddress) return systemDepositAddress;
+        if (depositError === 'not_configured') {
+            return t(
+                'wallet.deposit_not_configured_hint',
+                'Não configurado no servidor — defina DEPOSIT_WALLET_ADDRESS (ou CHECKIN_RECEIVER) no .env e reinicie o app.'
+            );
+        }
+        if (depositError === 'fetch_failed') {
+            return t('wallet.deposit_fetch_failed', 'Erro ao carregar. Atualize a página ou faça login de novo.');
+        }
+        return '—';
+    })();
 
     const StatusBadge = ({ status }) => {
         const config = {
@@ -495,8 +555,8 @@ export default function Wallet() {
                                                 <input
                                                     type="text"
                                                     readOnly
-                                                    value={systemDepositAddress || 'Loading...'}
-                                                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-5 pl-5 pr-12 text-slate-400 text-xs font-mono transition-all outline-none"
+                                                    value={depositAddressDisplay}
+                                                    className={`w-full bg-slate-900 border rounded-2xl py-5 pl-5 pr-12 text-xs font-mono transition-all outline-none ${depositError === 'not_configured' || depositError === 'fetch_failed' ? 'border-amber-600/50 text-amber-200/90' : 'border-slate-800 text-slate-400'}`}
                                                 />
                                                 <button
                                                     type="button"
@@ -540,6 +600,15 @@ export default function Wallet() {
                                             {showManualForm ? 'Cancel Manual' : 'Manual Transfer'}
                                         </button>
                                     </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleResyncDeposits}
+                                        disabled={isActionLoading}
+                                        className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50"
+                                    >
+                                        Re-sync wallet deposits (last 90 days)
+                                    </button>
 
                                     {showManualForm && (
                                         <div className="p-6 bg-slate-900/80 border border-primary/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-500">

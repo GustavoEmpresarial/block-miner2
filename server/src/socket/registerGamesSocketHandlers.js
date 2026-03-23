@@ -7,6 +7,7 @@ import { getTokenFromRequest } from '../../utils/token.js';
 const logger = loggerLib.child("GamesSocket");
 const GAME_SESSIONS = new Map();
 const LAST_GAME_FINISH = new Map();
+const MEMORY_GAME_REWARD_HS = Number(process.env.MEMORY_GAME_REWARD_HS || 50);
 
 const SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano', 'polkadot', 'dogecoin', 'polygon'];
 const MATCH3_SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano'];
@@ -220,7 +221,7 @@ async function finishGame(socket, state, success, engine) {
         data: { 
           userId: Number(state.userId), 
           gameId: Number(state.gameId), 
-          hashRate: 50.0, 
+          hashRate: MEMORY_GAME_REWARD_HS, 
           playedAt: new Date(), 
           expiresAt 
         } 
@@ -229,7 +230,7 @@ async function finishGame(socket, state, success, engine) {
       const miner = engine.miners.get(state.userId.toString());
       if (miner) miner.baseHashRate = total;
 
-      socket.emit("game:finished", { success: true, reward: "BÔNUS DE 50 H/S ATIVADO POR 24H!" });
+      socket.emit("game:finished", { success: true, reward: `BÔNUS DE ${MEMORY_GAME_REWARD_HS} H/S ATIVADO POR 24H!` });
       socket.emit("machines:update");
     } catch (e) { 
       socket.emit("game:finished", { success: true, reward: "BÔNUS PROCESSADO COM SUCESSO!" });

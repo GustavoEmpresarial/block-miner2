@@ -4,10 +4,17 @@ import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-r
 import { toast } from 'sonner';
 import { api } from '../store/auth';
 
+function sanitizeResetToken(rawToken) {
+  return String(rawToken || '')
+    .trim()
+    .replace(/^['"]+|['"]+$/g, '')
+    .replace(/\s+/g, '');
+}
+
 export default function ForgotPassword() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const tokenFromUrl = searchParams.get('token') || '';
+  const tokenFromUrl = sanitizeResetToken(searchParams.get('token'));
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -22,7 +29,7 @@ export default function ForgotPassword() {
 
     try {
       setIsSubmitting(true);
-      const res = await api.post('/auth/forgot-password', { email });
+      const res = await api.post('/auth/forgot-password', { email: email.trim() });
       const token = res.data?.resetToken;
 
       if (token) {
@@ -31,7 +38,7 @@ export default function ForgotPassword() {
         toast.success('Conta localizada. Defina sua nova senha agora.');
       } else {
         setDone(true);
-        toast.success('Se o e-mail existir, enviamos um link de redefinicao.');
+        toast.success('Confira seu e-mail e a caixa de spam. O link de redefinição foi enviado por e-mail.');
       }
     } catch (err) {
       const message = err.response?.data?.message || 'Nao foi possivel processar agora.';
@@ -54,7 +61,7 @@ export default function ForgotPassword() {
     }
 
     if (newPassword !== confirmPassword) {
-      const message = 'As senhas nao coincidem.';
+      const message = 'As senhas não coincidem.';
       setError(message);
       toast.error(message);
       return;
@@ -63,7 +70,7 @@ export default function ForgotPassword() {
     try {
       setIsSubmitting(true);
       const res = await api.post('/auth/legacy-password-reset', {
-        resetToken,
+        resetToken: sanitizeResetToken(resetToken),
         newPassword
       });
       toast.success(res.data?.message || 'Senha redefinida com sucesso.');
@@ -91,7 +98,9 @@ export default function ForgotPassword() {
             <span className="font-black text-3xl tracking-tighter text-white">BLOCK<span className="text-primary">MINER</span></span>
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Recuperar senha</h1>
-          <p className="text-gray-500 font-medium mt-1">Digite seu e-mail para iniciar a redefinicao.</p>
+          <p className="text-gray-500 font-medium mt-1">
+            Digite o mesmo e-mail ou nome de usuário que você usa no login.
+          </p>
         </div>
 
         <div className="bg-surface/50 backdrop-blur-xl border border-gray-800/50 rounded-[2.5rem] p-10 shadow-2xl animate-in fade-in zoom-in-95 duration-700 delay-200">
@@ -106,7 +115,7 @@ export default function ForgotPassword() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="email">
-                  E-mail
+                  E-mail ou usuário
                 </label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -114,12 +123,14 @@ export default function ForgotPassword() {
                   </div>
                   <input
                     id="email"
-                    type="email"
+                    type="text"
+                    name="identifier"
+                    autoComplete="username"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-12 pr-4 py-4 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
-                    placeholder="voce@email.com"
+                    placeholder="voce@email.com ou seu_usuario"
                   />
                 </div>
               </div>
@@ -133,7 +144,7 @@ export default function ForgotPassword() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    Enviar solicitacao
+                    Enviar solicitação
                     <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -155,7 +166,7 @@ export default function ForgotPassword() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="block w-full px-4 py-4 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all font-medium text-sm"
-                  placeholder="Minimo de 8 caracteres"
+                  placeholder="Mínimo de 8 caracteres"
                 />
               </div>
 
@@ -196,7 +207,8 @@ export default function ForgotPassword() {
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5 flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
               <p className="text-emerald-300 text-xs font-bold leading-relaxed">
-                Solicitacao registrada. Se o e-mail existir na base, continue o reset usando o login.
+                Solicitação registrada. Confira seu e-mail e a caixa de spam.
+                O link de redefinição foi enviado por e-mail.
               </p>
             </div>
           ) : null}

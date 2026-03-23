@@ -29,13 +29,14 @@ export async function login(req, res) {
       return res.status(503).json({ ok: false, message: "Admin auth not configured" });
     }
 
-    const { email, securityCode } = req.body;
-    if (typeof email !== "string" || typeof securityCode !== "string") {
+    const { email, securityCode, password } = req.body;
+    const codeInput = typeof securityCode === "string" ? securityCode : password;
+    if (typeof email !== "string" || typeof codeInput !== "string") {
       return res.status(400).json({ ok: false, message: "Email and code required" });
     }
 
     const userEmail = email.trim().toLowerCase();
-    const userCode = securityCode.trim();
+    const userCode = codeInput.trim();
 
     const emailMatch = timingSafeStringEqual(userEmail, ADMIN_EMAIL);
     const codeMatch = timingSafeStringEqual(userCode, ADMIN_SECURITY_CODE);

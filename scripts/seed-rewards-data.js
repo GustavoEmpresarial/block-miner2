@@ -31,11 +31,12 @@ const db = new sqlite3.Database(dbPath, async (err) => {
 
   async function main() {
     try {
+      const GH = 1_000_000_000;
       const rewardsData = [
         {
           name: 'GPU 1 GHS',
           slug: 'gpu-1-ghs',
-          gpu_hash_rate: 1,
+          gpu_hash_rate: 1 * GH,
           description: 'Distribui apenas uma GPU de 1 GHS para cada usuário a cada 5 minutos',
           image_url: '/assets/machines/reward2.png'
         }
@@ -56,7 +57,7 @@ const db = new sqlite3.Database(dbPath, async (err) => {
             `UPDATE auto_mining_rewards SET is_active = 1, gpu_hash_rate = ?, description = ?, image_url = ?, updated_at = ? WHERE id = ?`,
             [reward.gpu_hash_rate, reward.description, reward.image_url, now, existing.id]
           );
-          console.log(`✓ Reactivated and updated "${reward.name}" (ID: ${existing.id}, ${reward.gpu_hash_rate} GHS)`);
+          console.log(`✓ Reactivated and updated "${reward.name}" (ID: ${existing.id}, ${reward.gpu_hash_rate} H/s)`);
         } else {
           const now = Date.now();
           const result = await run(
@@ -64,7 +65,7 @@ const db = new sqlite3.Database(dbPath, async (err) => {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [reward.name, reward.slug, reward.gpu_hash_rate, reward.description, reward.image_url, 1, now, now]
           );
-          console.log(`✓ Created "${reward.name}" (ID: ${result.lastID}, ${reward.gpu_hash_rate} GHS)`);
+          console.log(`✓ Created "${reward.name}" (ID: ${result.lastID}, ${reward.gpu_hash_rate} H/s)`);
         }
       }
 

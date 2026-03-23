@@ -3,9 +3,10 @@ import loggerLib from "../utils/logger.js";
 
 const logger = loggerLib.child("YouTubeController");
 
-const REWARD_PER_CLAIM = 3.0; // 3 GH/s
+const HASH_IN_GH = 1_000_000_000;
+const REWARD_PER_CLAIM_HS = 3 * HASH_IN_GH; // 3 GH/s in H/s
 const DURATION_HOURS = 24;
-const DAILY_LIMIT_GH = 1440.0; // Max 1440 GH/s per day
+const DAILY_LIMIT_HS = 1440 * HASH_IN_GH; // Max 1440 GH/s per day, stored in H/s
 
 export async function getStatus(req, res) {
   try {
@@ -21,7 +22,8 @@ export async function getStatus(req, res) {
       ok: true, 
       activeHashRate, 
       count: activePowers.length,
-      rewardGh: REWARD_PER_CLAIM,
+      rewardHs: REWARD_PER_CLAIM_HS,
+      rewardGh: REWARD_PER_CLAIM_HS / HASH_IN_GH,
       durationMin: DURATION_HOURS * 60
     });
   } catch (error) {
@@ -60,7 +62,7 @@ export async function getStats(req, res) {
       claimsTotal: claimsAll._count,
       hashGrantedTotal: Number(claimsAll._sum.hashRate || 0),
       recent: historyRecent,
-      dailyLimit: DAILY_LIMIT_GH
+      dailyLimit: DAILY_LIMIT_HS
     });
   } catch (error) {
     logger.error("YT stats error", error);
@@ -93,7 +95,7 @@ export async function claimReward(req, res) {
     });
     const currentDailyHash = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
 
-    if (currentDailyHash + REWARD_PER_CLAIM > DAILY_LIMIT_GH) {
+    if (currentDailyHash + REWARD_PER_CLAIM_HS > DAILY_LIMIT_HS) {
       return res.status(400).json({ ok: false, message: "Daily reward limit reached. Try again later!" });
     }
 
@@ -102,11 +104,11 @@ export async function claimReward(req, res) {
     await prisma.$transaction(async (tx) => {
       // 1. Create active power
       await tx.youtubeWatchPower.create({
-        data: { userId, sourceVideoId: videoId, hashRate: REWARD_PER_CLAIM, claimedAt: now, expiresAt }
+        data: { userId, sourceVideoId: videoId, hashRate: REWARD_PER_CLAIM_HS, claimedAt: now, expiresAt }
       });
       // 2. Create history record
       await tx.youtubeWatchHistory.create({
-        data: { userId, sourceVideoId: videoId, hashRate: REWARD_PER_CLAIM, claimedAt: now, expiresAt, status: "granted" }
+        data: { userId, sourceVideoId: videoId, hashRate: REWARD_PER_CLAIM_HS, claimedAt: now, expiresAt, status: "granted" }
       });
       // 3. Deduct time balance
       await tx.user.update({
@@ -115,11 +117,16 @@ export async function claimReward(req, res) {
       });
       // 4. Log it
       await tx.auditLog.create({
-        data: { userId, action: "youtube_claim", detailsJson: JSON.stringify({ videoId, hashRate: REWARD_PER_CLAIM, expiresAt }) }
+        data: { userId, action: "youtube_claim", detailsJson: JSON.stringify({ videoId, hashRate: REWARD_PER_CLAIM_HS, expiresAt }) }
       });
     });
 
-    res.json({ ok: true, message: `+${REWARD_PER_CLAIM} GH/s activated for 24h!`, rewardGh: REWARD_PER_CLAIM });
+    res.json({
+      ok: true,
+      message: `+${(REWARD_PER_CLAIM_HS / HASH_IN_GH).toFixed(2)} GH/s activated for 24h!`,
+      rewardHs: REWARD_PER_CLAIM_HS,
+      rewardGh: REWARD_PER_CLAIM_HS / HASH_IN_GH
+    });
   } catch (error) {
     logger.error("YT claim error", { error: error.message });
     res.status(500).json({ ok: false, message: "Error claiming reward." });

@@ -9,19 +9,31 @@ export function getGlobalSlotIndex(rackIndex, localSlotIndex) {
 export function formatHashrate(value) {
     const safeValue = Number(value || 0);
     if (!Number.isFinite(safeValue) || safeValue === 0) return "0 H/s";
-    
-    const units = ["H/s", "KH/s", "MH/s", "GH/s", "TH/s", "PH/s"];
-    let scaled = safeValue;
-    let unitIndex = 0;
-    
-    while (scaled >= 1000 && unitIndex < units.length - 1) {
+
+    const SCI_UNITS = ["H/s", "KH/s", "MH/s", "GH/s", "TH/s", "PH/s", "EH/s", "ZH/s", "YH/s"];
+    let scaled = Math.abs(safeValue);
+    let tier = 0;
+
+    while (scaled >= 1000) {
         scaled /= 1000;
-        unitIndex += 1;
+        tier += 1;
     }
-    
-    // Ajusta a precisão: se for muito grande, sem decimais. Se for pequeno, até 2 decimais.
-    const precision = scaled >= 100 ? 1 : 2;
-    return `${scaled.toFixed(precision)} ${units[unitIndex]}`;
+
+    const sign = safeValue < 0 ? "-" : "";
+    const unit = tier < SCI_UNITS.length ? SCI_UNITS[tier] : `${toAlphabeticSuffix(tier - SCI_UNITS.length)}H/s`;
+    const precision = scaled >= 100 ? 0 : (scaled >= 10 ? 1 : 2);
+    return `${sign}${scaled.toFixed(precision)} ${unit}`;
+}
+
+function toAlphabeticSuffix(index) {
+    // 0 -> a, 1 -> b, ... 25 -> z, 26 -> aa, ... keeps growing indefinitely.
+    let n = Math.max(0, Number(index) || 0);
+    let out = "";
+    do {
+        out = String.fromCharCode(97 + (n % 26)) + out;
+        n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return out;
 }
 
 export function getMachineDescriptor(machine) {

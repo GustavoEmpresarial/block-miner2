@@ -6,9 +6,18 @@ import { createNotification } from "./notificationController.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
+const SHOP_PURCHASES_ENABLED = String(process.env.SHOP_PURCHASES_ENABLED || "false").toLowerCase() === "true";
 
 export async function listMiners(req, res) {
   try {
+    if (!SHOP_PURCHASES_ENABLED) {
+      return res.status(503).json({
+        ok: false,
+        code: "SHOP_DISABLED",
+        message: "Shop is temporarily disabled."
+      });
+    }
+
     const rawPage = Number(req.query?.page || 1);
     const rawPageSize = Number(req.query?.pageSize || 24);
     const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
@@ -26,6 +35,7 @@ export async function listMiners(req, res) {
 
     res.json({
       ok: true,
+      purchasesEnabled: SHOP_PURCHASES_ENABLED,
       page,
       pageSize,
       total,
@@ -39,6 +49,14 @@ export async function listMiners(req, res) {
 
 export async function purchaseMiner(req, res) {
   try {
+    if (!SHOP_PURCHASES_ENABLED) {
+      return res.status(503).json({
+        ok: false,
+        code: "SHOP_PURCHASES_DISABLED",
+        message: "Purchases are temporarily disabled."
+      });
+    }
+
     const minerId = Number(req.body?.minerId);
     if (!Number.isInteger(minerId) || minerId <= 0) {
       res.status(400).json({ ok: false, message: "Invalid miner ID." });

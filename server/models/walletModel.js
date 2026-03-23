@@ -1,6 +1,7 @@
 import prisma from '../src/db/prisma.js';
 import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { ethers } from "ethers";
+import { getValidatedDepositAddress } from "../utils/depositAddress.js";
 
 async function getUserBalance(userId) {
   const user = await prisma.user.findUnique({
@@ -61,7 +62,7 @@ async function createDepositRequest(userId, amount, txHash) {
 
     // 2. Setup ethers provider
     const rpcUrl = process.env.POLYGON_RPC_URL || "https://polygon-rpc.com";
-    const depositAddress = process.env.DEPOSIT_WALLET_ADDRESS;
+    const { address: depositAddress } = getValidatedDepositAddress();
 
     if (!depositAddress) {
       throw new Error("Deposit wallet address not configured on server.");

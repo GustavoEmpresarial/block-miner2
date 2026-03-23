@@ -16,7 +16,10 @@ export default function AdminLogin() {
         setIsLoading(true);
 
         try {
-            const res = await api.post('/admin/auth/login', { email, password });
+            const res = await api.post('/admin/auth/login', {
+                email,
+                securityCode: password
+            });
             if (res.data.ok) {
                 // O token de admin geralmente é salvo em um cookie seguro pelo backend,
                 // mas se o sistema usar localStorage para o token de admin, salvamos aqui.

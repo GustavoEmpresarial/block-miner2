@@ -3,7 +3,7 @@ import prisma from './db.js';
 export const INTERNAL_SHORTLINK_TYPE = "internal";
 export const INTERNAL_REWARD_NAME = "Shortlink Reward 5 HS";
 export const INTERNAL_REWARD_SLUG = "shortlink-5hs-reward";
-export const INTERNAL_REWARD_HASH_RATE = 5;
+export const INTERNAL_REWARD_HASH_RATE = 5_000_000_000; // 5 GH/s represented in H/s base
 export const INTERNAL_REWARD_SLOT_SIZE = 1;
 export const INTERNAL_REWARD_IMAGE_URL = "/assets/machines/reward3.png";
 

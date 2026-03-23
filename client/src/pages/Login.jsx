@@ -15,6 +15,7 @@ export default function Login() {
     const [requires2FA, setRequires2FA] = useState(false);
     const [twoFactorToken, setTwoFactorToken] = useState('');
     const [localError, setLocalError] = useState('');
+    const [showResetHint, setShowResetHint] = useState(false);
     
     // Legacy Reset States
     const [showLegacyReset, setShowLegacyReset] = useState(false);
@@ -34,6 +35,7 @@ export default function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLocalError('');
+        setShowResetHint(false);
         
         try {
             const res = await api.post('/auth/login', {
@@ -72,6 +74,9 @@ export default function Login() {
                     LOGIN_FAILED: t('auth.login.errors.login_failed')
                 };
 
+                if (code === 'IDENTIFIER_NOT_FOUND' || code === 'INVALID_CREDENTIALS') {
+                    setShowResetHint(true);
+                }
                 setLocalError(fieldError || errorByCode[code] || err.response?.data?.message || t('auth.login.errors.login_failed'));
             }
         }
@@ -178,6 +183,14 @@ export default function Login() {
                         <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3 animate-in shake duration-500">
                             <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
                             <p className="text-red-400 text-xs font-bold leading-relaxed">{localError || error}</p>
+                        </div>
+                    )}
+                    {showResetHint && !requires2FA && (
+                        <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-xs font-semibold text-blue-300 leading-relaxed">
+                            We could not find your account details or password. Try resetting your password{" "}
+                            <Link to="/forgot-password" className="underline hover:text-white transition-colors">
+                                here
+                            </Link>.
                         </div>
                     )}
 

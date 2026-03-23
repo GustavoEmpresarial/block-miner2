@@ -29,6 +29,7 @@ adminRouter.put("/users/:id/ban", adminController.setUserBan);
 adminRouter.get("/miners", adminController.listMiners);
 adminRouter.post("/miners", adminController.createMiner);
 adminRouter.put("/miners/:id", adminController.updateMiner);
+adminRouter.delete("/miners/:id", adminController.deleteMiner);
 
 // Withdrawals
 adminRouter.get("/withdrawals/pending", adminController.listPendingWithdrawals);

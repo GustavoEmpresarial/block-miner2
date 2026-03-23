@@ -4,12 +4,12 @@ import walletModel from "../models/walletModel.js";
 import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import { createCronActionRunner } from "./cronActionRunner.js";
+import { getAllDepositMonitorAddresses } from "../utils/depositAddress.js";
 
 const logger = loggerLib.child("DepositsCron");
 
 // Configurações via Variáveis de Ambiente
 const getPolygonscanKey = () => process.env.POLYGONSCAN_API_KEY;
-const getCheckinReceiver = () => process.env.CHECKIN_RECEIVER;
 const getWithdrawalPrivKey = () => process.env.WITHDRAWAL_PRIVATE_KEY;
 const getWithdrawalMnemonic = () => process.env.WITHDRAWAL_MNEMONIC;
 
@@ -47,9 +47,7 @@ function getHotWalletAddress() {
  * Lista todas as carteiras do sistema que devem ser monitoradas.
  */
 function getAllowedWallets() {
-  const wallets = [];
-  const checkin = getCheckinReceiver();
-  if (checkin) wallets.push(checkin.toLowerCase());
+  const wallets = [...getAllDepositMonitorAddresses()];
   const hot = getHotWalletAddress();
   if (hot && !wallets.includes(hot)) wallets.push(hot);
   return wallets;

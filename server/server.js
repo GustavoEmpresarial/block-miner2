@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./loadEnv.js";
 import path from "path";
 import fs from "fs/promises";
 import http from "http";
@@ -12,6 +12,7 @@ import prisma from "./src/db/prisma.js";
 import { MiningEngine } from "./src/miningEngine.js";
 import { setMiningEngine } from "./src/miningEngineInstance.js";
 import loggerLib from "./utils/logger.js";
+import { getValidatedDepositAddress } from "./utils/depositAddress.js";
 
 // Middlewares
 import { createRateLimiter } from "./middleware/rateLimit.js";
@@ -286,7 +287,14 @@ async function bootstrap() {
 
     server.listen(port, host, () => {
       logger.info(`Server running on ${host}:${port}`);
-      
+
+      const dep = getValidatedDepositAddress();
+      if (!dep.address) {
+        logger.warn(
+          "POL deposit disabled: DEPOSIT_WALLET_ADDRESS / CHECKIN_RECEIVER missing or not a valid 0x address — wallet deposit UI will stay empty."
+        );
+      }
+
       // Start background tasks
       startCronTasks({
         engine,

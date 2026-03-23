@@ -17,6 +17,7 @@ import {
     X
 } from 'lucide-react';
 import { api } from '../store/auth';
+import { formatHashrate } from '../utils/machine';
 
 export default function AdminUsers() {
     const [users, setUsers] = useState([]);
@@ -146,7 +147,7 @@ export default function AdminUsers() {
                                         {Number(u.polBalance || 0).toFixed(6)}
                                     </td>
                                     <td className="px-8 py-5 text-slate-300 font-bold text-xs">
-                                        {Number(u.baseHashRate || 0).toFixed(2)} <span className="text-[10px] text-slate-600 uppercase">GH/s</span>
+                                        {formatHashrate(Number(u.baseHashRate || 0))}
                                     </td>
                                     <td className="px-8 py-5">
                                         <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${u.isBanned ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'
@@ -227,7 +228,7 @@ export default function AdminUsers() {
                                 <DetailCard label="E-mail" value={selectedUser.user.email} icon={Search} small />
                                 <DetailCard label="Carteira" value={selectedUser.user.walletAddress || 'Não vinculada'} icon={Wallet} small />
                                 <DetailCard label="Saldo Pool" value={`${Number(selectedUser.user.polBalance).toFixed(6)} POL`} icon={Wallet} color="amber" />
-                                <DetailCard label="Hash Base" value={`${Number(selectedUser.user.baseHashRate).toFixed(2)} GH/s`} icon={Cpu} color="blue" />
+                                <DetailCard label="Hash Base" value={formatHashrate(Number(selectedUser.user.baseHashRate || 0))} icon={Cpu} color="blue" />
                                 <DetailCard label="Máquinas" value={selectedUser.metrics?.activeMachines} icon={Activity} color="emerald" />
                             </div>
 
