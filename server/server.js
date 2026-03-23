@@ -267,6 +267,7 @@ app.get("/{*all}", async (req, res) => {
 async function bootstrap() {
   try {
       const port = process.env.PORT || 3000;
+      const host = process.env.HOST || '0.0.0.0';
     // Ensure shortlink reward is correctly set up
     await ensureDefaultInternalReward().catch(err => logger.error("Failed to ensure shortlink reward", { error: err.message }));
 
