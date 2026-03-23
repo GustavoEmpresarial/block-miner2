@@ -3,32 +3,62 @@ import loggerLib from "./logger.js";
 
 const logger = loggerLib.child("Mailer");
 
-const SMTP_HOST = process.env.SMTP_HOST || "";
-const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
-const SMTP_SECURE = String(process.env.SMTP_SECURE || "true").toLowerCase() === "true";
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
-const SMTP_FROM = process.env.SMTP_FROM || "";
-
 let transporter = null;
+let transporterKey = "";
+
+function getSmtpConfig() {
+  const host = String(process.env.SMTP_HOST || "").trim();
+  const port = Number(process.env.SMTP_PORT || 465);
+  const secure = String(process.env.SMTP_SECURE || "true").toLowerCase() === "true";
+  const user = String(process.env.SMTP_USER || "").trim();
+  const pass = String(process.env.SMTP_PASS || "");
+  const from = String(process.env.SMTP_FROM || "").trim();
+  const connectionTimeout = Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000);
+  const greetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000);
+  const socketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 20000);
+  const rejectUnauthorized = String(process.env.SMTP_TLS_REJECT_UNAUTHORIZED || "true").toLowerCase() === "true";
+
+  return {
+    host,
+    port,
+    secure,
+    user,
+    pass,
+    from,
+    connectionTimeout,
+    greetingTimeout,
+    socketTimeout,
+    rejectUnauthorized
+  };
+}
 
 export function isSmtpConfigured() {
-  return Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && SMTP_FROM);
+  const cfg = getSmtpConfig();
+  return Boolean(cfg.host && cfg.port && cfg.user && cfg.pass && cfg.from);
 }
 
 function getTransporter() {
+  const cfg = getSmtpConfig();
   if (!isSmtpConfigured()) {
     return null;
   }
 
-  if (!transporter) {
+  const key = `${cfg.host}:${cfg.port}:${cfg.user}:${cfg.secure}`;
+  if (!transporter || transporterKey !== key) {
+    transporterKey = key;
     transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
+      host: cfg.host,
+      port: cfg.port,
+      secure: cfg.secure,
+      connectionTimeout: cfg.connectionTimeout,
+      greetingTimeout: cfg.greetingTimeout,
+      socketTimeout: cfg.socketTimeout,
       auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS
+        user: cfg.user,
+        pass: cfg.pass
+      },
+      tls: {
+        rejectUnauthorized: cfg.rejectUnauthorized
       }
     });
   }
@@ -37,6 +67,7 @@ function getTransporter() {
 }
 
 export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes }) {
+  const cfg = getSmtpConfig();
   const tx = getTransporter();
   if (!tx) {
     throw new Error("SMTP not configured");
@@ -72,7 +103,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes })
   ].join("\n");
 
   await tx.sendMail({
-    from: SMTP_FROM,
+    from: cfg.from,
     to,
     subject: "BlockMiner - Redefinicao de Senha",
     text,

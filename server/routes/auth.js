@@ -452,19 +452,37 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
 
     const resetToken = signPasswordResetToken(user.id);
     const resetUrl = `${APP_URL.replace(/\/$/, "")}/forgot-password?token=${encodeURIComponent(resetToken)}`;
+    const smtpConfigured = isSmtpConfigured();
+    let smtpDelivered = false;
 
-    if (isSmtpConfigured()) {
-      await sendPasswordResetEmail({
-        to: user.email,
-        name: user.name,
-        resetUrl,
-        ttlMinutes: Number(String(PASSWORD_RESET_TOKEN_TTL).replace(/[^0-9]/g, "")) || 20
-      });
+    if (smtpConfigured) {
+      try {
+        await sendPasswordResetEmail({
+          to: user.email,
+          name: user.name,
+          resetUrl,
+          ttlMinutes: Number(String(PASSWORD_RESET_TOKEN_TTL).replace(/[^0-9]/g, "")) || 20
+        });
+        smtpDelivered = true;
+      } catch (smtpError) {
+        // SMTP may be temporarily unavailable; keep forgot-password endpoint functional.
+        logger.error("Failed to deliver password reset email", {
+          email: normalizedEmail,
+          error: smtpError.message
+        });
+      }
     }
 
     logger.info(`[SECURITY] Password reset requested for email: ${normalizedEmail}`);
-    if (isSmtpConfigured()) {
+    if (smtpDelivered) {
       return res.json({ ok: true, message: "Enviamos um link de redefinição para o seu e-mail." });
+    }
+
+    if (smtpConfigured) {
+      return res.status(202).json({
+        ok: true,
+        message: "Solicitação recebida. O envio de e-mail está instável; tente novamente em alguns minutos."
+      });
     }
 
     return res.json({ ok: true, message: "Solicitação registrada. Continue para definir sua nova senha.", resetToken });
