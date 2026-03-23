@@ -140,7 +140,7 @@ export default function PublicRoom() {
                                 </div>
                             </div>
 
-                            <div className="p-8 grid grid-cols-4 gap-4">
+                            <div className="p-4 sm:p-8 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                                 {Array.from({ length: SLOTS_PER_RACK }).map((_, localI) => {
                                     const globalI = getGlobalSlotIndex(rackIndex, localI);
                                     const machine = getMachineBySlot(globalI, machines);

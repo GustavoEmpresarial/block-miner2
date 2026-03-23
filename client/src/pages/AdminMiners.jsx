@@ -11,15 +11,19 @@ import {
     Upload
 } from 'lucide-react';
 import { api } from '../store/auth';
+import { formatHashrate } from '../utils/machine';
+
 const GH = 1000000000;
 
-/** API may return Prisma camelCase or legacy snake_case */
+/** API may return Prisma camelCase or legacy snake_case (values in H/s). */
 function normalizeMiner(m) {
     if (!m) return m;
     const baseHs = Number(m.baseHashRate ?? m.base_hash_rate ?? 0);
     return {
         ...m,
-        // Admin keeps editing in GH/s for convenience; backend stores H/s.
+        // Canonical H/s from API (do not divide again elsewhere — causes 1e-27 style bugs).
+        baseHashRateHs: baseHs,
+        // Admin edits this column in GH/s; backend stores H/s.
         baseHashRate: baseHs / GH,
         slotSize: m.slotSize ?? m.slot_size ?? 1,
         imageUrl: m.imageUrl ?? m.image_url ?? '',
@@ -93,16 +97,23 @@ export default function AdminMiners() {
         }
     };
 
-    const buildUpdatePayload = (miner) => ({
-        name: miner.name,
-        slug: miner.slug,
-        baseHashRate: Number(miner.baseHashRate) * GH,
-        price: Number(miner.price),
-        slotSize: Number(miner.slotSize),
-        imageUrl: miner.imageUrl || null,
-        isActive: Boolean(miner.isActive),
-        showInShop: Boolean(miner.showInShop)
-    });
+    const buildUpdatePayload = (miner) => {
+        const gh = Number(miner.baseHashRate);
+        const baseHs =
+            Number.isFinite(gh) && gh >= 0
+                ? gh * GH
+                : Number(miner.baseHashRateHs ?? 0);
+        return {
+            name: miner.name,
+            slug: miner.slug,
+            baseHashRate: baseHs,
+            price: Number(miner.price),
+            slotSize: Number(miner.slotSize),
+            imageUrl: miner.imageUrl || null,
+            isActive: Boolean(miner.isActive),
+            showInShop: Boolean(miner.showInShop)
+        };
+    };
 
     const handleUpdateMiner = async (miner) => {
         try {
@@ -120,7 +131,9 @@ export default function AdminMiners() {
                 return true;
             }
         } catch (err) {
-            const msg = err.response?.data?.message;
+            const d = err.response?.data;
+            const msg = d?.message || d?.error || err.message;
+            console.error('Admin update miner', err.response?.status, d);
             toast.error(msg || 'Erro ao atualizar mineradora.');
         }
         return false;
@@ -161,29 +174,48 @@ export default function AdminMiners() {
     const handleFileUpload = async (e, isEdit) => {
         const file = e.target.files[0];
         if (!file) return;
+        e.target.value = '';
 
-        try {
-            const res = await api.post('/admin/miners/upload-image', file, {
-                headers: { 'X-File-Name': file.name }
-            });
-            if (res.data.imageUrl) {
-                toast.success('Imagem carregada!');
-                if (isEdit) {
-                    setEditingMiner((prev) => (prev ? { ...prev, imageUrl: res.data.imageUrl } : prev));
-                } else {
-                    setNewMiner((prev) => ({ ...prev, imageUrl: res.data.imageUrl }));
-                }
-            }
-        } catch (err) {
-            toast.error('Erro no upload da imagem.');
+        if (file.size > 4 * 1024 * 1024) {
+            toast.error('Arquivo muito grande (máx. 4MB).');
+            return;
         }
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+            try {
+                const dataUrl = reader.result;
+                const base64 =
+                    typeof dataUrl === 'string' && dataUrl.includes(',') ? dataUrl.split(',')[1] : null;
+                if (!base64) {
+                    toast.error('Não foi possível ler o arquivo.');
+                    return;
+                }
+                const res = await api.post('/admin/miners/upload-image', {
+                    fileBase64: base64,
+                    fileName: file.name
+                });
+                if (res.data?.imageUrl) {
+                    toast.success('Imagem carregada!');
+                    if (isEdit) {
+                        setEditingMiner((prev) => (prev ? { ...prev, imageUrl: res.data.imageUrl } : prev));
+                    } else {
+                        setNewMiner((prev) => ({ ...prev, imageUrl: res.data.imageUrl }));
+                    }
+                }
+            } catch (err) {
+                const d = err.response?.data;
+                toast.error(d?.message || 'Erro no upload da imagem.');
+            }
+        };
+        reader.onerror = () => toast.error('Erro ao ler o arquivo.');
+        reader.readAsDataURL(file);
     };
 
+    /** Row state is already normalized (GH/s in baseHashRate); never call normalizeMiner again. */
     const openEdit = (m) => {
         setEditingMiner({
-            ...normalizeMiner(m),
-            baseHashRate: normalizeMiner(m).baseHashRate,
-            slotSize: normalizeMiner(m).slotSize,
+            ...m,
             price: m.price
         });
     };
@@ -209,11 +241,11 @@ export default function AdminMiners() {
             {showCreateForm && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                        <div className="p-8 border-b border-slate-800 flex items-center justify-between">
+                        <div className="p-4 sm:p-8 border-b border-slate-800 flex items-center justify-between gap-3">
                             <h3 className="text-xl font-black text-white">Criar Nova Mineradora</h3>
                             <button onClick={() => setShowCreateForm(false)} className="p-2 text-slate-500 hover:text-white"><X className="w-6 h-6" /></button>
                         </div>
-                        <form onSubmit={handleCreateMiner} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <form onSubmit={handleCreateMiner} className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nome</label>
                                 <input required value={newMiner.name} onChange={e => setNewMiner(p => ({ ...p, name: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" placeholder="Elite Miner v1" />
@@ -276,11 +308,11 @@ export default function AdminMiners() {
             {editingMiner && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-                        <div className="p-8 border-b border-slate-800 flex items-center justify-between">
+                        <div className="p-4 sm:p-8 border-b border-slate-800 flex items-center justify-between gap-3">
                             <h3 className="text-xl font-black text-white">Editar mineradora</h3>
                             <button type="button" onClick={() => setEditingMiner(null)} className="p-2 text-slate-500 hover:text-white"><X className="w-6 h-6" /></button>
                         </div>
-                        <form onSubmit={handleSaveEditModal} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <form onSubmit={handleSaveEditModal} className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nome</label>
                                 <input required value={editingMiner.name} onChange={e => setEditingMiner(p => ({ ...p, name: e.target.value }))} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm text-white" />
@@ -347,7 +379,7 @@ export default function AdminMiners() {
                             <tr>
                                 <th className="px-8 py-4 w-16">Preview</th>
                                 <th className="px-8 py-4">Nome / Slug</th>
-                                <th className="px-8 py-4">Poder</th>
+                                <th className="px-8 py-4">Poder (GH/s)</th>
                                 <th className="px-8 py-4">Preço</th>
                                 <th className="px-8 py-4">Slots</th>
                                 <th className="px-8 py-4">Status</th>
@@ -379,12 +411,19 @@ export default function AdminMiners() {
                                         </div>
                                     </td>
                                     <td className="px-8 py-5">
-                                        <input
-                                            type="number"
-                                            value={m.baseHashRate}
-                                            onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, baseHashRate: e.target.value } : item))}
-                                            className="bg-transparent border-none text-slate-300 font-bold text-xs p-0 focus:ring-0 w-16"
-                                        />
+                                        <div className="flex flex-col gap-0.5">
+                                            <input
+                                                type="number"
+                                                step="any"
+                                                value={m.baseHashRate}
+                                                onChange={e => setMiners(prev => prev.map(item => item.id === m.id ? { ...item, baseHashRate: e.target.value } : item))}
+                                                className="bg-transparent border-none text-amber-500 font-black text-xs p-0 focus:ring-0 w-24"
+                                                title="Valor em GH/s (armazenado no banco como H/s)"
+                                            />
+                                            <span className="text-[9px] text-slate-600 font-medium tabular-nums">
+                                                ≈ {formatHashrate(Number(m.baseHashRate || 0) * GH)}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-8 py-5">
                                         <input

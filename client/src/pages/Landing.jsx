@@ -7,27 +7,27 @@ export default function Landing() {
 
     return (
         <div className="min-h-screen bg-background text-gray-100 flex flex-col font-sans">
-            <header className="px-8 py-6 flex items-center justify-between border-b border-gray-800 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-xl">
+            <header className="px-4 sm:px-8 py-4 sm:py-6 flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 bg-surface/80 backdrop-blur-md sticky top-0 z-50">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="p-2 bg-primary/10 rounded-xl shrink-0">
                         <img src="/icon.png" alt="Block Miner Logo" className="w-6 h-6 object-contain drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
                     </div>
-                    <span className="text-xl font-bold tracking-tight text-white">Block Miner</span>
+                    <span className="text-lg sm:text-xl font-bold tracking-tight text-white truncate">Block Miner</span>
                 </div>
-                <nav>
+                <nav className="w-full sm:w-auto flex justify-end">
                     {isAuthenticated ? (
                         <Link
                             to="/dashboard"
-                            className="px-6 py-2.5 bg-primary hover:bg-blue-600 text-white font-medium rounded-xl transition-colors shadow-lg shadow-primary/20"
+                            className="w-full sm:w-auto text-center px-6 py-2.5 bg-primary hover:bg-blue-600 text-white font-medium rounded-xl transition-colors shadow-lg shadow-primary/20 touch-manipulation"
                         >
                             Ir para Dashboard
                         </Link>
                     ) : (
-                        <div className="flex items-center gap-4">
-                            <Link to="/login" className="text-gray-300 hover:text-white font-medium transition-colors">Entrar</Link>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                            <Link to="/login" className="text-center sm:text-left py-2 sm:py-0 text-gray-300 hover:text-white font-medium transition-colors touch-manipulation">Entrar</Link>
                             <Link
                                 to="/register"
-                                className="px-6 py-2.5 bg-primary hover:bg-blue-600 text-white font-medium rounded-xl transition-colors shadow-lg shadow-primary/20"
+                                className="px-6 py-2.5 bg-primary hover:bg-blue-600 text-white font-medium rounded-xl transition-colors shadow-lg shadow-primary/20 text-center touch-manipulation"
                             >
                                 Criar Conta
                             </Link>
@@ -38,14 +38,14 @@ export default function Landing() {
 
             <main className="flex-1 flex flex-col">
                 {/* Hero Section */}
-                <section className="px-8 py-24 md:py-32 max-w-7xl mx-auto w-full text-center flex flex-col items-center">
-                    <div className="inline-block px-4 py-1.5 mb-8 rounded-full border border-primary/30 bg-primary/10 text-primary text-sm font-semibold tracking-wide uppercase">
+                <section className="px-4 sm:px-8 py-16 sm:py-24 md:py-32 max-w-7xl mx-auto w-full text-center flex flex-col items-center">
+                    <div className="inline-block px-4 py-1.5 mb-6 sm:mb-8 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs sm:text-sm font-semibold tracking-wide uppercase">
                         A Nova Era da Mineração
                     </div>
-                    <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-8 tracking-tight leading-tight max-w-4xl">
+                    <h1 className="text-3xl sm:text-5xl md:text-7xl font-extrabold text-white mb-6 sm:mb-8 tracking-tight leading-tight max-w-4xl">
                         Minere <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-primary">Polygon (POL)</span> na Nuvem
                     </h1>
-                    <p className="text-xl text-gray-400 mb-12 max-w-2xl leading-relaxed">
+                    <p className="text-base sm:text-xl text-gray-400 mb-8 sm:mb-12 max-w-2xl leading-relaxed px-1">
                         Plataforma de cloud mining premium. Sem equipamentos, sem configurações complexas e sem consumo de energia. Comece hoje com uma máquina gratuita de 10 H/s.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 items-center">
@@ -66,13 +66,13 @@ export default function Landing() {
 
                 {/* Features Section */}
                 <section id="como-funciona" className="bg-surface border-y border-gray-800 py-24">
-                    <div className="max-w-7xl mx-auto px-8 w-full">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-8 w-full">
                         <div className="text-center mb-16">
                             <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">Vantagens Block Miner</h2>
                             <p className="text-lg text-gray-400">Tudo o que você precisa para multiplicar seus ganhos com criptos.</p>
                         </div>
 
-                        <div className="grid md:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
                             <div className="bg-background border border-gray-800 p-8 rounded-3xl hover:border-gray-700 transition-colors">
                                 <div className="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-6">
                                     <TrendingUp className="w-7 h-7 text-amber-500" />

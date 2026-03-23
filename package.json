@@ -16,6 +16,7 @@
     "backup": "node scripts/backup.js",
     "fix:miner-images": "node scripts/fixDuplicateMinerImageUrls.js",
     "migrate:hashrate:dry": "node scripts/migrate_hashrate_gh_to_hs.js",
+    "migrate:hashrate:audit": "node scripts/migrate_hashrate_gh_to_hs.js --audit",
     "migrate:hashrate": "node scripts/migrate_hashrate_gh_to_hs.js --execute",
     "install-hooks": "git config core.hooksPath .githooks || true"
   },

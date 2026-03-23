@@ -285,6 +285,36 @@ async function bootstrap() {
     }
     // --- END ONE-TIME SCRIPT ---
 
+    // Inventário do miner do faucet é permanente: limpa expires_at legado (evita UI/cron incorretos).
+    try {
+      const faucetMiners = await prisma.miner.findMany({
+        where: { slug: { in: ["faucet-micro-miner"] } },
+        select: { id: true }
+      });
+      const ids = faucetMiners.map((m) => m.id);
+      let cleared = 0;
+      if (ids.length > 0) {
+        const u = await prisma.userInventory.updateMany({
+          where: { minerId: { in: ids }, expiresAt: { not: null } },
+          data: { expiresAt: null }
+        });
+        cleared += u.count;
+      }
+      const u2 = await prisma.userInventory.updateMany({
+        where: {
+          minerName: "Pulse Mini v1",
+          expiresAt: { not: null }
+        },
+        data: { expiresAt: null }
+      });
+      cleared += u2.count;
+      if (cleared > 0) {
+        logger.info(`Faucet inventory: cleared expiresAt on ${cleared} row(s).`);
+      }
+    } catch (e) {
+      logger.error("Faucet inventory expires cleanup failed", { error: e.message });
+    }
+
     server.listen(port, host, () => {
       logger.info(`Server running on ${host}:${port}`);
 

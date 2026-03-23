@@ -12,7 +12,16 @@ export const api = axios.create({
 
 // Interceptor to attach Anti-Bot payload to every API request
 api.interceptors.request.use((config) => {
-    // We only attach this for state-changing or critical requests, 
+    try {
+        const url = String(config.url || '');
+        if (url.startsWith('/admin/') && !url.startsWith('/admin/auth/login')) {
+            const t = localStorage.getItem('adminToken');
+            if (t) config.headers.Authorization = `Bearer ${t}`;
+        }
+    } catch {
+        /* ignore */
+    }
+    // We only attach this for state-changing or critical requests,
     // but attaching it everywhere is safer and simpler.
     try {
         const security = generateSecurityPayload();

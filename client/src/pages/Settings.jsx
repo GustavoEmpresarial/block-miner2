@@ -102,7 +102,7 @@ export default function Settings() {
                             <h2 className="text-lg font-bold text-white uppercase tracking-wider">Perfil do Usuário</h2>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="bg-gray-900/50 p-4 rounded-2xl border border-gray-800">
                                 <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest block mb-1">Nome de Usuário</span>
                                 <span className="text-sm font-bold text-white">{user?.username || user?.name}</span>

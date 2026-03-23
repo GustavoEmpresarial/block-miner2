@@ -153,8 +153,7 @@ export async function claim(req, res) {
     const miner = reward.miner;
     
     await prisma.$transaction(async (tx) => {
-      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 Hours
-
+      // Inventário permanente: o cooldown do faucet já limita novos resgates (não expulsar o item em 24h).
       await tx.userInventory.create({
         data: {
           userId,
@@ -165,7 +164,7 @@ export async function claim(req, res) {
           slotSize: miner.slotSize,
           imageUrl: miner.imageUrl || DEFAULT_MINER_IMAGE_URL,
           acquiredAt: now,
-          expiresAt: expiresAt
+          expiresAt: null
         }
       });
 

@@ -160,9 +160,29 @@ export async function listMiners(_req, res) {
 
 export async function createMiner(req, res) {
   try {
-    const miner = await minersModel.createMiner(req.body);
+    const p = minerPatchFromBody(req.body);
+    if (!p.name || !p.slug || p.baseHashRate === undefined) {
+      return res.status(400).json({ ok: false, message: "Nome, slug e baseHashRate (H/s) são obrigatórios." });
+    }
+    if (!Number.isFinite(p.baseHashRate) || p.baseHashRate < 0) {
+      return res.status(400).json({ ok: false, message: "baseHashRate inválido: envie hashrate em H/s (ex.: GH/s × 10⁹)." });
+    }
+    const miner = await minersModel.createMiner({
+      name: p.name,
+      slug: p.slug,
+      baseHashRate: p.baseHashRate,
+      price: Number.isFinite(p.price) ? p.price : 0,
+      slotSize: Number.isFinite(p.slotSize) && p.slotSize > 0 ? p.slotSize : 1,
+      imageUrl: p.imageUrl ?? null,
+      isActive: p.isActive !== false,
+      showInShop: p.showInShop !== false
+    });
     res.json({ ok: true, miner });
   } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({ ok: false, message: "Slug já em uso." });
+    }
+    logger.error("Admin createMiner", { error: error?.message });
     res.status(500).json({ ok: false, message: "Creation failed" });
   }
 }
@@ -174,6 +194,18 @@ export async function updateMiner(req, res) {
       return res.status(400).json({ ok: false, message: "Invalid miner id." });
     }
     const patch = minerPatchFromBody(req.body);
+    if (patch.baseHashRate !== undefined && (!Number.isFinite(patch.baseHashRate) || patch.baseHashRate < 0)) {
+      return res.status(400).json({
+        ok: false,
+        message: "baseHashRate inválido: envie hashrate em H/s (no painel use GH/s; o front multiplica por 10⁹)."
+      });
+    }
+    if (patch.price !== undefined && !Number.isFinite(patch.price)) {
+      return res.status(400).json({ ok: false, message: "Preço inválido." });
+    }
+    if (patch.slotSize !== undefined && (!Number.isFinite(patch.slotSize) || patch.slotSize < 1 || patch.slotSize > 2)) {
+      return res.status(400).json({ ok: false, message: "slotSize deve ser 1 ou 2." });
+    }
     const { miner, propagation } = await minersModel.updateMiner(minerId, patch);
     await reloadMiningForMinerUsers(minerId);
     res.json({ ok: true, miner, propagation });
@@ -184,7 +216,7 @@ export async function updateMiner(req, res) {
     if (error?.code === "P2002") {
       return res.status(409).json({ ok: false, message: "Slug already in use." });
     }
-    logger.error("Admin updateMiner", { error: error?.message });
+    logger.error("Admin updateMiner", { error: error?.message, code: error?.code });
     res.status(500).json({ ok: false, message: "Update failed" });
   }
 }
@@ -209,6 +241,45 @@ export async function deleteMiner(req, res) {
     }
     logger.error("Admin deleteMiner", { error: error?.message });
     res.status(500).json({ ok: false, message: "Delete failed" });
+  }
+}
+
+const UPLOAD_ALLOWED_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
+
+export async function uploadMinerImage(req, res) {
+  try {
+    const { fileBase64, fileName } = req.body || {};
+    if (!fileBase64 || typeof fileName !== "string") {
+      return res.status(400).json({ ok: false, message: "Envie fileBase64 e fileName." });
+    }
+    let buf;
+    try {
+      buf = Buffer.from(String(fileBase64), "base64");
+    } catch {
+      return res.status(400).json({ ok: false, message: "Base64 inválido." });
+    }
+    if (!buf.length || buf.length > 4 * 1024 * 1024) {
+      return res.status(400).json({ ok: false, message: "Arquivo vazio ou maior que 4MB." });
+    }
+
+    const raw = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, "_");
+    let ext = path.extname(raw).toLowerCase();
+    if (!UPLOAD_ALLOWED_EXT.has(ext)) {
+      ext = ".png";
+    }
+    const stem = path.basename(raw, path.extname(raw)).slice(0, 80) || "miner";
+    const destName = `${Date.now()}_${stem}${ext}`;
+
+    const uploadRoot = path.join(process.cwd(), "uploads");
+    const dir = path.join(uploadRoot, "machines");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, destName), buf);
+
+    const imageUrl = `/uploads/machines/${destName}`;
+    return res.json({ ok: true, imageUrl });
+  } catch (error) {
+    logger.error("uploadMinerImage", { error: error?.message });
+    return res.status(500).json({ ok: false, message: "Upload falhou." });
   }
 }
 

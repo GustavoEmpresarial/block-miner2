@@ -1,6 +1,6 @@
 import express from "express";
 import { createRateLimiter } from "../middleware/rateLimit.js";
-import { login } from "../controllers/adminAuthController.js";
+import { login, checkAdminSession } from "../controllers/adminAuthController.js";
 
 export const adminAuthRouter = express.Router();
 
@@ -11,5 +11,5 @@ const loginLimiter = createRateLimiter({
   message: "Many login attempts. Try again in 15 minutes."
 });
 
-// POST /api/admin/login - Authenticate
 adminAuthRouter.post("/login", loginLimiter, login);
+adminAuthRouter.get("/check", checkAdminSession);

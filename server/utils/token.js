@@ -42,7 +42,13 @@ export function getAdminTokenFromRequest(req) {
   const cookies = parseCookie(req.headers.cookie || "");
   const adminCookieToken = cookies[ADMIN_SESSION_COOKIE] || null;
   if (adminCookieToken) return adminCookieToken;
-  return getTokenFromRequest(req);
+
+  const authHeader = req.headers.authorization || "";
+  if (authHeader.toLowerCase().startsWith("bearer ")) {
+    const bearer = authHeader.slice(7).trim();
+    if (looksLikeJwt(bearer)) return bearer;
+  }
+  return null;
 }
 
 export {

@@ -428,7 +428,7 @@ export default function Wallet() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-8 pt-10 border-t border-white/10">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 pt-10 border-t border-white/10">
                                 <div className="space-y-1">
                                     <p className="text-blue-100/40 font-bold uppercase tracking-widest text-[8px]">Life Mined</p>
                                     <p className="text-lg font-black tracking-tight">{balance.lifetimeMined.toFixed(4)} <span className="text-[10px] opacity-40">POL</span></p>

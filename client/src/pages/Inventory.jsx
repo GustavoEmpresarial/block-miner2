@@ -180,7 +180,7 @@ export default function Inventory() {
                                         </button>
                                     </div>
 
-                                    <div className="p-4 grid grid-cols-4 gap-3">
+                                    <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                                         {Array.from({ length: SLOTS_PER_RACK }).map((_, localI) => {
                                             const globalI = getGlobalSlotIndex(rackIndex, localI);
                                             const machine = getMachineBySlot(globalI, safeMachines);

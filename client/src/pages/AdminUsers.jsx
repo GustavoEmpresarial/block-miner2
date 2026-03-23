@@ -223,7 +223,7 @@ export default function AdminUsers() {
                         </div>
 
                         <div className="p-8 space-y-10 pb-20">
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                 <DetailCard label="Username" value={selectedUser.user.username || selectedUser.user.name} icon={Users} />
                                 <DetailCard label="E-mail" value={selectedUser.user.email} icon={Search} small />
                                 <DetailCard label="Carteira" value={selectedUser.user.walletAddress || 'Não vinculada'} icon={Wallet} small />
@@ -234,7 +234,7 @@ export default function AdminUsers() {
 
                             <div className="space-y-4">
                                 <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] border-b border-slate-800 pb-2">Engajamento</h4>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                     <StatMini label="Faucet" value={selectedUser.metrics?.faucetClaims} />
                                     <StatMini label="Shortlinks" value={selectedUser.metrics?.shortlinkDailyRuns} />
                                     <StatMini label="Auto GPU" value={selectedUser.metrics?.autoGpuClaims} />

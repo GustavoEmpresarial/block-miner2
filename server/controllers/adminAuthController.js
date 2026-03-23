@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import loggerLib from "../utils/logger.js";
-import { ADMIN_SESSION_COOKIE } from "../utils/token.js";
+import { ADMIN_SESSION_COOKIE, getAdminTokenFromRequest } from "../utils/token.js";
 
 const logger = loggerLib.child("AdminAuthController");
 
@@ -55,5 +55,28 @@ export async function login(req, res) {
   } catch (error) {
     logger.error("Admin login error", { error: error.message });
     return res.status(500).json({ ok: false, message: "Internal server error" });
+  }
+}
+
+/** GET /api/admin/auth/check — layout do painel; não exige middleware (valida aqui). */
+export function checkAdminSession(req, res) {
+  try {
+    if (!JWT_SECRET) {
+      return res.status(503).json({ ok: false, message: "Admin auth unavailable." });
+    }
+    const token = getAdminTokenFromRequest(req);
+    if (!token) {
+      return res.status(401).json({ ok: false, message: "Admin session invalid." });
+    }
+    const payload = jwt.verify(token, JWT_SECRET, {
+      issuer: "blockminer-admin",
+      algorithms: ["HS256"]
+    });
+    if (payload.role !== "admin" || payload.type !== "admin_session") {
+      return res.status(403).json({ ok: false, message: "Forbidden" });
+    }
+    return res.json({ ok: true });
+  } catch {
+    return res.status(401).json({ ok: false, message: "Admin session invalid." });
   }
 }

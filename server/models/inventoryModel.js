@@ -2,10 +2,38 @@ import prisma from '../src/db/prisma.js';
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 
+/** Slugs cujo inventário é permanente (faucet; não mostrar / não usar expiresAt). */
+const PERMANENT_INVENTORY_MINER_SLUGS = ['faucet-micro-miner'];
+
+let permanentMinerIdSetPromise = null;
+function getPermanentInventoryMinerIdSet() {
+  if (!permanentMinerIdSetPromise) {
+    permanentMinerIdSetPromise = prisma.miner
+      .findMany({
+        where: { slug: { in: PERMANENT_INVENTORY_MINER_SLUGS } },
+        select: { id: true }
+      })
+      .then((rows) => new Set(rows.map((r) => r.id)));
+  }
+  return permanentMinerIdSetPromise;
+}
+
 export async function listInventory(userId) {
-  return prisma.userInventory.findMany({
+  const rows = await prisma.userInventory.findMany({
     where: { userId },
     orderBy: { acquiredAt: 'asc' }
+  });
+  if (rows.length === 0) return rows;
+  const permanentIds = await getPermanentInventoryMinerIdSet();
+  return rows.map((r) => {
+    if (r.expiresAt == null) return r;
+    const byCatalog =
+      r.minerId != null && permanentIds.has(r.minerId);
+    const byName = String(r.minerName || '') === 'Pulse Mini v1';
+    if (byCatalog || byName) {
+      return { ...r, expiresAt: null };
+    }
+    return r;
   });
 }
 

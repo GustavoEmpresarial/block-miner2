@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useAuthStore } from './store/auth';
+import { MobileNavProvider } from './context/MobileNavContext';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -45,19 +46,19 @@ const Landing = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center">
-      <div className="max-w-3xl space-y-8">
-        <h1 className="text-6xl font-black tracking-tighter bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent italic">
+    <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-white flex flex-col items-center justify-center px-4 py-8 sm:p-6 text-center safe-pb">
+      <div className="max-w-3xl space-y-6 sm:space-y-8 w-full">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent italic">
           BLOCK MINER
         </h1>
-        <p className="text-xl text-slate-400 leading-relaxed">
+        <p className="text-base sm:text-xl text-slate-400 leading-relaxed px-1">
           The next generation of Web3 mining simulation. Build your farm, upgrade your rigs, and mine real rewards in a premium competitive environment.
         </p>
-        <div className="flex gap-4 justify-center pt-8">
-          <a href="/login" className="px-8 py-4 bg-primary text-white font-bold rounded-2xl hover:scale-105 transition-transform">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-4 sm:pt-8 w-full max-w-md sm:max-w-none mx-auto">
+          <a href="/login" className="px-8 py-4 bg-primary text-white font-bold rounded-2xl hover:scale-[1.02] sm:hover:scale-105 transition-transform touch-manipulation text-center">
             Start Mining
           </a>
-          <a href="/register" className="px-8 py-4 bg-slate-800 text-white font-bold rounded-2xl hover:bg-slate-700 transition-colors">
+          <a href="/register" className="px-8 py-4 bg-slate-800 text-white font-bold rounded-2xl hover:bg-slate-700 transition-colors touch-manipulation text-center">
             Join the Network
           </a>
         </div>
@@ -96,27 +97,38 @@ const ProtectedLayout = () => {
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden text-gray-100 font-sans">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        <Header />
-        <main className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="p-8 max-w-7xl mx-auto">
-            <Outlet />
-          </div>
-        </main>
-        <ChatSidebar />
+    <MobileNavProvider>
+      <div className="flex h-screen min-h-0 bg-background overflow-hidden text-gray-100 font-sans">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+          <Header />
+          <main className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide overscroll-contain">
+            <div className="p-3 pb-6 sm:p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0 safe-pb">
+              <Outlet />
+            </div>
+          </main>
+          <ChatSidebar />
+        </div>
       </div>
-    </div>
+    </MobileNavProvider>
   );
 };
 
 function App() {
   const { checkSession, isLoading } = useAuthStore();
+  const [toasterPosition, setToasterPosition] = useState('bottom-right');
 
   useEffect(() => {
     checkSession();
   }, [checkSession]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const apply = () => setToasterPosition(mq.matches ? 'bottom-center' : 'bottom-right');
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   if (isLoading) {
     return (
@@ -130,7 +142,7 @@ function App() {
     <BrowserRouter>
       <Toaster
         theme="dark"
-        position="bottom-right"
+        position={toasterPosition}
         richColors={false}
         expand={true}
         toastOptions={{

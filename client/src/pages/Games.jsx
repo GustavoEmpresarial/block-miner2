@@ -320,9 +320,9 @@ export default function Games() {
         <div className="relative">
           <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-4 shadow-2xl relative overflow-hidden flex flex-col items-center">
             {isGameOver ? (
-              <div className="h-[550px] flex flex-col items-center justify-center text-center space-y-10 z-10 relative animate-in zoom-in duration-500">
-                <Trophy className="w-24 h-24 text-primary animate-bounce" />
-                <h2 className="text-7xl font-black text-white italic tracking-tighter uppercase leading-none">Relatório Final</h2>
+              <div className="min-h-[min(550px,75dvh)] py-8 sm:py-0 sm:h-[550px] flex flex-col items-center justify-center text-center space-y-6 sm:space-y-10 z-10 relative animate-in zoom-in duration-500 px-2">
+                <Trophy className="w-16 h-16 sm:w-24 sm:h-24 text-primary animate-bounce" />
+                <h2 className="text-3xl sm:text-5xl md:text-7xl font-black text-white italic tracking-tighter uppercase leading-none">Relatório Final</h2>
                 {rewardMessage ? <div className="p-12 bg-emerald-500/10 border border-emerald-500/20 rounded-[3rem] shadow-2xl backdrop-blur-md"><p className="text-emerald-400 font-black text-4xl uppercase">Bônus Concedido!</p><p className="text-emerald-400/70 font-bold mt-2 text-xl uppercase">{rewardMessage}</p></div> : <div className="p-10 bg-red-500/10 border border-red-500/20 rounded-[2rem]"><p className="text-red-400 font-black text-2xl uppercase tracking-widest">Missão Falhou</p></div>}
                 <button 
                   onClick={() => socket.emit('game:start', activeGame === 'memory' ? 'crypto-memory' : 'crypto-match-3')} 
@@ -334,9 +334,9 @@ export default function Games() {
                 <button onClick={() => { setActiveGame(null); setGameState(null); }} className="text-slate-500 font-bold uppercase text-xs tracking-[0.3em] hover:text-white transition-colors">Voltar ao Terminal</button>
               </div>
             ) : !gameState ? (
-              <div className="h-[550px] flex flex-col items-center justify-center gap-6"><div className="w-24 h-24 border-8 border-primary border-t-transparent rounded-full animate-spin shadow-glow" /><p className="text-white font-black uppercase tracking-[0.6em] animate-pulse">Sincronizando...</p></div>
+              <div className="min-h-[min(550px,70dvh)] sm:h-[550px] flex flex-col items-center justify-center gap-6 py-8"><div className="w-16 h-16 sm:w-24 sm:h-24 border-4 sm:border-8 border-primary border-t-transparent rounded-full animate-spin shadow-glow" /><p className="text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] animate-pulse text-xs sm:text-base text-center px-2">Sincronizando...</p></div>
             ) : (
-              <div className="relative w-full h-[500px] rounded-[2.5rem] overflow-hidden bg-black shadow-inner">
+              <div className="relative w-full min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem] overflow-hidden bg-black shadow-inner">
                 <canvas ref={canvasRef} width={800} height={500} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp} className="w-full h-full object-contain" style={{ cursor: 'none' }} />
               </div>
             )}
