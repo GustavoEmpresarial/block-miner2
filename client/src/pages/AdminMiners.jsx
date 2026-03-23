@@ -10,7 +10,8 @@ import {
     X,
     Upload,
     Gift,
-    Loader2
+    Loader2,
+    RefreshCw
 } from 'lucide-react';
 import { api } from '../store/auth';
 import { formatHashrate } from '../utils/machine';
@@ -58,6 +59,7 @@ export default function AdminMiners() {
     const [grantSkipBanned, setGrantSkipBanned] = useState(true);
     const [grantSkipIfHas, setGrantSkipIfHas] = useState(false);
     const [grantLoading, setGrantLoading] = useState(false);
+    const [propagateMinerId, setPropagateMinerId] = useState(null);
 
     const fetchMiners = useCallback(async () => {
         try {
@@ -144,6 +146,32 @@ export default function AdminMiners() {
             toast.error(msg || 'Erro ao atualizar mineradora.');
         }
         return false;
+    };
+
+    /** Aplica o registo atual do catálogo `miners` a todas as instâncias (rack + inventário + shortlink). Não altera o catálogo. */
+    const handlePropagateCatalogOnly = async (miner) => {
+        const ok = window.confirm(
+            `Empurrar o catálogo de "${miner.name}" (#${miner.id}) para TODAS as instâncias existentes?\n\n` +
+                '• Rack (user_miners)\n' +
+                '• Inventário (user_inventory)\n' +
+                '• Recompensa shortlink ligada\n\n' +
+                'Hash em cada linha = base do catálogo × nível da instância. O catálogo no servidor não muda (use se já editou no SQL ou quer forçar alinhamento).'
+        );
+        if (!ok) return;
+        try {
+            setPropagateMinerId(miner.id);
+            const res = await api.post(`/admin/miners/${miner.id}/propagate-to-instances`);
+            if (res.data?.ok) {
+                const p = res.data.propagation;
+                toast.success(
+                    `Instâncias atualizadas: ${p.userMiners} rack · ${p.userInventory} inventário · ${p.shortlinkRewards} shortlink.`
+                );
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Falha ao propagar.');
+        } finally {
+            setPropagateMinerId(null);
+        }
     };
 
     const handleSaveEditModal = async (e) => {
@@ -268,8 +296,11 @@ export default function AdminMiners() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-black text-white">Catálogo de Mineradoras</h2>
-                    <p className="text-slate-500 text-sm font-medium">
-                        Alterações no catálogo são propagadas para todas as instâncias (rack, inventário e recompensa shortlink vinculada).
+                    <p className="text-slate-500 text-sm font-medium max-w-3xl">
+                        Ao <strong className="text-slate-300">guardar</strong> uma máquina (ícone disco na linha ou &quot;Salvar e propagar&quot; no modal), o servidor{' '}
+                        <strong className="text-amber-500/90">atualiza o catálogo e em seguida aplica o mesmo poder (base×nível), slots e imagem a todas as cópias</strong>{' '}
+                        dessa máquina no rack e no inventário dos jogadores (e shortlink, se existir). O botão{' '}
+                        <RefreshCw className="inline w-3.5 h-3.5 align-text-bottom opacity-70" /> só empurra de novo o que já está no catálogo, sem gravar alterações da tabela.
                     </p>
                 </div>
                 <button
@@ -587,9 +618,22 @@ export default function AdminMiners() {
                                             </button>
                                             <button
                                                 type="button"
+                                                onClick={() => handlePropagateCatalogOnly(m)}
+                                                disabled={propagateMinerId === m.id}
+                                                className="p-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 rounded-lg transition-all disabled:opacity-40"
+                                                title="Aplicar só o catálogo atual a todas as instâncias (rack + inventário)"
+                                            >
+                                                {propagateMinerId === m.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <RefreshCw className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
                                                 onClick={() => handleUpdateMiner(m)}
                                                 className="p-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded-lg transition-all"
-                                                title="Salvar linha e propagar"
+                                                title="Gravar alterações da linha no catálogo e propagar a todas as instâncias"
                                             >
                                                 <Save className="w-4 h-4" />
                                             </button>

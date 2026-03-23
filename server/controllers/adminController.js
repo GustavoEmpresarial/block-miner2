@@ -224,6 +224,32 @@ export async function updateMiner(req, res) {
 }
 
 /**
+ * Push catalog fields (base×level hash, slots, name, image) to all user_miners, user_inventory, shortlink for this miner_id.
+ * Does not modify the miners row — same effect as the propagation step after PUT, for repair / clarity.
+ */
+export async function propagateMinerCatalogToInstances(req, res) {
+  try {
+    const minerId = Number(req.params.id);
+    if (!Number.isInteger(minerId) || minerId <= 0) {
+      return res.status(400).json({ ok: false, message: "Invalid miner id." });
+    }
+    const { miner, propagation } = await minersModel.propagateCatalogMinerToAllInstances(minerId);
+    await reloadMiningForMinerUsers(minerId);
+    res.json({
+      ok: true,
+      miner: { id: miner.id, name: miner.name, slug: miner.slug },
+      propagation
+    });
+  } catch (error) {
+    if (error?.code === "NOT_FOUND") {
+      return res.status(404).json({ ok: false, message: "Miner not found." });
+    }
+    logger.error("propagateMinerCatalogToInstances", { error: error?.message });
+    res.status(500).json({ ok: false, message: "Propagation failed" });
+  }
+}
+
+/**
  * Adiciona uma unidade da mineradora ao inventário de todos os usuários (ou subset com filtros).
  * Body: { minerId, skipBanned?: true, skipIfHasMiner?: false }
  */

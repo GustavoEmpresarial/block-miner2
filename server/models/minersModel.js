@@ -150,6 +150,23 @@ export async function propagateMinerToAllInstances(tx, miner) {
 }
 
 /**
+ * Re-applies the current catalog row to every rack/inventory/shortlink instance (no catalog change).
+ * Use after SQL direto no `miners` or to fix drift without opening the edit form.
+ */
+export async function propagateCatalogMinerToAllInstances(minerId) {
+  return prisma.$transaction(async (tx) => {
+    const miner = await tx.miner.findUnique({ where: { id: minerId } });
+    if (!miner) {
+      const err = new Error("NOT_FOUND");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+    const propagation = await propagateMinerToAllInstances(tx, miner);
+    return { miner, propagation };
+  });
+}
+
+/**
  * Merges patch into existing miner, updates row, propagates to all instances.
  * @param {number} minerId
  * @param {object} patch — optional fields (camelCase or mixed with snake_case handled in controller)
