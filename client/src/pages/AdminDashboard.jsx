@@ -94,8 +94,8 @@ export default function AdminDashboard() {
             }
         }
         const msg = scopeAll
-            ? 'Aplicar o poder (hash/slot/imagem) do CATÁLOGO a TODOS os racks e inventários vinculados a miner_id? Isso corrige discrepâncias com o ranking/sala pública.'
-            : `Aplicar o catálogo só ao usuário #${uid}?`;
+            ? 'Atualizar TODAS as instâncias de máquinas (tabelas user_miners e user_inventory) com base no catálogo miners: hash = base × nível da máquina, slots e imagem. Não altera campo direto no cadastro do usuário. Continuar?'
+            : `Atualizar só as máquinas do usuário #${uid} a partir do catálogo (base × nível por linha). Continuar?`;
         if (!window.confirm(msg)) return;
         try {
             setResyncLoading(true);
@@ -145,20 +145,19 @@ export default function AdminDashboard() {
                         <Zap className="w-5 h-5" />
                     </div>
                     <div className="min-w-0 space-y-1">
-                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Poder de mineração (catálogo → jogadores)</h3>
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">Máquinas: catálogo → instâncias (rack + inventário)</h3>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                            Atualiza <strong className="text-slate-400">hash_rate</strong>, slots e imagem nas tabelas{' '}
-                            <code className="text-amber-600/90">user_miners</code> (sala) e{' '}
-                            <code className="text-amber-600/90">user_inventory</code> a partir do catálogo{' '}
-                            <code className="text-amber-600/90">miners</code>. Não altera jogos/YT/GPU. Recarrega o motor de mineração por jogador afetado.
-                            O ranking passa a bater com a sala quando o problema era catálogo vs instâncias antigas; o total global também soma{' '}
-                            <strong className="text-slate-400">Auto-Mining GPU</strong> na API.
+                            Corrige o <strong className="text-slate-400">poder de cada máquina</strong> (linhas em{' '}
+                            <code className="text-amber-600/90">user_miners</code> e{' '}
+                            <code className="text-amber-600/90">user_inventory</code>), não um total gravado no usuário.{' '}
+                            <code className="text-amber-600/90">hash_rate</code> = base do catálogo × nível da instância; também alinham slots e imagem a partir de{' '}
+                            <code className="text-amber-600/90">miners</code>. Não mexe em jogos/YT/GPU. Recarrega o motor por jogador afetado.
                         </p>
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
                     <div className="flex-1 min-w-[140px]">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">ID usuário (opcional)</label>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Só máquinas deste usuário (ID opcional)</label>
                         <input
                             type="number"
                             min={1}

@@ -329,8 +329,9 @@ export async function grantMinerInventoryToAllUsers(req, res) {
 }
 
 /**
- * Alinha hash_rate / slot / imagem das instâncias ao catálogo `miners` (rack + inventário).
- * Corrige discrepâncias quando o catálogo foi calibrado mas as linhas dos jogadores ficaram antigas.
+ * Alinha cada instância de máquina (rack + inventário) ao catálogo `miners`.
+ * Atualiza só `user_miners` e `user_inventory` — não grava total “no usuário”.
+ * hash_rate por linha = base_hash_rate do catálogo × nível da instância (igual à propagação do catálogo).
  * Body opcional: { userId?: number } — se omitido, aplica a todos.
  */
 export async function resyncMiningPowersFromCatalog(req, res) {
@@ -352,7 +353,7 @@ export async function resyncMiningPowersFromCatalog(req, res) {
         await prisma.$executeRaw`
           UPDATE user_miners um
           SET
-            hash_rate = m.base_hash_rate,
+            hash_rate = m.base_hash_rate * GREATEST(1, COALESCE(um.level, 1)),
             slot_size = m.slot_size,
             image_url = COALESCE(m.image_url, um.image_url)
           FROM miners m
@@ -364,7 +365,7 @@ export async function resyncMiningPowersFromCatalog(req, res) {
           UPDATE user_inventory ui
           SET
             miner_name = m.name,
-            hash_rate = m.base_hash_rate,
+            hash_rate = m.base_hash_rate * GREATEST(1, COALESCE(ui.level, 1)),
             slot_size = m.slot_size,
             image_url = COALESCE(m.image_url, ui.image_url)
           FROM miners m
@@ -376,7 +377,7 @@ export async function resyncMiningPowersFromCatalog(req, res) {
         await prisma.$executeRaw`
           UPDATE user_miners um
           SET
-            hash_rate = m.base_hash_rate,
+            hash_rate = m.base_hash_rate * GREATEST(1, COALESCE(um.level, 1)),
             slot_size = m.slot_size,
             image_url = COALESCE(m.image_url, um.image_url)
           FROM miners m
@@ -388,7 +389,7 @@ export async function resyncMiningPowersFromCatalog(req, res) {
           UPDATE user_inventory ui
           SET
             miner_name = m.name,
-            hash_rate = m.base_hash_rate,
+            hash_rate = m.base_hash_rate * GREATEST(1, COALESCE(ui.level, 1)),
             slot_size = m.slot_size,
             image_url = COALESCE(m.image_url, ui.image_url)
           FROM miners m
