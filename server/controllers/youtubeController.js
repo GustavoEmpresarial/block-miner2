@@ -4,9 +4,38 @@ import loggerLib from "../utils/logger.js";
 const logger = loggerLib.child("YouTubeController");
 
 const HASH_IN_GH = 1_000_000_000;
-const REWARD_PER_CLAIM_HS = 3 * HASH_IN_GH; // 3 GH/s in H/s
+
+function parsePositiveHs(raw, fallback) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return n;
+}
+
+/** Hash por claim em H/s (ex.: 3 = 3 H/s). Antes era 3e9 (3 GH/s). */
+const REWARD_PER_CLAIM_HS = (() => {
+  const n = Number(process.env.YOUTUBE_WATCH_REWARD_HS);
+  if (!Number.isFinite(n) || n <= 0) return 3;
+  return n;
+})();
+
 const DURATION_HOURS = 24;
-const DAILY_LIMIT_HS = 1440 * HASH_IN_GH; // Max 1440 GH/s per day, stored in H/s
+
+/**
+ * Soma máxima de hash concedido nas últimas 24h (histórico), em H/s.
+ * Omissão: 480 × recompensa (equivale ao teto antigo 1440 GH/s ÷ 3 GH/s por claim).
+ */
+const DAILY_LIMIT_HS = (() => {
+  const fromEnv = parsePositiveHs(process.env.YOUTUBE_WATCH_DAILY_LIMIT_HS, NaN);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return 480 * REWARD_PER_CLAIM_HS;
+})();
+
+function rewardLabelHs(hs) {
+  if (hs >= HASH_IN_GH) return `${(hs / HASH_IN_GH).toFixed(2)} GH/s`;
+  if (hs >= 1_000_000) return `${(hs / 1_000_000).toFixed(2)} MH/s`;
+  if (hs >= 1_000) return `${(hs / 1_000).toFixed(2)} kH/s`;
+  return `${hs} H/s`;
+}
 
 export async function getStatus(req, res) {
   try {
@@ -18,13 +47,14 @@ export async function getStatus(req, res) {
     
     const activeHashRate = activePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
     
-    res.json({ 
-      ok: true, 
-      activeHashRate, 
+    res.json({
+      ok: true,
+      activeHashRate,
       count: activePowers.length,
       rewardHs: REWARD_PER_CLAIM_HS,
       rewardGh: REWARD_PER_CLAIM_HS / HASH_IN_GH,
-      durationMin: DURATION_HOURS * 60
+      durationMin: DURATION_HOURS * 60,
+      dailyLimitHs: DAILY_LIMIT_HS
     });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Error fetching status." });
@@ -55,14 +85,15 @@ export async function getStats(req, res) {
 
     const hash24h = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
 
-    res.json({ 
-      ok: true, 
+    res.json({
+      ok: true,
       claims24h: claims24h.length,
       hashGranted24h: hash24h,
       claimsTotal: claimsAll._count,
       hashGrantedTotal: Number(claimsAll._sum.hashRate || 0),
       recent: historyRecent,
-      dailyLimit: DAILY_LIMIT_HS
+      dailyLimit: DAILY_LIMIT_HS,
+      dailyLimitHs: DAILY_LIMIT_HS
     });
   } catch (error) {
     logger.error("YT stats error", error);
@@ -123,7 +154,7 @@ export async function claimReward(req, res) {
 
     res.json({
       ok: true,
-      message: `+${(REWARD_PER_CLAIM_HS / HASH_IN_GH).toFixed(2)} GH/s activated for 24h!`,
+      message: `+${rewardLabelHs(REWARD_PER_CLAIM_HS)} ativado por 24h!`,
       rewardHs: REWARD_PER_CLAIM_HS,
       rewardGh: REWARD_PER_CLAIM_HS / HASH_IN_GH
     });

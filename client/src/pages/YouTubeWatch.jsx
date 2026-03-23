@@ -245,7 +245,9 @@ export default function YouTubeWatch() {
                             <TrackerItem label="Next claim in" value={isRunning ? `${countdown}s` : '--'} icon={Clock} color="primary" />
                             <TrackerItem
                                 label="Claim per minute"
-                                value={formatHashrate(status?.rewardHs ?? (Number(status?.rewardGh || 3) * GH))}
+                                value={formatHashrate(
+                                    status?.rewardHs ?? Number(status?.rewardGh ?? 0) * GH
+                                )}
                                 icon={Zap}
                                 color="amber"
                             />
