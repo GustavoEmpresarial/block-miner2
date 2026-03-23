@@ -1,4 +1,5 @@
 import prisma from '../src/db/prisma.js';
+import { stripAccidentalBillionScaleHs } from '../utils/hashRateScale.js';
 
 export async function listUserMachines(userId) {
   return prisma.userMiner.findMany({
@@ -12,11 +13,14 @@ export async function listUserMachines(userId) {
       }
     },
     orderBy: { slotIndex: 'asc' }
-  }).then(machines => machines.map(m => ({
-    ...m,
-    miner_name: m.miner?.name,
-    image_url: m.miner?.imageUrl
-  })));
+  }).then((machines) =>
+    machines.map((m) => ({
+      ...m,
+      hashRate: stripAccidentalBillionScaleHs(m.hashRate),
+      miner_name: m.miner?.name,
+      image_url: m.miner?.imageUrl
+    }))
+  );
 }
 
 export async function getMachineById(userId, machineId) {
@@ -33,11 +37,16 @@ export async function getMachineById(userId, machineId) {
         }
       }
     }
-  }).then(m => m ? ({
-    ...m,
-    miner_name: m.miner?.name,
-    image_url: m.miner?.imageUrl
-  }) : null);
+  }).then((m) =>
+    m
+      ? {
+          ...m,
+          hashRate: stripAccidentalBillionScaleHs(m.hashRate),
+          miner_name: m.miner?.name,
+          image_url: m.miner?.imageUrl
+        }
+      : null
+  );
 }
 
 export async function getMachineBySlot(userId, slotIndex) {

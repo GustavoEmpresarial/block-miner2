@@ -1,5 +1,6 @@
 import prisma from '../src/db/prisma.js';
 import loggerLib from "../utils/logger.js";
+import { stripAccidentalBillionScaleHs } from "../utils/hashRateScale.js";
 
 const logger = loggerLib.child("YouTubeController");
 
@@ -45,7 +46,7 @@ export async function getStatus(req, res) {
       where: { userId, expiresAt: { gt: now } }
     });
     
-    const activeHashRate = activePowers.reduce((sum, p) => sum + (p.hashRate || 0), 0);
+    const activeHashRate = activePowers.reduce((sum, p) => sum + stripAccidentalBillionScaleHs(p.hashRate), 0);
     
     res.json({
       ok: true,
@@ -83,7 +84,7 @@ export async function getStats(req, res) {
       })
     ]);
 
-    const hash24h = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+    const hash24h = claims24h.reduce((sum, c) => sum + stripAccidentalBillionScaleHs(c.hashRate), 0);
 
     res.json({
       ok: true,
@@ -124,7 +125,7 @@ export async function claimReward(req, res) {
     const claims24h = await prisma.youtubeWatchHistory.findMany({
       where: { userId, createdAt: { gt: yesterday } }
     });
-    const currentDailyHash = claims24h.reduce((sum, c) => sum + (c.hashRate || 0), 0);
+    const currentDailyHash = claims24h.reduce((sum, c) => sum + stripAccidentalBillionScaleHs(c.hashRate), 0);
 
     if (currentDailyHash + REWARD_PER_CLAIM_HS > DAILY_LIMIT_HS) {
       return res.status(400).json({ ok: false, message: "Daily reward limit reached. Try again later!" });

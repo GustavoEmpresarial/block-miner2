@@ -20,6 +20,8 @@
     "migrate:hashrate": "node scripts/migrate_hashrate_gh_to_hs.js --execute",
     "powers:clear-game-yt:dry": "node scripts/clear_game_yt_powers.js",
     "powers:clear-game-yt": "node scripts/clear_game_yt_powers.js --execute",
+    "hashrate:strip-billion:dry": "node scripts/strip_extra_billion_hashscale.js",
+    "hashrate:strip-billion": "node scripts/strip_extra_billion_hashscale.js --execute",
     "deploy:vps": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/deploy-vps-windows.ps1",
     "install-hooks": "git config core.hooksPath .githooks || true"
   },

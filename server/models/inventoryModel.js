@@ -1,4 +1,5 @@
 import prisma from '../src/db/prisma.js';
+import { stripAccidentalBillionScaleHs } from '../utils/hashRateScale.js';
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 
@@ -26,14 +27,14 @@ export async function listInventory(userId) {
   if (rows.length === 0) return rows;
   const permanentIds = await getPermanentInventoryMinerIdSet();
   return rows.map((r) => {
-    if (r.expiresAt == null) return r;
-    const byCatalog =
-      r.minerId != null && permanentIds.has(r.minerId);
+    const base = { ...r, hashRate: stripAccidentalBillionScaleHs(r.hashRate) };
+    if (base.expiresAt == null) return base;
+    const byCatalog = r.minerId != null && permanentIds.has(r.minerId);
     const byName = String(r.minerName || '') === 'Pulse Mini v1';
     if (byCatalog || byName) {
-      return { ...r, expiresAt: null };
+      return { ...base, expiresAt: null };
     }
-    return r;
+    return base;
   });
 }
 

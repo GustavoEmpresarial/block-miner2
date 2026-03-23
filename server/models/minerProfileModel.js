@@ -1,5 +1,6 @@
 import prisma from '../src/db/prisma.js';
 import crypto from 'crypto';
+import { stripAccidentalBillionScaleHs } from '../utils/hashRateScale.js';
 
 export async function getOrCreateMinerProfile(user) {
   let dbUser = await prisma.user.findUnique({
@@ -61,11 +62,11 @@ export async function getOrCreateMinerProfile(user) {
 
   const machineHashRate = activeMiners.reduce((sum, m) => {
     // We only count permanent machines. Pulse GPUs are counted separately below.
-    return sum + (m.hashRate || 0);
+    return sum + stripAccidentalBillionScaleHs(m.hashRate);
   }, 0);
-  const gameHashRate = gamePowers.reduce((sum, g) => sum + (g.hashRate || 0), 0);
-  const ytHashRate = ytPowers.reduce((sum, y) => sum + (y.hashRate || 0), 0);
-  const gpuHashRate = gpuPowers.reduce((sum, p) => sum + (p.gpuHashRate || 0), 0);
+  const gameHashRate = gamePowers.reduce((sum, g) => sum + stripAccidentalBillionScaleHs(g.hashRate), 0);
+  const ytHashRate = ytPowers.reduce((sum, y) => sum + stripAccidentalBillionScaleHs(y.hashRate), 0);
+  const gpuHashRate = gpuPowers.reduce((sum, p) => sum + stripAccidentalBillionScaleHs(p.gpuHashRate), 0);
   
   const totalHashRate = machineHashRate + gameHashRate + ytHashRate + gpuHashRate;
 
@@ -108,11 +109,11 @@ export async function syncUserBaseHashRate(userId) {
   const machineHashRate = activeMiners.reduce((sum, m) => {
     // If we ever allow Pulse GPU to be installed in rack, we must not count its hashRate here
     // because it's already counted in gpuHashRate via autoMiningGpu table
-    return sum + (m.hashRate || 0);
+    return sum + stripAccidentalBillionScaleHs(m.hashRate);
   }, 0);
-  const gameHashRate = gamePowers.reduce((sum, g) => sum + (g.hashRate || 0), 0);
-  const ytHashRate = ytPowers.reduce((sum, y) => sum + (y.hashRate || 0), 0);
-  const gpuHashRate = gpuPowers.reduce((sum, p) => sum + (p.gpuHashRate || 0), 0);
+  const gameHashRate = gamePowers.reduce((sum, g) => sum + stripAccidentalBillionScaleHs(g.hashRate), 0);
+  const ytHashRate = ytPowers.reduce((sum, y) => sum + stripAccidentalBillionScaleHs(y.hashRate), 0);
+  const gpuHashRate = gpuPowers.reduce((sum, p) => sum + stripAccidentalBillionScaleHs(p.gpuHashRate), 0);
   
   return machineHashRate + gameHashRate + ytHashRate + gpuHashRate;
 }
