@@ -57,7 +57,7 @@ export default function Header() {
   };
 
   return (
-    <header className="min-h-[4.5rem] sm:h-20 bg-background/80 backdrop-blur-md border-b border-gray-800/50 flex items-center gap-2 sm:gap-4 px-3 sm:px-6 lg:px-8 py-2 sm:py-0 sticky top-0 z-30 shrink-0">
+    <header className="h-14 sm:h-16 lg:h-20 bg-background/80 backdrop-blur-md border-b border-gray-800/50 flex items-center gap-2 sm:gap-4 px-3 sm:px-6 lg:px-8 py-0 sticky top-0 z-30 shrink-0">
       <button
         type="button"
         onClick={toggleMobileNav}
@@ -66,12 +66,14 @@ export default function Header() {
       >
         <Menu className="w-6 h-6" />
       </button>
-      <div className="flex flex-col min-w-0 flex-1 lg:flex-none">
-        <h1 className="text-base sm:text-xl font-bold text-white tracking-tight truncate">{title}</h1>
-        <p className="text-[10px] sm:text-[11px] text-gray-500 font-medium truncate hidden sm:block">Protocolo de mineração ativo.</p>
+      {/* Título só no desktop — no mobile o menu lateral já indica a página */}
+      <div className="hidden lg:flex flex-col min-w-0 flex-1 lg:flex-none">
+        <h1 className="text-xl font-bold text-white tracking-tight truncate">{title}</h1>
+        <p className="text-[11px] text-gray-500 font-medium truncate">Protocolo de mineração ativo.</p>
       </div>
+      <div className="flex-1 lg:hidden min-w-0" aria-hidden="true" />
 
-      <div className="ml-auto flex items-center gap-2 sm:gap-4 lg:gap-6 shrink-0">
+      <div className="ml-auto flex items-center gap-2 sm:gap-4 lg:gap-6 shrink-0 min-w-0">
         <div className="relative hidden lg:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
@@ -106,7 +108,7 @@ export default function Header() {
 
             {/* Notification Dropdown */}
             {isNotificationsOpen && (
-              <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-[4.5rem] sm:top-full mt-0 sm:mt-3 w-auto sm:w-80 max-w-none sm:max-w-[20rem] bg-surface border border-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 z-50 max-h-[min(70vh,28rem)] flex flex-col">
+              <div className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-14 sm:top-full mt-1 sm:mt-3 w-auto sm:w-80 max-w-none sm:max-w-[20rem] bg-surface border border-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 z-50 max-h-[min(70vh,28rem)] flex flex-col">
                 <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
                   <h3 className="text-xs font-black text-white uppercase tracking-widest">Notificações</h3>
                   {unreadCount > 0 && (

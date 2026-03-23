@@ -8,6 +8,9 @@ node_modules/
 !.env.example
 !.env.production
 
+# Deploy Windows: uma linha com a senha SSH (nunca commitar)
+.deploy-pw.txt
+
 # SQLite / local data
 data/*.db
 data/*.db-journal

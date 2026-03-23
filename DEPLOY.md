@@ -24,6 +24,26 @@ git push deploy main
 
 Se o branch na VPS não for `main`, ajuste (`git push deploy nome-do-branch`).
 
+### Windows (PuTTY): tarball + `docker compose` no servidor
+
+Fluxo usado quando o deploy **não** é só `git pull` na VPS: enviar ficheiros, reconstruir só o serviço `app`, healthcheck em `/health` (app na porta interna **3000**).
+
+1. Instale [PuTTY](https://www.putty.org/) (precisa de `pscp.exe` e `plink.exe`).
+2. **Não guarde senha no Git.** Escolha um método:
+   - **Variável de ambiente** (sessão atual do PowerShell):  
+     `$env:BLOCKMINER_VPS_PW = 'sua-senha'`
+   - **Ficheiro local** na raiz do repo, **uma linha**, nome `.deploy-pw.txt` — está no `.gitignore`.
+3. Na raiz do projeto:
+
+```powershell
+.\scripts\deploy-vps-windows.ps1
+```
+
+Parâmetros úteis: `-SshHost`, `-SshUser`, `-RemotePath` (por omissão: `root@89.167.119.164`, pasta `/root/block-miner`).  
+Para só repetir o upload com o mesmo `.tar.gz`: `-SkipTarball -TarballPath 'C:\caminho\bm-deploy.tar.gz'`.
+
+Depois de trocar a senha do root, atualize o `.deploy-pw.txt` ou a variável. **Prefira chave SSH** quando puder (aí não precisa de senha no script).
+
 ## 2) Na VPS — atualizar e subir
 
 ```bash

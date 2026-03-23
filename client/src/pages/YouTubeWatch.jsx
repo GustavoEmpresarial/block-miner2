@@ -150,43 +150,44 @@ export default function YouTubeWatch() {
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-2">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6 min-w-0">
+                <div className="space-y-2 min-w-0">
                     <div className="inline-flex p-3 bg-red-500/10 rounded-2xl">
                         <Youtube className="w-6 h-6 text-red-500" />
                     </div>
-                    <h1 className="text-3xl font-black text-white tracking-tight">{t('youtube.title')}</h1>
-                    <p className="text-gray-500 font-medium">{t('youtube.subtitle')}</p>
+                    <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight break-words">{t('youtube.title')}</h1>
+                    <p className="text-gray-500 font-medium text-sm sm:text-base leading-relaxed">{t('youtube.subtitle')}</p>
                 </div>
-                <div className="bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-800 flex items-center gap-2 shadow-glow-sm">
-                    <ShieldCheck className="w-4 h-4 text-primary" />
-                    <span className="text-primary font-black text-[10px] uppercase tracking-widest">Protocolo de Prova de Visualização Ativo</span>
+                <div className="bg-slate-900/50 px-3 py-2 sm:px-4 rounded-xl border border-slate-800 flex items-start sm:items-center gap-2 shadow-glow-sm max-w-full">
+                    <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5 sm:mt-0" />
+                    <span className="text-primary font-black text-[9px] sm:text-[10px] uppercase tracking-wide sm:tracking-widest leading-snug break-words">Protocolo de Prova de Visualização Ativo</span>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Video Area */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden group">
+                    <div className="bg-surface border border-gray-800/50 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-6 lg:p-8 shadow-xl relative overflow-hidden group min-w-0">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-red-500/5 rounded-bl-[120px] -mr-20 -mt-20 group-hover:bg-red-500/10 transition-colors" />
                         
-                        <div className="flex gap-4 mb-8 relative z-10">
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8 relative z-10 w-full min-w-0">
                             <input
                                 type="text"
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
-                                placeholder="Cole a URL do vídeo do YouTube aqui..."
-                                className="flex-1 bg-gray-900/50 border border-gray-800 rounded-2xl py-4 px-6 text-gray-200 text-sm focus:outline-none focus:border-primary/50 transition-all shadow-inner"
+                                placeholder="URL ou link do YouTube"
+                                className="w-full min-w-0 flex-1 bg-gray-900/50 border border-gray-800 rounded-2xl py-3.5 sm:py-4 px-4 sm:px-6 text-gray-200 text-sm focus:outline-none focus:border-primary/50 transition-all shadow-inner"
                             />
                             <button
+                                type="button"
                                 onClick={handleLoadVideo}
-                                className="px-8 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all italic shadow-lg shadow-primary/20"
+                                className="w-full sm:w-auto shrink-0 py-3.5 sm:py-4 px-6 sm:px-8 bg-primary hover:bg-primary-hover text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all italic shadow-lg shadow-primary/20 touch-manipulation whitespace-nowrap"
                             >
                                 Carregar
                             </button>
                         </div>
 
-                        <div className="aspect-video bg-gray-900 rounded-[2rem] overflow-hidden border border-gray-800 relative group shadow-inner">
+                        <div className="aspect-video bg-gray-900 rounded-xl sm:rounded-[2rem] overflow-hidden border border-gray-800 relative group shadow-inner min-w-0">
                             {videoId ? (
                                 <iframe
                                     className="w-full h-full"
@@ -204,35 +205,36 @@ export default function YouTubeWatch() {
                             )}
                         </div>
 
-                        <div className="mt-8 flex items-center justify-between relative z-10">
-                            <div className="flex items-center gap-4">
+                        <div className="mt-6 sm:mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between relative z-10 min-w-0">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto min-w-0">
                                 <button
+                                    type="button"
                                     onClick={handleToggleRunning}
                                     disabled={!videoId}
-                                    className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl italic ${isRunning
+                                    className={`flex items-center justify-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all shadow-xl italic touch-manipulation ${isRunning
                                             ? 'bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20'
                                             : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:opacity-30'
                                         }`}
                                 >
-                                    {isRunning ? <><Pause className="w-4 h-4 fill-current" /> Pausar Ganho</> : <><Play className="w-4 h-4 fill-current" /> Iniciar Ganho</>}
+                                    {isRunning ? <><Pause className="w-4 h-4 fill-current shrink-0" /> Pausar</> : <><Play className="w-4 h-4 fill-current shrink-0" /> Iniciar ganho</>}
                                 </button>
                                 {isRunning && (
-                                    <div className="flex items-center gap-3 px-6 py-4 bg-gray-800/50 rounded-2xl border border-gray-700/50 shadow-inner">
-                                        <Clock className="w-4 h-4 text-primary animate-pulse" />
-                                        <span className="text-sm font-bold text-white uppercase italic tracking-tighter">Próximo Ganho em {countdown}s</span>
+                                    <div className="flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 bg-gray-800/50 rounded-2xl border border-gray-700/50 shadow-inner min-w-0">
+                                        <Clock className="w-4 h-4 text-primary animate-pulse shrink-0" />
+                                        <span className="text-xs sm:text-sm font-bold text-white uppercase italic tracking-tighter truncate">Próximo em {countdown}s</span>
                                     </div>
                                 )}
                             </div>
-                            <div className="text-[10px] text-gray-600 italic font-medium max-w-[200px] text-right">
-                                Dica: Se o vídeo não carregar (Erro 150/153), tente outro vídeo. Alguns autores proíbem a exibição fora do YouTube.
-                            </div>
+                            <p className="text-[10px] text-gray-600 italic font-medium leading-relaxed sm:max-w-[220px] sm:text-right">
+                                Dica: se não carregar (erro 150/153), tente outro vídeo.
+                            </p>
                         </div>
                     </div>
                 </div>
 
                 {/* Reward Tracker Sidebar */}
-                <div className="space-y-6">
-                    <div className="bg-surface border border-gray-800/50 rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden">
+                <div className="space-y-6 min-w-0">
+                    <div className="bg-surface border border-gray-800/50 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-[100px] -mr-10 -mt-10" />
                         
                         <h3 className="text-sm font-black text-white uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
@@ -253,7 +255,7 @@ export default function YouTubeWatch() {
                         </div>
                     </div>
 
-                    <div className="bg-gray-900 border border-gray-800 rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 space-y-6 shadow-2xl">
                         <div className="space-y-4">
                             <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
                                 <span className="text-slate-500">Claims (24h)</span>

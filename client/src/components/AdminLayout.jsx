@@ -37,7 +37,7 @@ function AdminLayoutInner() {
     <div className="flex h-screen min-h-0 bg-slate-950 overflow-hidden text-slate-100 font-sans">
       <AdminSidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="min-h-[4.5rem] sm:h-20 bg-slate-900/50 backdrop-blur-md border-b border-slate-800/50 flex items-center gap-3 px-3 sm:px-6 lg:px-8 py-2 sm:py-0 sticky top-0 z-10 shrink-0">
+        <header className="h-14 sm:h-16 lg:h-20 bg-slate-900/50 backdrop-blur-md border-b border-slate-800/50 flex items-center gap-3 px-3 sm:px-6 lg:px-8 py-0 sticky top-0 z-10 shrink-0">
           <button
             type="button"
             onClick={toggleMobileNav}
@@ -46,12 +46,13 @@ function AdminLayoutInner() {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-xl font-black text-white tracking-tight uppercase truncate">Painel de Controle</h1>
-            <p className="text-[9px] sm:text-[10px] text-amber-500/70 font-bold uppercase tracking-widest truncate hidden sm:block">
+          <div className="hidden lg:block min-w-0">
+            <h1 className="text-xl font-black text-white tracking-tight uppercase truncate">Painel de Controle</h1>
+            <p className="text-[10px] text-amber-500/70 font-bold uppercase tracking-widest truncate">
               Modo Administrador Ativo
             </p>
           </div>
+          <div className="flex-1 lg:hidden min-w-0" aria-hidden="true" />
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-6 sm:p-4 md:p-6 lg:p-8 overscroll-contain">
           <div className="max-w-7xl mx-auto w-full min-w-0 safe-pb">

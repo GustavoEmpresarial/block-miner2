@@ -343,27 +343,27 @@ export default function Wallet() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+        <div className="max-w-6xl mx-auto w-full min-w-0 space-y-6 sm:space-y-8 pb-16 sm:pb-20 animate-in fade-in slide-in-from-bottom-4 duration-1000">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-2">
-                    <h1 className="text-4xl font-black text-white tracking-tighter italic flex items-center gap-3">
-                        <div className="p-2 bg-primary/20 rounded-2xl">
-                            <WalletIcon className="w-8 h-8 text-primary" />
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between min-w-0">
+                <div className="space-y-2 min-w-0">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tighter italic flex flex-wrap items-center gap-2 sm:gap-3">
+                        <div className="p-2 bg-primary/20 rounded-2xl shrink-0">
+                            <WalletIcon className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                         </div>
-                        WALLET <span className="text-primary">TERMINAL</span>
+                        <span className="break-words">WALLET <span className="text-primary">TERMINAL</span></span>
                     </h1>
-                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px] pl-1">
+                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[9px] sm:text-[10px] pl-0 sm:pl-1">
                         Secure Web3 Financial Operations
                     </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
                     {isConnected ? (
-                        <div className="flex items-center gap-3 p-1.5 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-xl">
-                            <div className="flex items-center gap-2 pl-3 pr-4">
-                                <div className={`w-2 h-2 rounded-full animate-pulse ${isCorrectNetwork ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                <span className="text-[10px] font-black text-slate-300 uppercase truncate max-w-[100px] font-mono">
+                        <div className="flex items-center gap-2 sm:gap-3 p-1.5 bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-xl min-w-0 max-w-full">
+                            <div className="flex items-center gap-2 pl-2 sm:pl-3 pr-2 sm:pr-4 min-w-0">
+                                <div className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${isCorrectNetwork ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                <span className="text-[9px] sm:text-[10px] font-black text-slate-300 uppercase truncate max-w-[120px] sm:max-w-[140px] font-mono">
                                     {account.slice(0, 6)}...{account.slice(-4)}
                                 </span>
                             </div>
@@ -378,7 +378,7 @@ export default function Wallet() {
                         <button
                             onClick={connect}
                             disabled={isConnecting}
-                            className="px-6 py-3 bg-white text-slate-900 font-black text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/5 flex items-center gap-2"
+                            className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-slate-900 font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-white/5 flex items-center gap-2 touch-manipulation shrink-0"
                         >
                             <Smartphone className="w-4 h-4" />
                             {isConnecting ? 'Authenticating...' : 'Connect Wallet'}
@@ -395,36 +395,36 @@ export default function Wallet() {
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 min-w-0">
 
                 {/* Left Column: Balance & Stats */}
-                <div className="lg:col-span-8 space-y-8">
+                <div className="lg:col-span-8 space-y-6 sm:space-y-8 min-w-0">
 
                     {/* Premium Balance Card */}
-                    <div className="relative group overflow-hidden">
+                    <div className="relative group overflow-hidden rounded-2xl sm:rounded-3xl">
                         <div className="absolute inset-0 bg-gradient-to-br from-primary via-blue-600 to-indigo-900 opacity-90 transition-opacity" />
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay" />
 
-                        <div className="relative p-10 text-white space-y-12">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-blue-100/60 font-black uppercase tracking-[0.3em] text-[9px] mb-3">Total Liquid Assets</p>
-                                    <div className="flex items-baseline gap-4">
-                                        <h2 className="text-6xl font-black tracking-tighter tabular-nums drop-shadow-2xl">
+                        <div className="relative p-5 sm:p-8 lg:p-10 text-white space-y-8 sm:space-y-12 min-w-0">
+                            <div className="flex justify-between items-start gap-3 min-w-0">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-blue-100/60 font-black uppercase tracking-[0.3em] text-[8px] sm:text-[9px] mb-2 sm:mb-3">Total Liquid Assets</p>
+                                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4 min-w-0">
+                                        <h2 className="text-2xl sm:text-4xl lg:text-6xl font-black tracking-tighter tabular-nums drop-shadow-2xl break-all sm:break-normal leading-none">
                                             {balance.amount.toLocaleString(undefined, { minimumFractionDigits: 6 })}
                                         </h2>
-                                        <div className="flex flex-col">
-                                            <span className="text-2xl font-black text-blue-200/80 italic">POL</span>
+                                        <div className="flex flex-col shrink-0">
+                                            <span className="text-lg sm:text-2xl font-black text-blue-200/80 italic">POL</span>
                                             {polPrice > 0 && (
-                                                <span className="text-xs font-bold text-white/50">
+                                                <span className="text-[10px] sm:text-xs font-bold text-white/50">
                                                     ≈ ${(balance.amount * polPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                                                 </span>
                                             )}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-4 bg-white/10 backdrop-blur-2xl rounded-[1.5rem] border border-white/20 hover:scale-110 transition-transform cursor-pointer">
-                                    <TrendingUp className="w-8 h-8 text-blue-200" />
+                                <div className="p-3 sm:p-4 bg-white/10 backdrop-blur-2xl rounded-xl sm:rounded-[1.5rem] border border-white/20 hover:scale-110 transition-transform cursor-pointer shrink-0">
+                                    <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-blue-200" />
                                 </div>
                             </div>
 
@@ -454,23 +454,25 @@ export default function Wallet() {
                     </div>
 
                     {/* Operations Card */}
-                    <div className="bg-slate-950/80 border border-slate-800/50 rounded-[2.5rem] p-1 shadow-2xl backdrop-blur-2xl">
-                        <div className="flex bg-slate-900/50 p-2 rounded-[2.2rem] gap-2">
+                    <div className="bg-slate-950/80 border border-slate-800/50 rounded-2xl sm:rounded-[2.5rem] p-1 shadow-2xl backdrop-blur-2xl min-w-0">
+                        <div className="flex bg-slate-900/50 p-1.5 sm:p-2 rounded-[1.5rem] sm:rounded-[2.2rem] gap-1.5 sm:gap-2">
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('withdraw')}
-                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex-1 py-3 sm:py-4 text-[10px] sm:text-xs font-black uppercase tracking-wide sm:tracking-widest rounded-[1.25rem] sm:rounded-[1.8rem] transition-all duration-500 border border-transparent touch-manipulation ${activeTab === 'withdraw' ? 'bg-primary text-white shadow-lg shadow-primary/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 Send Funds
                             </button>
                             <button
+                                type="button"
                                 onClick={() => setActiveTab('deposit')}
-                                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest rounded-[1.8rem] transition-all duration-500 border border-transparent ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                                className={`flex-1 py-3 sm:py-4 text-[10px] sm:text-xs font-black uppercase tracking-wide sm:tracking-widest rounded-[1.25rem] sm:rounded-[1.8rem] transition-all duration-500 border border-transparent touch-manipulation ${activeTab === 'deposit' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 border-white/10' : 'text-slate-500 hover:text-slate-300'}`}
                             >
                                 Add Funds
                             </button>
                         </div>
 
-                        <div className="p-8">
+                        <div className="p-4 sm:p-6 lg:p-8 min-w-0 overflow-x-hidden">
                             {activeTab === 'withdraw' ? (
                                 <form onSubmit={handleWithdraw} className="space-y-8">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -519,14 +521,14 @@ export default function Wallet() {
                                         </div>
                                     </div>
 
-                                    <div className="bg-slate-900/50 rounded-3xl p-6 border border-slate-800/50 flex items-center justify-between">
-                                        <div className="space-y-1">
+                                    <div className="bg-slate-900/50 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-slate-800/50 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                                        <div className="space-y-1 min-w-0">
                                             <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Network protocol fee</p>
                                             <p className="text-emerald-400 text-xs font-black uppercase">Gas Covered by Pool</p>
                                         </div>
-                                        <div className="text-right">
+                                        <div className="text-left sm:text-right shrink-0">
                                             <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest italic">Total Transfer</p>
-                                            <p className="text-xl font-black text-white italic">
+                                            <p className="text-lg sm:text-xl font-black text-white italic">
                                                 {(parseFloat(withdrawForm.amount) || 0).toFixed(4)} POL
                                                 {polPrice > 0 && (
                                                     <span className="block text-[10px] text-slate-500 not-italic font-bold">
@@ -581,19 +583,20 @@ export default function Wallet() {
                                         </div>
                                     </div>
 
-                                    <div className="flex flex-col md:flex-row gap-4">
+                                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 min-w-0">
                                         <button
                                             type="button"
                                             onClick={handleAutoDeposit}
                                             disabled={isActionLoading || !systemDepositAddress}
-                                            className={`flex-[2] py-5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-3xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50 ${showManualForm ? 'opacity-50' : ''}`}
+                                            className={`flex-[2] py-4 sm:py-5 px-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:scale-[1.01] active:scale-[0.99] text-white rounded-2xl sm:rounded-3xl font-black text-[10px] sm:text-sm uppercase tracking-wide sm:tracking-[0.2em] transition-all shadow-2xl shadow-indigo-600/20 flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 touch-manipulation text-center leading-tight ${showManualForm ? 'opacity-50' : ''}`}
                                         >
-                                            <Smartphone className="w-5 h-5" />
-                                            Express Deposit via Web3 Wallet
+                                            <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                                            <span className="sm:inline">Express Deposit</span>
+                                            <span className="hidden sm:inline"> via Web3</span>
                                         </button>
                                         <button
                                             type="button"
-                                            className={`flex-1 py-5 rounded-3xl font-bold text-xs uppercase tracking-widest transition-all border flex items-center justify-center gap-2 ${showManualForm ? 'bg-primary text-white border-primary shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/50'}`}
+                                            className={`flex-1 py-4 sm:py-5 rounded-2xl sm:rounded-3xl font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all border flex items-center justify-center gap-2 touch-manipulation ${showManualForm ? 'bg-primary text-white border-primary shadow-lg' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/50'}`}
                                             onClick={() => setShowManualForm(!showManualForm)}
                                         >
                                             {showManualForm ? <XCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
@@ -636,8 +639,8 @@ export default function Wallet() {
                                         </div>
                                     )}
 
-                                    <div className="flex flex-col lg:flex-row gap-8 items-center bg-indigo-500/5 border border-indigo-500/10 rounded-3xl p-6">
-                                        <div className="bg-white p-4 rounded-2xl shadow-2xl shadow-indigo-500/20">
+                                    <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-center bg-indigo-500/5 border border-indigo-500/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 min-w-0">
+                                        <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-2xl shadow-indigo-500/20 shrink-0">
                                             {systemDepositAddress ? (
                                                 <QRCodeSVG
                                                     value={systemDepositAddress}
@@ -649,8 +652,8 @@ export default function Wallet() {
                                                 <div className="w-[120px] h-[120px] bg-slate-100 animate-pulse rounded-lg" />
                                             )}
                                         </div>
-                                        <div className="space-y-4">
-                                            <div className="flex gap-4">
+                                        <div className="space-y-4 min-w-0 w-full">
+                                            <div className="flex gap-3 sm:gap-4 min-w-0">
                                                 <AlertCircle className="w-6 h-6 text-indigo-400 shrink-0" />
                                                 <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
                                                     EXPRESS MODE: Connect your wallet to automatically sign and verify transactions on the Polygon Network. Funds will be available after 1 block confirmation.
@@ -671,10 +674,10 @@ export default function Wallet() {
                 </div>
 
                 {/* Right Column: Sidebar Stats */}
-                <div className="lg:col-span-4 space-y-8">
+                <div className="lg:col-span-4 space-y-6 sm:space-y-8 min-w-0">
 
                     {/* Activity Feed */}
-                    <div className="bg-slate-950/80 border border-slate-800/50 rounded-[2.5rem] p-8 shadow-2xl flex flex-col h-full max-h-[700px]">
+                    <div className="bg-slate-950/80 border border-slate-800/50 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 shadow-2xl flex flex-col h-full max-h-[min(70vh,700px)] lg:max-h-[700px] min-w-0">
                         <div className="flex items-center justify-between mb-8">
                             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] flex items-center gap-2">
                                 <Clock className="w-4 h-4 text-primary" />
