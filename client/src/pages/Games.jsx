@@ -31,6 +31,8 @@ const MEMORY_CLOSE_DELAY_MS = 420;
 const MEMORY_FLIP_EASING = 0.34;
 const MATCH3_FALL_EASING = 0.22;
 const PARTICLE_BURST_COUNT = 14;
+const BASE_CANVAS_WIDTH = 800;
+const BASE_CANVAS_HEIGHT = 500;
 
 const ICON_IMAGES = {};
 Object.entries(CRYPTO_ICONS).forEach(([k, v]) => {
@@ -287,13 +289,33 @@ export default function Games() {
       const canvas = canvasRef.current; if (!canvas) return;
       const ctx = canvas.getContext('2d');
       try {
-        ctx.clearRect(0, 0, 800, 500);
+        const rect = canvas.getBoundingClientRect();
+        const cssW = Math.max(1, Math.round(rect.width || BASE_CANVAS_WIDTH));
+        const cssH = Math.max(1, Math.round(rect.height || BASE_CANVAS_HEIGHT));
+        const dpr = Math.max(1, Number(window.devicePixelRatio || 1));
+        const pixelW = Math.round(cssW * dpr);
+        const pixelH = Math.round(cssH * dpr);
+
+        if (canvas.width !== pixelW || canvas.height !== pixelH) {
+          canvas.width = pixelW;
+          canvas.height = pixelH;
+        }
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, cssW, cssH);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        const scaleX = cssW / BASE_CANVAS_WIDTH;
+        const scaleY = cssH / BASE_CANVAS_HEIGHT;
+        ctx.save();
+        ctx.scale(scaleX, scaleY);
 
         // Cyberpunk BG
-        ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, 800, 500);
+        ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, BASE_CANVAS_WIDTH, BASE_CANVAS_HEIGHT);
         ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
-        for (let i = 0; i < 800; i += 50) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 500); ctx.stroke(); }
-        for (let i = 0; i < 500; i += 50) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(800, i); ctx.stroke(); }
+        for (let i = 0; i < BASE_CANVAS_WIDTH; i += 50) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, BASE_CANVAS_HEIGHT); ctx.stroke(); }
+        for (let i = 0; i < BASE_CANVAS_HEIGHT; i += 50) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(BASE_CANVAS_WIDTH, i); ctx.stroke(); }
 
         if (activeGame === 'memory') drawMemory(ctx, gameState);
         if (activeGame === 'match-3') drawMatch3(ctx, gameState);
@@ -321,6 +343,7 @@ export default function Games() {
           ctx.beginPath(); ctx.arc(mx, my, 2, 0, Math.PI * 2); ctx.fill();
           ctx.shadowBlur = 0;
         }
+        ctx.restore();
       } catch (e) {
         console.error('Games render error', e);
       }
