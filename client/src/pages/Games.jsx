@@ -101,6 +101,7 @@ export default function Games() {
   const [selectedCell, setSelectedCell] = useState(null);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const activeGameRef = useRef(null);
+  const startedGameRef = useRef(null);
 
   // High Precision Engine States
   const canvasRef = useRef(null);
@@ -166,6 +167,8 @@ export default function Games() {
     newSocket.on('game:started', (data) => {
       setGameState(data); setIsGameOver(false); setRewardMessage(null); setIsProcessing(false);
       setSelectedCell(null);
+      if (data?.game === 'crypto-memory') startedGameRef.current = 'memory';
+      if (data?.game === 'crypto-match-3') startedGameRef.current = 'match-3';
       particles.current = [];
       if (data.game === 'crypto-match-3' && data.board) {
         visualBoard.current = data.board.map((row, y) => row.map((s, x) => ({ symbol: s, x, y, visualX: x, visualY: y })));
@@ -213,7 +216,7 @@ export default function Games() {
     newSocket.on('game:score_update', (data) => { setGameState(prev => prev ? ({ ...prev, score: data.score }) : prev); });
     newSocket.on('game:finished', (data) => {
       setIsGameOver(true);
-      const currentGame = activeGameRef.current;
+      const currentGame = startedGameRef.current || activeGameRef.current;
       if (currentGame) {
         setCooldowns((prev) => ({ ...prev, [currentGame]: 60 }));
       }
@@ -289,22 +292,20 @@ export default function Games() {
         });
         ctx.globalAlpha = 1.0;
 
-        // --- CUSTOM VIRTUAL CURSOR (Cyberpunk Mira) ---
-        const mx = pointer.current.x;
-        const my = pointer.current.y;
-        ctx.strokeStyle = pointer.current.isDown ? '#ef4444' : '#3b82f6';
-        ctx.lineWidth = 2;
-        ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle;
-
-        // Circular scope
-        ctx.beginPath(); ctx.arc(mx, my, 12, 0, Math.PI * 2); ctx.stroke();
-        // Crosshair lines
-        ctx.beginPath(); ctx.moveTo(mx - 18, my); ctx.lineTo(mx + 18, my); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(mx, my - 18); ctx.lineTo(mx, my + 18); ctx.stroke();
-        // Dot center
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.beginPath(); ctx.arc(mx, my, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
+        if (!isMobileViewport) {
+          // Desktop-only virtual cursor
+          const mx = pointer.current.x;
+          const my = pointer.current.y;
+          ctx.strokeStyle = pointer.current.isDown ? '#ef4444' : '#3b82f6';
+          ctx.lineWidth = 2;
+          ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle;
+          ctx.beginPath(); ctx.arc(mx, my, 12, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(mx - 18, my); ctx.lineTo(mx + 18, my); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(mx, my - 18); ctx.lineTo(mx, my + 18); ctx.stroke();
+          ctx.fillStyle = ctx.strokeStyle;
+          ctx.beginPath(); ctx.arc(mx, my, 2, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+        }
       } catch (e) {
         console.error('Games render error', e);
       }
@@ -313,7 +314,7 @@ export default function Games() {
     };
     gameLoopRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(gameLoopRef.current);
-  }, [activeGame, gameState, isGameOver, selectedCell]);
+  }, [activeGame, gameState, isGameOver, selectedCell, isMobileViewport]);
 
   const drawMemory = (ctx, state) => {
     if (!state.board) return;
@@ -505,8 +506,8 @@ export default function Games() {
           <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldowns['match-3'] > 0 || !socketReady} cooldown={cooldowns['match-3']} />
         </div>
       ) : (
-        <div className={mobileFullscreen ? "relative h-full" : "relative"}>
-          <div className={`bg-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden flex flex-col items-center ${mobileFullscreen ? 'h-full rounded-2xl p-2' : 'rounded-[3rem] p-4'}`}>
+        <div className={mobileFullscreen ? "relative h-full flex items-center justify-center" : "relative"}>
+          <div className={`bg-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden flex flex-col items-center ${mobileFullscreen ? 'w-full h-full rounded-2xl p-2' : 'rounded-[3rem] p-4'}`}>
             {mobileFullscreen && (
               <div className="w-full flex items-center justify-between px-2 py-1.5 mb-2">
                 <div className="flex items-center gap-3 text-white">
@@ -543,8 +544,8 @@ export default function Games() {
             ) : !gameState ? (
               <div className={`flex flex-col items-center justify-center gap-6 py-8 ${mobileFullscreen ? 'h-full' : 'min-h-[min(550px,70dvh)] sm:h-[550px]'}`}><div className="w-16 h-16 sm:w-24 sm:h-24 border-4 sm:border-8 border-primary border-t-transparent rounded-full animate-spin shadow-glow" /><p className="text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] animate-pulse text-xs sm:text-base text-center px-2">Sincronizando...</p></div>
             ) : (
-              <div className={`relative w-full overflow-hidden bg-black shadow-inner ${mobileFullscreen ? 'h-full rounded-xl' : 'min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem]'}`}>
-                <canvas ref={canvasRef} width={800} height={500} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp} className="w-full h-full object-contain" style={{ cursor: 'none' }} />
+              <div className={`relative w-full overflow-hidden bg-black shadow-inner ${mobileFullscreen ? 'rounded-xl max-h-full aspect-[16/10]' : 'min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem]'}`}>
+                <canvas ref={canvasRef} width={800} height={500} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp} className="w-full h-full object-fill" style={{ cursor: isMobileViewport ? 'default' : 'none' }} />
               </div>
             )}
           </div>
