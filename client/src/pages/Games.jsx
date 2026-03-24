@@ -27,6 +27,10 @@ const SYMBOL_FALLBACK = {
   'dogecoin': 'Ð',
   'polygon': 'M'
 };
+const MEMORY_CLOSE_DELAY_MS = 420;
+const MEMORY_FLIP_EASING = 0.34;
+const MATCH3_FALL_EASING = 0.22;
+const PARTICLE_BURST_COUNT = 14;
 
 const ICON_IMAGES = {};
 Object.entries(CRYPTO_ICONS).forEach(([k, v]) => {
@@ -138,7 +142,7 @@ export default function Games() {
     });
 
     newSocket.on('game:card_flipped', (data) => {
-      setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => c.id === data.id ? { ...c, symbol: data.symbol, isFlipped: true, flipAnim: 0 } : c) }; });
+      setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => c.id === data.id ? { ...c, symbol: data.symbol, isFlipped: true, isClosing: false, flipAnim: 0 } : c) }; });
     });
 
     newSocket.on('game:match', (data) => {
@@ -148,10 +152,17 @@ export default function Games() {
 
     newSocket.on('game:mismatch', (data) => {
       setIsProcessing(true);
+      setGameState(prev => {
+        if (!prev || !prev.board) return prev;
+        return {
+          ...prev,
+          board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isFlipped: false, isClosing: true } : c)
+        };
+      });
       setTimeout(() => {
-        setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isFlipped: false, symbol: null } : c) }; });
+        setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isClosing: false, symbol: null, flipAnim: 0 } : c) }; });
         setIsProcessing(false);
-      }, 800);
+      }, MEMORY_CLOSE_DELAY_MS);
     });
 
     newSocket.on('game:board_update', (data) => {
@@ -206,7 +217,7 @@ export default function Games() {
   }, [cooldown]);
 
   const createExplosion = (x, y) => {
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < PARTICLE_BURST_COUNT; i++) {
       particles.current.push({ x, y, vx: (Math.random() - 0.5) * 12, vy: (Math.random() - 0.5) * 12, life: 1.0, color: '#3b82f6', size: Math.random() * 5 + 2 });
     }
   };
@@ -270,18 +281,20 @@ export default function Games() {
     state.board.forEach((card, i) => {
       const x = sx + (i % cols) * (size + padding), y = sy + Math.floor(i / cols) * (size + padding);
       ctx.save(); ctx.translate(x + size / 2, y + size / 2);
-      let sX = 1.0;
-      if (card.isFlipped || card.isMatched) {
-        card.flipAnim = Math.min(1, (card.flipAnim || 0) + 0.15);
-        sX = Math.cos(card.flipAnim * Math.PI / 2);
-        if (card.flipAnim > 0.5) sX = -Math.sin(card.flipAnim * Math.PI / 2);
-      }
+      const shouldShowFace = card.isFlipped || card.isMatched || card.isClosing;
+      const currentFlip = typeof card.flipAnim === 'number' ? card.flipAnim : 0;
+      const targetFlip = shouldShowFace ? 1 : 0;
+      card.flipAnim = currentFlip + (targetFlip - currentFlip) * MEMORY_FLIP_EASING;
+      if (Math.abs(targetFlip - card.flipAnim) < 0.01) card.flipAnim = targetFlip;
+
+      let sX = Math.cos(card.flipAnim * Math.PI);
+      if (Math.abs(sX) < 0.001) sX = 0.001;
       ctx.scale(sX, 1);
       ctx.fillStyle = (card.isFlipped || card.isMatched) ? '#2563eb' : '#1e293b';
       if (card.isMatched) ctx.fillStyle = '#059669';
       ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.5)';
       drawRoundedRect(ctx, -size / 2, -size / 2, size, size, 16); ctx.fill();
-      if (Math.abs(sX) > 0.1 && (card.isFlipped || card.isMatched)) {
+      if (Math.abs(sX) > 0.1 && shouldShowFace && card.symbol) {
         const img = ICON_IMAGES[card.symbol];
         if (canDrawImage(img)) {
           ctx.scale(-1, 1);
@@ -306,7 +319,8 @@ export default function Games() {
     const sx = (800 - (8 * (s + p))) / 2, sy = (500 - (8 * (s + p))) / 2;
     visualBoard.current.forEach((row, y) => {
       row.forEach((piece, x) => {
-        piece.visualY += (y - piece.visualY) * 0.15; piece.visualX += (x - piece.visualX) * 0.15;
+        piece.visualY += (y - piece.visualY) * MATCH3_FALL_EASING;
+        piece.visualX += (x - piece.visualX) * MATCH3_FALL_EASING;
         if (dragInfo && dragInfo.cx === x && dragInfo.cy === y) return;
         const px = sx + piece.visualX * (s + p), py = sy + piece.visualY * (s + p);
         ctx.fillStyle = 'rgba(30, 41, 59, 0.6)'; drawRoundedRect(ctx, sx + x * (s + p), sy + y * (s + p), s, s, 12); ctx.fill();
