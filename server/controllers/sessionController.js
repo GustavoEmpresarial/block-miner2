@@ -43,7 +43,10 @@ export async function processHeartbeat(req, res) {
       type === "youtube" ? user?.lastYoutubeHeartbeatAt : user?.lastAutoMiningHeartbeatAt;
     if (lastForType) {
       const diff = (now.getTime() - new Date(lastForType).getTime()) / 1000;
-      if (diff < 8) {
+      // Margem <8s: cliente a 8s + latência de rede podia cair em diff≈7.9 e perder crédito (YouTube).
+      const minGap = Number(process.env.SESSION_HEARTBEAT_MIN_GAP_SEC);
+      const gap = Number.isFinite(minGap) && minGap > 0 && minGap <= 30 ? minGap : 7;
+      if (diff < gap) {
         return res.json({ ok: true, message: "Too fast, heartbeat throttled", buffered: true });
       }
     }

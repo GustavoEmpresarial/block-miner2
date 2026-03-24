@@ -17,6 +17,8 @@ export default function YouTubeWatch() {
 
     const timerRef = useRef(null);
     const GH = 1000000000;
+    /** Alinhar com throttle de 8s no servidor; 10s gerava "tempo insuficiente" por batimentos ignorados. */
+    const YT_HEARTBEAT_MS = 8000;
 
     const extractVideoId = (input) => {
         const raw = String(input || "").trim();
@@ -122,9 +124,17 @@ export default function YouTubeWatch() {
         };
         if (isRunning) {
             void sendYoutubeHeartbeat();
-            heartbeatInterval = setInterval(sendYoutubeHeartbeat, 10000);
+            heartbeatInterval = setInterval(sendYoutubeHeartbeat, YT_HEARTBEAT_MS);
+            const onVisible = () => {
+                if (!document.hidden && isRunning) void sendYoutubeHeartbeat();
+            };
+            document.addEventListener('visibilitychange', onVisible);
+            return () => {
+                clearInterval(heartbeatInterval);
+                document.removeEventListener('visibilitychange', onVisible);
+            };
         }
-        return () => clearInterval(heartbeatInterval);
+        return undefined;
     }, [isRunning]);
 
     useEffect(() => {
@@ -255,6 +265,16 @@ export default function YouTubeWatch() {
                                 color="amber"
                             />
                             <TrackerItem label="Duration per claim" value={`${Number(status?.durationMin || 1440)} min`} icon={History} color="blue" />
+                            <TrackerItem
+                                label="Tempo mínimo assistido / claim"
+                                value={
+                                    status?.claimSecondsCost != null
+                                        ? `${status.claimSecondsCost}s (+${status.heartbeatCreditSeconds || 10}s / batida)`
+                                        : '—'
+                                }
+                                icon={ShieldCheck}
+                                color="blue"
+                            />
                             <div className="h-[1px] bg-gray-800 w-full my-2" />
                             <TrackerItem label="Active YouTube bonus" value={formatHashrate(status?.activeHashRate || 0)} icon={TrendingUp} color="emerald" />
                         </div>

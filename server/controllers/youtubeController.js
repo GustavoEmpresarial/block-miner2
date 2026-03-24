@@ -22,11 +22,15 @@ const REWARD_PER_CLAIM_HS = (() => {
 const DURATION_HOURS = 24;
 
 /**
- * Custo em segundos de "tempo assistido" por claim.
- * Heartbeat credita +10 a cada ≥8s; em 60s de countdown só cabem ~5 batimentos (50s).
- * 60 aqui falhava sempre; 50 alinha com o timer de 1 minuto.
+ * Custo em segundos de "tempo assistido" por claim (cada heartbeat válido soma +10 no sessionController).
+ * O cliente envia heartbeat a cada 8s (≥ throttle de 8s); com 10s havia batimentos throttled e faltava saldo.
+ * Default 45 dá margem; sobrescrever com YT_CLAIM_SECONDS_COST no .env.
  */
-const YT_CLAIM_SECONDS_COST = 50;
+const YT_CLAIM_SECONDS_COST = (() => {
+  const n = Number(process.env.YT_CLAIM_SECONDS_COST);
+  if (!Number.isFinite(n) || n < 1) return 45;
+  return Math.min(120, Math.floor(n));
+})();
 
 /**
  * Soma máxima de hash concedido nas últimas 24h (histórico), em H/s.
@@ -62,7 +66,9 @@ export async function getStatus(req, res) {
       rewardHs: REWARD_PER_CLAIM_HS,
       rewardGh: REWARD_PER_CLAIM_HS / HASH_IN_GH,
       durationMin: DURATION_HOURS * 60,
-      dailyLimitHs: DAILY_LIMIT_HS
+      dailyLimitHs: DAILY_LIMIT_HS,
+      claimSecondsCost: YT_CLAIM_SECONDS_COST,
+      heartbeatCreditSeconds: 10
     });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Error fetching status." });
