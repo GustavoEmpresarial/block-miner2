@@ -4,7 +4,9 @@ import { useAuthStore } from '../store/auth';
 import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Fingerprint, MousePointer2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const SOCKET_URL =
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 const CRYPTO_ICONS = {
   'bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg',
   'ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
@@ -22,6 +24,7 @@ Object.entries(CRYPTO_ICONS).forEach(([k, v]) => { const img = new Image(); img.
 export default function Games() {
   const { token } = useAuthStore();
   const [socket, setSocket] = useState(null);
+  const [socketReady, setSocketReady] = useState(false);
   const [activeGame, setActiveGame] = useState(null);
   const [gameState, setGameState] = useState(null);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -39,7 +42,24 @@ export default function Games() {
   const pointer = useRef({ x: 400, y: 250, isDown: false });
 
   useEffect(() => {
-    const newSocket = io(SOCKET_URL, { auth: { token }, withCredentials: true });
+    const newSocket = io(SOCKET_URL, {
+      auth: { token },
+      withCredentials: true,
+      transports: ['websocket', 'polling']
+    });
+
+    newSocket.on('connect', () => {
+      setSocketReady(true);
+    });
+
+    newSocket.on('disconnect', () => {
+      setSocketReady(false);
+    });
+
+    newSocket.on('connect_error', (err) => {
+      setSocketReady(false);
+      toast.error(`Falha de conexão com jogos: ${err?.message || 'socket offline'}`);
+    });
 
     newSocket.on('game:error', (msg) => {
       toast.error(msg);
@@ -96,7 +116,10 @@ export default function Games() {
     });
 
     setSocket(newSocket);
-    return () => newSocket.disconnect();
+    return () => {
+      newSocket.disconnect();
+      setSocketReady(false);
+    };
   }, [token]);
 
   useEffect(() => {
@@ -313,8 +336,8 @@ export default function Games() {
 
       {!activeGame ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldown > 0} cooldown={cooldown} />
-          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldown > 0} cooldown={cooldown} />
+          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldown > 0 || !socketReady} cooldown={cooldown} />
+          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldown > 0 || !socketReady} cooldown={cooldown} />
         </div>
       ) : (
         <div className="relative">
