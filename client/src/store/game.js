@@ -229,7 +229,9 @@ export const useGameStore = create((set, get) => ({
             const res = await api.post('/machines/remove', { machineId });
             if (res.data.ok) { get().fetchMachines(); get().fetchInventory(); }
             return res.data;
-        } catch (err) { return { ok: false }; }
+        } catch (err) {
+            return { ok: false, message: err.response?.data?.message || 'Error removing miner.' };
+        }
     },
 
     toggleMachine: async (machineId, isActive) => {

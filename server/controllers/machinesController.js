@@ -38,21 +38,31 @@ export async function toggleMachine(req, res) {
 
 export async function removeMachine(req, res) {
   try {
-    const { machineId } = req.body;
+    const machineId = Number(req.body?.machineId);
+    if (!Number.isInteger(machineId) || machineId <= 0) {
+      return res.status(400).json({ ok: false, message: "Invalid machine id." });
+    }
+
     const machine = await machineModel.getMachineById(req.user.id, machineId);
     if (!machine) return res.status(404).json({ ok: false, message: "Miner not found." });
+
+    const minerName = String(machine.miner_name || machine.miner?.name || "Unknown Miner").trim();
+    const imageUrl = machine.image_url || machine.imageUrl || machine.miner?.imageUrl || DEFAULT_MINER_IMAGE_URL;
+    const hashRate = Number(machine.hashRate || machine.hash_rate || 0);
+    const slotSize = Number(machine.slotSize || 1);
+    const level = Number(machine.level || 1);
 
     const now = new Date();
     await prisma.$transaction(async (tx) => {
       await tx.userInventory.create({
         data: {
           userId: req.user.id,
-          minerName: machine.miner_name,
-          level: machine.level,
-          hashRate: machine.hashRate,
-          slotSize: machine.slotSize,
+          minerName,
+          level,
+          hashRate,
+          slotSize,
           minerId: machine.minerId,
-          imageUrl: machine.image_url,
+          imageUrl,
           acquiredAt: now
         }
       });
