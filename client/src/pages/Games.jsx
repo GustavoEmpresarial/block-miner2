@@ -17,6 +17,16 @@ const CRYPTO_ICONS = {
   'dogecoin': 'https://cryptologos.cc/logos/dogecoin-doge-logo.svg',
   'polygon': 'https://cryptologos.cc/logos/polygon-matic-logo.svg'
 };
+const SYMBOL_FALLBACK = {
+  'bitcoin': '₿',
+  'ethereum': 'Ξ',
+  'solana': 'S',
+  'binance-coin': 'B',
+  'cardano': 'A',
+  'polkadot': 'D',
+  'dogecoin': 'Ð',
+  'polygon': 'M'
+};
 
 const ICON_IMAGES = {};
 Object.entries(CRYPTO_ICONS).forEach(([k, v]) => { const img = new Image(); img.src = v; ICON_IMAGES[k] = img; });
@@ -37,6 +47,24 @@ function drawRoundedRect(ctx, x, y, w, h, r = 12) {
   ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
   ctx.lineTo(x, y + radius);
   ctx.quadraticCurveTo(x, y, x + radius, y);
+}
+
+function drawSymbolFallback(ctx, symbol, x, y, size) {
+  const label = SYMBOL_FALLBACK[symbol] || '?';
+  ctx.save();
+  const grd = ctx.createLinearGradient(x, y, x + size, y + size);
+  grd.addColorStop(0, '#60a5fa');
+  grd.addColorStop(1, '#2563eb');
+  ctx.fillStyle = grd;
+  drawRoundedRect(ctx, x, y, size, size, Math.min(14, size / 5));
+  ctx.fill();
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = `900 ${Math.max(14, Math.floor(size * 0.42))}px Inter, system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x + size / 2, y + size / 2 + 1);
+  ctx.restore();
 }
 
 export default function Games() {
@@ -239,7 +267,13 @@ export default function Games() {
       drawRoundedRect(ctx, -size / 2, -size / 2, size, size, 16); ctx.fill();
       if (Math.abs(sX) > 0.1 && (card.isFlipped || card.isMatched)) {
         const img = ICON_IMAGES[card.symbol];
-        if (img && img.complete) { ctx.scale(-1, 1); ctx.drawImage(img, -size / 3, -size / 3, size / 1.5, size / 1.5); }
+        if (img && img.complete) {
+          ctx.scale(-1, 1);
+          ctx.drawImage(img, -size / 3, -size / 3, size / 1.5, size / 1.5);
+        } else {
+          ctx.scale(-1, 1);
+          drawSymbolFallback(ctx, card.symbol, -size / 3, -size / 3, size / 1.5);
+        }
       }
       ctx.restore();
     });
@@ -260,6 +294,8 @@ export default function Games() {
           ctx.save(); ctx.translate(px + s / 2, py + s / 2);
           ctx.scale(-1, 1); ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
           ctx.restore();
+        } else {
+          drawSymbolFallback(ctx, piece.symbol, px + 8, py + 8, s - 16);
         }
       });
     });
@@ -272,6 +308,8 @@ export default function Games() {
           ctx.translate(dragInfo.mX, dragInfo.mY); ctx.scale(-1.2, 1.2);
           ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
           ctx.restore();
+        } else {
+          drawSymbolFallback(ctx, symbol, dragInfo.mX - s / 2 + 10, dragInfo.mY - s / 2 + 10, s - 20);
         }
       }
     }
