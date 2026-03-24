@@ -3,6 +3,19 @@ import loggerLib from "../utils/logger.js";
 
 const logger = loggerLib.child("SessionController");
 
+/** Espelha client/src/utils/security.js (IronDome): JSON → XOR com sk[0] → base64. */
+function decodeIronDomeFingerprint(fingerprintB64, sk) {
+  try {
+    if (!fingerprintB64 || typeof sk !== "string" || sk.length === 0) return null;
+    const xorKey = sk.charCodeAt(0);
+    const raw = Buffer.from(String(fingerprintB64), "base64").toString("latin1");
+    const clear = [...raw].map((ch) => String.fromCharCode(ch.charCodeAt(0) ^ xorKey)).join("");
+    return JSON.parse(clear);
+  } catch {
+    return null;
+  }
+}
+
 export async function processHeartbeat(req, res) {
   try {
     const userId = req.user.id;
@@ -18,16 +31,20 @@ export async function processHeartbeat(req, res) {
         return res.status(403).json({ ok: false, message: "Automation detected. Access denied." });
     }
 
-    // Basic fingerprint verification (anti-tamper)
-    try {
-        const decoded = JSON.parse(Buffer.from(security?.fingerprint || "", 'base64').toString());
-        const nowTs = Date.now();
-        // If the timestamp in the payload is in the future or too old, something is wrong
-        if (decoded.ts > nowTs + 5000 || decoded.ts < nowTs - 60000) {
-            return res.status(400).json({ ok: false, message: "Invalid session token" });
-        }
-    } catch {
-        return res.status(400).json({ ok: false, message: "Security check failed" });
+    const sk = security?.sk;
+    const decoded = decodeIronDomeFingerprint(security?.fingerprint, sk);
+    if (!decoded || typeof decoded !== "object") {
+      return res.status(400).json({ ok: false, message: "Security check failed" });
+    }
+    if (decoded.b === true) {
+      return res.status(403).json({ ok: false, message: "Automation detected. Access denied." });
+    }
+    if (decoded.k !== sk) {
+      return res.status(400).json({ ok: false, message: "Invalid session token" });
+    }
+    const uptime = Number(decoded.u);
+    if (!Number.isFinite(uptime) || uptime < 0 || uptime > 7 * 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ ok: false, message: "Invalid session token" });
     }
 
     const now = new Date();
