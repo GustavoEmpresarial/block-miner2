@@ -27,8 +27,8 @@ const SYMBOL_FALLBACK = {
   'dogecoin': 'Ð',
   'polygon': 'M'
 };
-const MEMORY_CLOSE_DELAY_MS = 420;
-const MEMORY_FLIP_EASING = 0.34;
+const MEMORY_CLOSE_DELAY_MS = 220;
+const MEMORY_FLIP_EASING = 0.46;
 const MATCH3_FALL_EASING = 0.14;
 const PARTICLE_BURST_COUNT = 14;
 const BASE_CANVAS_WIDTH = 800;
@@ -187,7 +187,7 @@ export default function Games() {
     });
 
     newSocket.on('game:card_flipped', (data) => {
-      setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => c.id === data.id ? { ...c, symbol: data.symbol, isFlipped: true, isClosing: false, flipAnim: 0 } : c) }; });
+      setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => c.id === data.id ? { ...c, symbol: data.symbol, isFlipped: true, flipAnim: 0 } : c) }; });
     });
 
     newSocket.on('game:match', (data) => {
@@ -201,11 +201,11 @@ export default function Games() {
         if (!prev || !prev.board) return prev;
         return {
           ...prev,
-          board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isFlipped: false, isClosing: true } : c)
+          board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isFlipped: false } : c)
         };
       });
       setTimeout(() => {
-        setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, isClosing: false, symbol: null, flipAnim: 0 } : c) }; });
+        setGameState(prev => { if (!prev || !prev.board) return prev; return { ...prev, board: prev.board.map(c => data.ids.includes(c.id) ? { ...c, symbol: null, flipAnim: 0 } : c) }; });
         setIsProcessing(false);
       }, MEMORY_CLOSE_DELAY_MS);
     });
@@ -374,9 +374,9 @@ export default function Games() {
     state.board.forEach((card, i) => {
       const x = sx + (i % cols) * (size + padding), y = sy + Math.floor(i / cols) * (size + padding);
       ctx.save(); ctx.translate(x + size / 2, y + size / 2);
-      const shouldShowFace = card.isFlipped || card.isMatched || card.isClosing;
+      const shouldShowFace = card.isFlipped || card.isMatched || (Number(card.flipAnim || 0) > 0.5 && Boolean(card.symbol));
       const currentFlip = typeof card.flipAnim === 'number' ? card.flipAnim : 0;
-      const targetFlip = shouldShowFace ? 1 : 0;
+      const targetFlip = (card.isFlipped || card.isMatched) ? 1 : 0;
       card.flipAnim = currentFlip + (targetFlip - currentFlip) * MEMORY_FLIP_EASING;
       if (Math.abs(targetFlip - card.flipAnim) < 0.01) card.flipAnim = targetFlip;
 
