@@ -29,11 +29,11 @@ export default function Checkin() {
     }, [fetchStatus]);
 
     const handleClaim = async () => {
-        if (status?.alreadyClaimed || isClaiming) return;
+        if (status?.checkedIn || status?.alreadyClaimed || isClaiming) return;
 
         try {
             setIsClaiming(true);
-            const res = await api.post('/checkin/confirm', { txHash: '0x0000000000000000000000000000000000000000000000000000000000000000' });
+            const res = await api.post('/checkin/confirm', {});
             if (res.data.ok) {
                 toast.success(t('checkin.reward_msg', { amount: res.data.rewardAmount || 'Bonus' }));
                 fetchStatus();
