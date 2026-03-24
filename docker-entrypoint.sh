@@ -20,11 +20,18 @@ echo "Database is ready. Syncing Prisma schema..."
 # Generate Prisma client if it's missing (failsafe)
 npx prisma generate --schema=server/prisma/schema.prisma || true
 
-# Deploy schema changes safely
+# Deploy schema changes safely (login quebra se isto falhar e faltar colunas em users)
 echo "Running prisma db push..."
-npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss || {
-  echo "Warning: prisma db push failed. Continuing startup to keep service available."
-}
+if npx prisma db push --schema=server/prisma/schema.prisma --accept-data-loss; then
+  echo "prisma db push: OK"
+else
+  echo "================================================================================"
+  echo "CRITICAL: prisma db push FAILED. O Prisma espera colunas que a BD pode não ter."
+  echo "Isto causa erro em findUser/login. Corrija com SQL idempotente no Postgres, ex.:"
+  echo "  docker compose exec -T db psql -U blockminer -d blockminer_db < scripts/sql/patch_users_columns_for_prisma.sql"
+  echo "(ficheiro na pasta do projeto no host). Ver também DEPLOY.md."
+  echo "================================================================================"
+fi
 
 echo "Database schema sync step finished."
 

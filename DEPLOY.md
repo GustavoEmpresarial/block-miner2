@@ -99,6 +99,7 @@ O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/r
 |------|-------------|
 | Container `app` a sair logo ao arrancar com `JWT_SECRET is missing` | Crie/edite `/root/block-miner/.env` com `JWT_SECRET=...` (32+ caracteres). `docker compose up -d app`. |
 | “Login falhou” genérico no site (antes: app subia mas login dava 500) | Mesmo: `JWT_SECRET` no `.env` da VPS; ver `docker compose logs app` após tentativa de login. |
+| Log: `prisma.user.findFirst()` — **column does not exist** / `(not available)` | A tabela `users` está atrás do `schema.prisma`. Nos logs de arranque do `app` deve aparecer **prisma db push FAILED**. Corra o patch SQL (abaixo) ou `docker compose exec app npm run db:push` e reinicie o `app`. |
 | `Missing script: migrate:hashrate:dry` | `git pull` — o `package.json` da VPS está antigo. |
 | `client password must be a string` | `DATABASE_URL` inválida ou vazia no container / `.env`. |
 | Porta 5432 em uso | Outro Postgres na VPS; pare o outro ou mude a porta no compose. |
@@ -107,9 +108,14 @@ O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/r
 
 - Testar login, loja, painel admin.
 - Conferir um usuário com hashrate exibido coerente (UI usa `formatHashrate` em H/s).
-- Se o Prisma tiver campos novos (ex.: 2FA no modelo `User`), na VPS:  
-  `docker compose exec app npm run db:push`  
-  (ou o fluxo de migração que você usar).
+- Se o Prisma tiver campos novos no `User`, na VPS: `docker compose exec app npm run db:push` e confira os logs (tem de aparecer **prisma db push: OK** no arranque do contentor).
+- Se o `db push` falhar ou o login continuar com erro de coluna em `users`, aplique o patch idempotente **no Postgres** (a partir da pasta do projeto na VPS):
+
+```bash
+cd ~/block-miner
+docker compose exec -T db psql -U blockminer -d blockminer_db < scripts/sql/patch_users_columns_for_prisma.sql
+docker compose restart app
+```
 
 ## 7) Backup manual (só quando estiver tudo validado)
 
