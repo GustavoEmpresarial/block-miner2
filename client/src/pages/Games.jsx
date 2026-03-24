@@ -99,6 +99,7 @@ export default function Games() {
   const [cooldowns, setCooldowns] = useState({ memory: 0, 'match-3': 0 });
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const activeGameRef = useRef(null);
 
   // High Precision Engine States
@@ -111,6 +112,31 @@ export default function Games() {
   useEffect(() => {
     activeGameRef.current = activeGame;
   }, [activeGame]);
+
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsMobileViewport(window.innerWidth < 768);
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--app-vh', `${vh}px`);
+    };
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+    };
+  }, []);
+
+  const mobileFullscreen = Boolean(activeGame && isMobileViewport);
+
+  useEffect(() => {
+    if (!mobileFullscreen) return undefined;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileFullscreen]);
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL, {
@@ -444,7 +470,11 @@ export default function Games() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-1000" style={{ direction: 'ltr' }}>
+    <div
+      className={mobileFullscreen ? "fixed inset-0 z-[120] bg-slate-950 p-2" : "space-y-8 animate-in fade-in duration-1000"}
+      style={mobileFullscreen ? { direction: 'ltr', height: 'calc(var(--app-vh, 1vh) * 100)' } : { direction: 'ltr' }}
+    >
+      {!mobileFullscreen && (
       <div className="flex justify-between items-center bg-slate-900/50 p-6 rounded-[2rem] border border-slate-800 shadow-xl">
         <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">Miner<span className="text-primary">Games</span></h1>
 
@@ -467,17 +497,37 @@ export default function Games() {
           </div>
         )}
       </div>
+      )}
 
       {!activeGame ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
           <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldowns.memory > 0 || !socketReady} cooldown={cooldowns.memory} />
           <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldowns['match-3'] > 0 || !socketReady} cooldown={cooldowns['match-3']} />
         </div>
       ) : (
-        <div className="relative">
-          <div className="bg-slate-900 border border-slate-800 rounded-[3rem] p-4 shadow-2xl relative overflow-hidden flex flex-col items-center">
+        <div className={mobileFullscreen ? "relative h-full" : "relative"}>
+          <div className={`bg-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden flex flex-col items-center ${mobileFullscreen ? 'h-full rounded-2xl p-2' : 'rounded-[3rem] p-4'}`}>
+            {mobileFullscreen && (
+              <div className="w-full flex items-center justify-between px-2 py-1.5 mb-2">
+                <div className="flex items-center gap-3 text-white">
+                  <span className="text-xs font-black uppercase tracking-widest">{activeGame === 'memory' ? 'Memory Sync' : 'Power Match'}</span>
+                  <span className="text-primary font-black text-sm">{timeLeft}s</span>
+                </div>
+                <button
+                  onClick={() => {
+                    if (socket) socket.emit('game:end');
+                    setActiveGame(null);
+                    setGameState(null);
+                    setSelectedCell(null);
+                  }}
+                  className="px-3 py-1.5 bg-red-500/15 hover:bg-red-500/25 text-red-300 rounded-lg border border-red-500/30 text-[10px] font-black uppercase tracking-wider"
+                >
+                  Sair
+                </button>
+              </div>
+            )}
             {isGameOver ? (
-              <div className="min-h-[min(550px,75dvh)] py-8 sm:py-0 sm:h-[550px] flex flex-col items-center justify-center text-center space-y-6 sm:space-y-10 z-10 relative animate-in zoom-in duration-500 px-2">
+              <div className={`flex flex-col items-center justify-center text-center space-y-6 sm:space-y-10 z-10 relative animate-in zoom-in duration-500 px-2 ${mobileFullscreen ? 'h-full py-4' : 'min-h-[min(550px,75dvh)] py-8 sm:py-0 sm:h-[550px]'}`}>
                 <Trophy className="w-16 h-16 sm:w-24 sm:h-24 text-primary animate-bounce" />
                 <h2 className="text-3xl sm:text-5xl md:text-7xl font-black text-white italic tracking-tighter uppercase leading-none">Relatório Final</h2>
                 {rewardMessage ? <div className="p-12 bg-emerald-500/10 border border-emerald-500/20 rounded-[3rem] shadow-2xl backdrop-blur-md"><p className="text-emerald-400 font-black text-4xl uppercase">Bônus Concedido!</p><p className="text-emerald-400/70 font-bold mt-2 text-xl uppercase">{rewardMessage}</p></div> : <div className="p-10 bg-red-500/10 border border-red-500/20 rounded-[2rem]"><p className="text-red-400 font-black text-2xl uppercase tracking-widest">Missão Falhou</p></div>}
@@ -491,9 +541,9 @@ export default function Games() {
                 <button onClick={() => { setActiveGame(null); setGameState(null); }} className="text-slate-500 font-bold uppercase text-xs tracking-[0.3em] hover:text-white transition-colors">Voltar ao Terminal</button>
               </div>
             ) : !gameState ? (
-              <div className="min-h-[min(550px,70dvh)] sm:h-[550px] flex flex-col items-center justify-center gap-6 py-8"><div className="w-16 h-16 sm:w-24 sm:h-24 border-4 sm:border-8 border-primary border-t-transparent rounded-full animate-spin shadow-glow" /><p className="text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] animate-pulse text-xs sm:text-base text-center px-2">Sincronizando...</p></div>
+              <div className={`flex flex-col items-center justify-center gap-6 py-8 ${mobileFullscreen ? 'h-full' : 'min-h-[min(550px,70dvh)] sm:h-[550px]'}`}><div className="w-16 h-16 sm:w-24 sm:h-24 border-4 sm:border-8 border-primary border-t-transparent rounded-full animate-spin shadow-glow" /><p className="text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] animate-pulse text-xs sm:text-base text-center px-2">Sincronizando...</p></div>
             ) : (
-              <div className="relative w-full min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem] overflow-hidden bg-black shadow-inner">
+              <div className={`relative w-full overflow-hidden bg-black shadow-inner ${mobileFullscreen ? 'h-full rounded-xl' : 'min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem]'}`}>
                 <canvas ref={canvasRef} width={800} height={500} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp} className="w-full h-full object-contain" style={{ cursor: 'none' }} />
               </div>
             )}
