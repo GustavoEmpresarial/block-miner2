@@ -5,11 +5,41 @@ import { signPasswordResetToken, getPasswordResetExpiryHumanPt } from "../utils/
 import loggerLib from "../utils/logger.js";
 import { getValidatedDepositAddress } from "../utils/depositAddress.js";
 import { fetchRecentWalletTxs } from "./walletController.js";
-import { SUPPORT_WALLET_RECOVERY_MARKER } from "../constants/supportTicketSubjects.js";
+import {
+  SUPPORT_WALLET_RECOVERY_MARKER,
+  SUPPORT_PASSWORD_RESET_TICKET_MARKER
+} from "../constants/supportTicketSubjects.js";
 
 const logger = loggerLib.child("AdminSupport");
 
 const ETH_ADDR_RE = /0x[a-fA-F0-9]{40}/g;
+const ETH_TX_HASH_RE = /0x[a-fA-F0-9]{64}/g;
+
+function normTxHash(h) {
+  let s = String(h || "")
+    .trim()
+    .toLowerCase();
+  if (!s) return "";
+  if (/^[a-f0-9]{64}$/.test(s)) s = `0x${s}`;
+  if (!/^0x[a-f0-9]{64}$/.test(s)) return "";
+  return s;
+}
+
+function extractTxHashesFromText(text) {
+  const s = String(text || "");
+  const found = s.match(ETH_TX_HASH_RE);
+  if (!found?.length) return [];
+  const seen = new Set();
+  const out = [];
+  for (const x of found) {
+    const low = x.toLowerCase();
+    if (!seen.has(low)) {
+      seen.add(low);
+      out.push(low);
+    }
+  }
+  return out;
+}
 
 function extractWalletAddressesFromText(text) {
   const s = String(text || "");
@@ -174,6 +204,13 @@ export const sendPasswordResetLink = async (req, res) => {
       return res.status(404).json({ ok: false, message: "Ticket não encontrado." });
     }
 
+    if (!String(ticket.subject || "").includes(SUPPORT_PASSWORD_RESET_TICKET_MARKER)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Só é possível liberar recuperação em tickets com assunto [Senha]."
+      });
+    }
+
     if (!isSmtpConfigured()) {
       return res.status(503).json({
         ok: false,
@@ -217,6 +254,126 @@ export const sendPasswordResetLink = async (req, res) => {
   } catch (error) {
     logger.error("sendPasswordResetLink failed", { error: error.message });
     res.status(500).json({ ok: false, message: error.message || "Erro ao enviar o link." });
+  }
+};
+
+/**
+ * Admin: histórico de chamados [Senha] e envios de link pela equipe (para o mesmo e-mail/conta).
+ */
+export const getPasswordRecoveryContext = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, message: "ID inválido." });
+    }
+
+    const ticket = await prisma.supportMessage.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ ok: false, message: "Ticket não encontrado." });
+    }
+
+    if (!String(ticket.subject || "").includes(SUPPORT_PASSWORD_RESET_TICKET_MARKER)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Este protocolo não é de recuperação de senha ([Senha])."
+      });
+    }
+
+    const user = await resolveUserFromTicket(ticket);
+    const emailTrim = String(ticket.email || "").trim();
+
+    const orMatch = [{ email: { equals: emailTrim, mode: "insensitive" } }];
+    if (user?.id) {
+      orMatch.push({ userId: user.id });
+    }
+
+    const senhaTickets = await prisma.supportMessage.findMany({
+      where: {
+        AND: [
+          { subject: { contains: SUPPORT_PASSWORD_RESET_TICKET_MARKER, mode: "insensitive" } },
+          { OR: orMatch }
+        ]
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        createdAt: true,
+        isReplied: true,
+        isRead: true,
+        email: true,
+        userId: true,
+        subject: true
+      }
+    });
+
+    const ticketIds = senhaTickets.map((t) => t.id);
+    let adminResetReplies = [];
+    if (ticketIds.length) {
+      adminResetReplies = await prisma.supportReply.findMany({
+        where: {
+          supportMessageId: { in: ticketIds },
+          isAdmin: true,
+          OR: [
+            { message: { contains: "link de redefinição", mode: "insensitive" } },
+            { message: { contains: "redefinição de senha", mode: "insensitive" } },
+            { message: { contains: "password reset", mode: "insensitive" } }
+          ]
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, createdAt: true, supportMessageId: true },
+        take: 40
+      });
+    }
+
+    let supportAutoProvisionAt = null;
+    if (user?.id) {
+      const provisionLog = await prisma.auditLog.findFirst({
+        where: {
+          userId: user.id,
+          action: "support_auto_provision",
+          detailsJson: { contains: "password_reset_ticket", mode: "insensitive" }
+        },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true }
+      });
+      supportAutoProvisionAt = provisionLog?.createdAt ?? null;
+    }
+
+    const priorSenhaCountExcludingCurrent = senhaTickets.filter((t) => t.id !== id).length;
+    const linkedUser = user
+      ? { id: user.id, email: user.email, name: user.name }
+      : null;
+
+    res.json({
+      ok: true,
+      context: {
+        smtpConfigured: isSmtpConfigured(),
+        linkedUser,
+        ticketEmail: emailTrim,
+        senhaTicketTotal: senhaTickets.length,
+        hadPriorSenhaTickets: priorSenhaCountExcludingCurrent > 0,
+        priorSenhaCountExcludingCurrent,
+        senhaTickets: senhaTickets.map((t) => ({
+          id: t.id,
+          createdAt: t.createdAt,
+          isReplied: t.isReplied,
+          isRead: t.isRead,
+          isCurrent: t.id === id,
+          subject: t.subject
+        })),
+        adminResetLinkSendsCount: adminResetReplies.length,
+        adminResetLinkSendsRecent: adminResetReplies.slice(0, 8).map((r) => ({
+          id: r.id,
+          createdAt: r.createdAt,
+          supportMessageId: r.supportMessageId
+        })),
+        accountCreatedBySupportTicket: Boolean(supportAutoProvisionAt),
+        supportAutoProvisionAt
+      }
+    });
+  } catch (error) {
+    logger.error("getPasswordRecoveryContext failed", { error: error.message });
+    res.status(500).json({ ok: false, message: error.message || "Erro ao carregar contexto." });
   }
 };
 
@@ -327,50 +484,140 @@ export const getWalletRecoveryForensics = async (req, res) => {
     const linkedLower = String(linkedUser?.walletAddress || "").trim().toLowerCase();
     const ticketFirst = ticketWallets[0] || null;
     const scanWallet = linkedLower || ticketFirst;
-    let chainSample = [];
+
+    const depositHashMap = new Map();
+    for (const d of deposits) {
+      const k = normTxHash(d.txHash);
+      if (k) depositHashMap.set(k, d);
+    }
+
+    const days = Math.min(Math.max(Number(req.query?.days) || 365, 1), 730);
+    const minTs = Math.floor(Date.now() / 1000) - days * 24 * 60 * 60;
+
+    const scanWallets = [...new Set([linkedLower, ...ticketWallets].filter(Boolean))].slice(0, 8);
+
+    const mergedTxByHash = new Map();
+    const chainFetchErrors = [];
+    for (const w of scanWallets) {
+      try {
+        const raw = await fetchRecentWalletTxs(w);
+        for (const tx of raw) {
+          const h = String(tx.hash || "").toLowerCase();
+          if (!h) continue;
+          if (!mergedTxByHash.has(h)) {
+            mergedTxByHash.set(h, { ...tx, scannedFromWallets: [w] });
+          } else {
+            const ex = mergedTxByHash.get(h);
+            if (!ex.scannedFromWallets.includes(w)) ex.scannedFromWallets.push(w);
+          }
+        }
+      } catch (e) {
+        chainFetchErrors.push({ wallet: w, error: String(e?.message || e) });
+        logger.warn("wallet-forensics chain fetch failed for wallet", { ticketId: id, wallet: w, error: String(e?.message || e) });
+      }
+    }
+
     let chainError = null;
-
-    if (scanWallet) {
-      try {
-        const raw = await fetchRecentWalletTxs(scanWallet);
-        const minTs = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
-        chainSample = raw
-          .filter((tx) => Number(tx.timeStamp || 0) >= minTs)
-          .slice(0, 40)
-          .map((tx) => {
-            const valuePol = Number(tx.value || 0) / 1e18;
-            const to = String(tx.to || "").toLowerCase();
-            const from = String(tx.from || "").toLowerCase();
-            let tag = "other";
-            if (gameDeposit && from === scanWallet && to === gameDeposit) tag = "out_to_game";
-            else if (gameDeposit && to === scanWallet && from === gameDeposit) tag = "in_from_game";
-            return {
-              hash: tx.hash,
-              from,
-              to,
-              valuePol,
-              timeStamp: Number(tx.timeStamp || 0),
-              tag
-            };
-          });
-      } catch (e) {
-        chainError = String(e?.message || e);
-        logger.warn("wallet-forensics chain fetch failed", { ticketId: id, error: chainError });
-      }
+    if (scanWallets.length > 0 && mergedTxByHash.size === 0 && chainFetchErrors.length >= scanWallets.length) {
+      chainError = chainFetchErrors[0]?.error || "Explorer indisponível.";
     }
 
-    let orphans = [];
+    const allMerged = [...mergedTxByHash.values()];
+    const onChainDepositsToGame = [];
+    for (const tx of allMerged) {
+      const ts = Number(tx.timeStamp || 0);
+      if (ts < minTs) continue;
+      if (String(tx.isError || "0") === "1") continue;
+      const from = String(tx.from || "").toLowerCase();
+      const to = String(tx.to || "").toLowerCase();
+      if (!gameDeposit || to !== gameDeposit) continue;
+      if (!scanWallets.includes(from)) continue;
+      const valuePol = Number(tx.value || 0) / 1e18;
+      if (!Number.isFinite(valuePol) || valuePol <= 0) continue;
+      const hNorm = normTxHash(tx.hash);
+      const led = hNorm ? depositHashMap.get(hNorm) : null;
+      onChainDepositsToGame.push({
+        hash: tx.hash,
+        from,
+        to,
+        valuePol,
+        timeStamp: ts,
+        dateIso: new Date(ts * 1000).toISOString(),
+        scannedFromWallets: tx.scannedFromWallets || [],
+        inLedger: Boolean(led),
+        ledgerId: led?.id ?? null,
+        ledgerStatus: led?.status ?? null,
+        ledgerAmount: led != null ? led.amount : null
+      });
+    }
+    onChainDepositsToGame.sort((a, b) => b.timeStamp - a.timeStamp);
+
+    const ticketHashesRaw = extractTxHashesFromText(`${ticket.message}\n${ticket.subject}`);
+    const ticketHashesAnalysis = ticketHashesRaw.map((th) => {
+      const k = normTxHash(th);
+      const led = k ? depositHashMap.get(k) : null;
+      return {
+        hash: th,
+        inLedger: Boolean(led),
+        ledgerId: led?.id ?? null,
+        ledgerStatus: led?.status ?? null,
+        ledgerAmount: led != null ? led.amount : null
+      };
+    });
+
+    const chainSample = allMerged
+      .filter((tx) => {
+        const ts = Number(tx.timeStamp || 0);
+        if (ts < minTs) return false;
+        if (String(tx.isError || "0") === "1") return false;
+        const to = String(tx.to || "").toLowerCase();
+        const from = String(tx.from || "").toLowerCase();
+        if (gameDeposit && from && scanWallets.includes(from) && to === gameDeposit) return false;
+        return scanWallets.includes(from) || scanWallets.includes(to);
+      })
+      .slice(0, 35)
+      .map((tx) => {
+        const valuePol = Number(tx.value || 0) / 1e18;
+        const to = String(tx.to || "").toLowerCase();
+        const from = String(tx.from || "").toLowerCase();
+        let tag = "other";
+        if (gameDeposit && scanWallets.includes(from) && to === gameDeposit) tag = "out_to_game";
+        else if (gameDeposit && scanWallets.includes(to) && from === gameDeposit) tag = "in_from_game";
+        return {
+          hash: tx.hash,
+          from,
+          to,
+          valuePol,
+          timeStamp: Number(tx.timeStamp || 0),
+          tag
+        };
+      });
+
+    /** Fila manual opcional (não é o modelo Prisma `Transaction` / depósitos normais). */
+    const orphanByWallet = new Map();
     let orphansError = null;
-    if (scanWallet) {
+    let orphanDepositsAuxTablePresent = true;
+    for (const w of scanWallets) {
       try {
-        orphans = await prisma.$queryRaw(
-          Prisma.sql`SELECT wallet_address, amount::float AS amount FROM public.orphan_deposits WHERE LOWER(wallet_address) = ${scanWallet}`
+        const rows = await prisma.$queryRaw(
+          Prisma.sql`SELECT wallet_address, amount::float AS amount FROM public.orphan_deposits WHERE LOWER(wallet_address) = ${w}`
         );
+        for (const r of rows || []) {
+          const key = String(r.wallet_address || "").toLowerCase();
+          if (key) orphanByWallet.set(key, { wallet_address: r.wallet_address, amount: r.amount });
+        }
       } catch (e) {
-        orphansError = String(e?.message || e);
-        orphans = [];
+        const raw = String(e?.message || e);
+        if (/42P01|does not exist/i.test(raw) && /orphan_deposits/i.test(raw)) {
+          orphanDepositsAuxTablePresent = false;
+          orphansError = null;
+        } else {
+          orphansError = raw;
+        }
+        break;
       }
     }
+    const orphans = [...orphanByWallet.values()];
 
     res.json({
       ok: true,
@@ -383,7 +630,9 @@ export const getWalletRecoveryForensics = async (req, res) => {
           linkedWallet: linkedLower || null,
           firstWalletInTicket: ticketFirst,
           sameAsTicket: linkedLower && ticketFirst ? linkedLower === ticketFirst : null,
-          scanWallet: scanWallet || null
+          scanWallet: scanWallet || null,
+          scanWallets,
+          chainDays: days
         },
         ledger: {
           deposits,
@@ -391,8 +640,12 @@ export const getWalletRecoveryForensics = async (req, res) => {
           depositSummary,
           withdrawalSummary
         },
+        onChainDepositsToGame,
+        ticketHashesAnalysis,
+        chainFetchErrors,
         orphans: Array.isArray(orphans) ? orphans : [],
         orphansError,
+        orphanDepositsAuxTablePresent,
         chainSample,
         chainError,
         polygonscanBase: "https://polygonscan.com/tx/"

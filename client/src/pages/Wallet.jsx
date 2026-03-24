@@ -25,9 +25,7 @@ import { api, useAuthStore } from '../store/auth';
 import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
 import { QRCodeSVG } from 'qrcode.react';
-
-/** Alinhar com server/constants/supportTicketSubjects.js */
-const SUPPORT_WALLET_RECOVERY_MARKER = '[Saldo/POL]';
+import { SUPPORT_WALLET_RECOVERY_MARKER, SUPPORT_WALLET_MSG } from '../constants/supportWalletTicket';
 
 export default function Wallet() {
     const { t } = useTranslation();
@@ -64,6 +62,8 @@ export default function Wallet() {
     const [lastResyncResult, setLastResyncResult] = useState(null);
     const [balanceTicketOpen, setBalanceTicketOpen] = useState(false);
     const [balanceTicketNotes, setBalanceTicketNotes] = useState('');
+    const [balanceTicketWallets, setBalanceTicketWallets] = useState('');
+    const [balanceTicketTxHashes, setBalanceTicketTxHashes] = useState('');
     const [balanceTicketSending, setBalanceTicketSending] = useState(false);
     const [balanceTicketSent, setBalanceTicketSent] = useState(false);
 
@@ -229,6 +229,14 @@ export default function Wallet() {
     const promptBalanceTicketAfterManualFailure = () => {
         setBalanceTicketOpen(true);
         setBalanceTicketSent(false);
+        const h = depositForm.txHash.trim();
+        if (h) {
+            setBalanceTicketTxHashes((prev) => {
+                const p = prev.trim();
+                if (p.includes(h)) return prev;
+                return p ? `${p}\n${h}` : h;
+            });
+        }
         toast.info(
             t(
                 'wallet.manual_verify_ticket_hint',
@@ -322,20 +330,61 @@ export default function Wallet() {
             toast.error(t('wallet.ticket_need_session', 'Sessão inválida. Faça login novamente.'));
             return;
         }
+        const walletsBlock = balanceTicketWallets.trim();
+        if (!walletsBlock) {
+            toast.error(
+                t(
+                    'wallet.ticket_wallets_required',
+                    'Informe pelo menos uma carteira de onde você enviou POL para o jogo.'
+                )
+            );
+            return;
+        }
+        const addrMatches = walletsBlock.match(/0x[a-fA-F0-9]{40}/g) || [];
+        if (addrMatches.length === 0) {
+            toast.error(
+                t(
+                    'wallet.ticket_wallets_invalid',
+                    'Nenhum endereço válido encontrado. Use formato 0x seguido de 40 caracteres hexadecimais.'
+                )
+            );
+            return;
+        }
+        for (const a of addrMatches) {
+            if (!isAddress(a)) {
+                toast.error(
+                    t(
+                        'wallet.ticket_wallets_invalid',
+                        'Nenhum endereço válido encontrado. Use formato 0x seguido de 40 caracteres hexadecimais.'
+                    )
+                );
+                return;
+            }
+        }
         const notes = balanceTicketNotes.trim();
+        const hashesBlock = balanceTicketTxHashes.trim();
         const lr = lastResyncResult;
-        const auto = `--- Dados para a equipe (não apague) ---
+        const auto = `${SUPPORT_WALLET_MSG.auto}
 User ID: ${user.id}
 E-mail da conta: ${user.email}
 Nome: ${user.name || ''}
 Carteira Web3 (sessão): ${isConnected && account ? account : '(não conectado)'}
 Última tentativa Re-sync (${lr?.days ?? 90}d): creditados=${lr != null ? lr.credited : '—'}, ignorados=${lr != null ? lr.skipped : '—'}, txs candidatas=${lr != null ? lr.scanned : '—'}
-TxHash manual digitado: ${depositForm.txHash.trim() || '(nenhum)'}
-Valor manual digitado: ${depositForm.amount || '(nenhum)'}
-Saldo POL na conta (após último refresh): ${balance.amount}
+TxHash no formulário manual (tela): ${depositForm.txHash.trim() || '(nenhum)'}
+Valor no formulário manual (tela): ${depositForm.amount || '(nenhum)'}
+Saldo POL na conta (último refresh): ${balance.amount}
 Endereço depósito do jogo (tela): ${systemDepositAddress || '(indisponível)'}
 `;
-        const bodyMsg = `${auto}\n--- Observações do jogador ---\n${notes || '(nenhuma)'}`;
+        const bodyMsg = `${SUPPORT_WALLET_MSG.wallets}
+${walletsBlock}
+
+${SUPPORT_WALLET_MSG.txHashes}
+${hashesBlock || '(nenhum informado)'}
+
+${auto}
+
+${SUPPORT_WALLET_MSG.notes}
+${notes || '(nenhuma)'}`;
         const shortW =
             isConnected && account
                 ? `${account.slice(0, 6)}…${account.slice(-4)}`
@@ -351,8 +400,14 @@ Endereço depósito do jogo (tela): ${systemDepositAddress || '(indisponível)'}
             });
             if (res.data?.ok) {
                 setBalanceTicketSent(true);
+                setBalanceTicketWallets('');
+                setBalanceTicketTxHashes('');
+                setBalanceTicketNotes('');
                 toast.success(
-                    t('wallet.ticket_sent', 'Chamado enviado. Nossa equipe vai analisar a blockchain e o histórico da conta.')
+                    t(
+                        'wallet.ticket_sent',
+                        'Chamado registrado. A equipe analisa no painel administrativo; acompanhe atualizações pelo jogo.'
+                    )
                 );
             } else {
                 toast.error(res.data?.message || t('common.error', 'Erro'));
@@ -762,10 +817,10 @@ Endereço depósito do jogo (tela): ${systemDepositAddress || '(indisponível)'}
                                         {balanceTicketOpen ? (
                                             <div className="px-4 pb-4 pt-0 space-y-3 border-t border-slate-800/80">
                                                 {balanceTicketSent ? (
-                                                    <p className="text-[11px] text-emerald-400/90 font-bold py-2">
+                                                    <p className="text-[11px] text-emerald-400/90 font-bold py-2 leading-relaxed">
                                                         {t(
                                                             'wallet.ticket_sent_detail',
-                                                            'Protocolo registrado. A equipe responde por este e-mail da conta quando houver análise.'
+                                                            'Protocolo registrado. A moderação trata no painel de suporte interno; não depende de e-mail. Volte aqui se precisar abrir outro chamado.'
                                                         )}
                                                     </p>
                                                 ) : (
@@ -773,19 +828,79 @@ Endereço depósito do jogo (tela): ${systemDepositAddress || '(indisponível)'}
                                                         <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
                                                             {t(
                                                                 'wallet.ticket_explain',
-                                                                'Enviamos sua carteira e o contexto da conta para a equipe verificar envios para o endereço do jogo, histórico interno e fila de saques.'
+                                                                'Os dados vão direto para a fila no painel admin. Carteiras são obrigatórias; hashes aceleram a conferência na blockchain.'
                                                             )}
                                                         </p>
-                                                        <textarea
-                                                            value={balanceTicketNotes}
-                                                            onChange={(e) => setBalanceTicketNotes(e.target.value)}
-                                                            placeholder={t(
-                                                                'wallet.ticket_placeholder',
-                                                                'Opcional: data aproximada, valor enviado, hash da transação, rede usada…'
-                                                            )}
-                                                            rows={3}
-                                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50 resize-none"
-                                                        />
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                    {t(
+                                                                        'wallet.ticket_wallets_label',
+                                                                        'Carteiras usadas para depositar (obrigatório)'
+                                                                    )}
+                                                                </label>
+                                                                {isConnected && account ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setBalanceTicketWallets((prev) => {
+                                                                                const p = prev.trim();
+                                                                                const a = account;
+                                                                                if (!p) return a;
+                                                                                if (p.toLowerCase().includes(a.toLowerCase())) return prev;
+                                                                                return `${p}\n${a}`;
+                                                                            });
+                                                                        }}
+                                                                        className="text-[9px] font-black uppercase text-indigo-400 hover:text-indigo-300"
+                                                                    >
+                                                                        {t('wallet.ticket_use_connected', '+ usar conectada')}
+                                                                    </button>
+                                                                ) : null}
+                                                            </div>
+                                                            <textarea
+                                                                value={balanceTicketWallets}
+                                                                onChange={(e) => setBalanceTicketWallets(e.target.value)}
+                                                                placeholder={t(
+                                                                    'wallet.ticket_wallets_placeholder',
+                                                                    'Uma ou mais carteiras 0x… (uma por linha)'
+                                                                )}
+                                                                rows={3}
+                                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 font-mono outline-none focus:border-indigo-500/50 resize-none"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">
+                                                                {t(
+                                                                    'wallet.ticket_hashes_label',
+                                                                    'Hashes de transação (opcional — agiliza a análise)'
+                                                                )}
+                                                            </label>
+                                                            <textarea
+                                                                value={balanceTicketTxHashes}
+                                                                onChange={(e) => setBalanceTicketTxHashes(e.target.value)}
+                                                                placeholder={t(
+                                                                    'wallet.ticket_hashes_placeholder',
+                                                                    '0x… um hash por linha, se tiver vários envios'
+                                                                )}
+                                                                rows={2}
+                                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 font-mono outline-none focus:border-indigo-500/50 resize-none"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">
+                                                                {t('wallet.ticket_notes_label', 'Observações extras (opcional)')}
+                                                            </label>
+                                                            <textarea
+                                                                value={balanceTicketNotes}
+                                                                onChange={(e) => setBalanceTicketNotes(e.target.value)}
+                                                                placeholder={t(
+                                                                    'wallet.ticket_placeholder',
+                                                                    'Data aproximada, valor, rede, prints…'
+                                                                )}
+                                                                rows={2}
+                                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50 resize-none"
+                                                            />
+                                                        </div>
                                                         <button
                                                             type="button"
                                                             onClick={handleBalanceRecoveryTicket}

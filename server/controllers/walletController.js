@@ -5,10 +5,9 @@ import { getValidatedDepositAddress } from "../utils/depositAddress.js";
 
 const logger = loggerLib.child("WalletController");
 const POLYGONSCAN_API_BASE = "https://api.etherscan.io/v2/api";
-const BLOCKSCOUT_API_BASES = [
-  "https://polygon.blockscout.com/api",
-  "https://worldchain-mainnet.explorer.alchemy.com/api"
-];
+/** Lista de tx na Polygon: obrigatório POLYGONSCAN_API_KEY ou ETHERSCAN_API_KEY (API v2 Etherscan, chainid=137). */
+const EXPLORER_API_KEY_REQUIRED_MSG =
+  "Defina POLYGONSCAN_API_KEY ou ETHERSCAN_API_KEY no .env (chave gratuita em https://etherscan.io/apis — suporta Polygon via API v2). Sem chave não é possível listar transações on-chain.";
 
 function normalizeExplorerTx(tx) {
   if (!tx || typeof tx !== "object") return null;
@@ -25,57 +24,27 @@ function normalizeExplorerTx(tx) {
 }
 
 export async function fetchRecentWalletTxs(address) {
-  const apiKey = String(
-    process.env.POLYGONSCAN_API_KEY ||
-    process.env.ETHERSCAN_API_KEY ||
-    ""
-  ).trim();
-
-  const apiKeyParam = apiKey ? `&apikey=${encodeURIComponent(apiKey)}` : "";
-  const url = `${POLYGONSCAN_API_BASE}?chainid=137&module=account&action=txlist&address=${encodeURIComponent(address)}&startblock=0&endblock=99999999&sort=desc${apiKeyParam}`;
-  try {
-    const response = await fetch(url);
-    if (response.ok) {
-      const data = await response.json();
-      const messageText = String(data?.result || data?.message || "");
-      if (messageText.toLowerCase().includes("missing/invalid api key")) {
-        throw new Error("missing_api_key");
-      }
-      if (String(data?.status) !== "1" && String(data?.message || "").toUpperCase() !== "NO TRANSACTIONS FOUND") {
-        throw new Error(data?.result || data?.message || "Polygonscan response error");
-      }
-      return (Array.isArray(data?.result) ? data.result : [])
-        .map(normalizeExplorerTx)
-        .filter(Boolean);
-    }
-  } catch (err) {
-    logger.warn("Polygonscan txlist failed, trying blockscout fallback", {
-      address,
-      error: String(err?.message || err)
-    });
+  const apiKey = String(process.env.POLYGONSCAN_API_KEY || process.env.ETHERSCAN_API_KEY || "").trim();
+  if (!apiKey) {
+    throw new Error(EXPLORER_API_KEY_REQUIRED_MSG);
   }
 
-  for (const base of BLOCKSCOUT_API_BASES) {
-    const fallbackUrl = `${base}?module=account&action=txlist&address=${encodeURIComponent(address)}&startblock=0&endblock=99999999&sort=desc`;
-    try {
-      const resp = await fetch(fallbackUrl);
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      const msg = String(data?.message || "").toUpperCase();
-      if (String(data?.status) !== "1" && msg !== "NO TRANSACTIONS FOUND") continue;
-      return (Array.isArray(data?.result) ? data.result : [])
-        .map(normalizeExplorerTx)
-        .filter(Boolean);
-    } catch (err) {
-      logger.warn("Blockscout fallback failed", {
-        endpoint: base,
-        address,
-        error: String(err?.message || err)
-      });
-    }
+  const url = `${POLYGONSCAN_API_BASE}?chainid=137&module=account&action=txlist&address=${encodeURIComponent(address)}&startblock=0&endblock=99999999&sort=desc&apikey=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Explorer HTTP ${response.status} ao listar transações.`);
   }
-
-  throw new Error("Unable to query explorer transactions (configure POLYGONSCAN_API_KEY or check explorer availability).");
+  const data = await response.json();
+  const messageText = String(data?.result || data?.message || "");
+  if (messageText.toLowerCase().includes("missing/invalid api key") || messageText.toLowerCase().includes("invalid api key")) {
+    throw new Error("Chave de API inválida ou não ativada para API v2. Verifique POLYGONSCAN_API_KEY / ETHERSCAN_API_KEY.");
+  }
+  if (String(data?.status) !== "1" && String(data?.message || "").toUpperCase() !== "NO TRANSACTIONS FOUND") {
+    throw new Error(String(data?.result || data?.message || "Resposta inválida do explorer."));
+  }
+  return (Array.isArray(data?.result) ? data.result : [])
+    .map(normalizeExplorerTx)
+    .filter(Boolean);
 }
 
 export async function getBalance(req, res) {

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   MessageSquare, 
   Search, 
@@ -16,18 +16,16 @@ import {
   X,
   RefreshCw,
   Loader2,
-  KeyRound,
-  ExternalLink,
-  Wallet,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  ScanSearch
+  KeyRound
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
-
-/** Alinhar com server/constants/supportTicketSubjects.js */
-const SUPPORT_WALLET_RECOVERY_MARKER = '[Saldo/POL]';
+import {
+  SUPPORT_WALLET_RECOVERY_MARKER,
+  SUPPORT_PASSWORD_RESET_TICKET_MARKER,
+  parseWalletDepositTicketBody
+} from '../constants/supportWalletTicket';
+import WalletForensicsPanel from '../components/WalletForensicsPanel';
 
 export default function AdminSupport() {
   const [messages, setMessages] = useState([]);
@@ -41,45 +39,76 @@ export default function AdminSupport() {
   const [sendingResetLink, setSendingResetLink] = useState(false);
   const [walletForensics, setWalletForensics] = useState(null);
   const [walletForensicsLoading, setWalletForensicsLoading] = useState(false);
+  const [passwordRecoveryCtx, setPasswordRecoveryCtx] = useState(null);
+  const [passwordRecoveryLoading, setPasswordRecoveryLoading] = useState(false);
 
   const isPasswordResetTicket = (subject) =>
-    String(subject || '').includes('[Senha]');
+    String(subject || '').includes(SUPPORT_PASSWORD_RESET_TICKET_MARKER);
 
   const isWalletRecoveryTicket = (subject) =>
     String(subject || '').includes(SUPPORT_WALLET_RECOVERY_MARKER);
+
+  const walletTicketParsed =
+    selectedMessage && isWalletRecoveryTicket(selectedMessage.subject)
+      ? parseWalletDepositTicketBody(selectedMessage.message)
+      : null;
 
   useEffect(() => {
     fetchMessages();
   }, []);
 
-  useEffect(() => {
+  const refreshWalletForensics = useCallback(async () => {
     const id = selectedMessage?.id;
     const subj = selectedMessage?.subject;
-    if (!id || !isWalletRecoveryTicket(subj)) {
+    if (!id || !isWalletRecoveryTicket(subj)) return;
+    setWalletForensicsLoading(true);
+    try {
+      const res = await api.get(`/admin/support/${id}/wallet-forensics`, { params: { days: 365 } });
+      if (res.data?.ok) setWalletForensics(res.data.forensics);
+      else setWalletForensics(null);
+    } catch (e) {
       setWalletForensics(null);
+      toast.error(e.response?.data?.message || 'Falha ao carregar análise de carteira.');
+    } finally {
+      setWalletForensicsLoading(false);
+    }
+  }, [selectedMessage?.id, selectedMessage?.subject]);
+
+  useEffect(() => {
+    if (!selectedMessage?.id || !isWalletRecoveryTicket(selectedMessage.subject)) {
+      setWalletForensics(null);
+      setWalletForensicsLoading(false);
       return;
     }
-    let cancelled = false;
-    setWalletForensicsLoading(true);
-    (async () => {
-      try {
-        const res = await api.get(`/admin/support/${id}/wallet-forensics`);
-        if (!cancelled && res.data?.ok) {
-          setWalletForensics(res.data.forensics);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setWalletForensics(null);
-          toast.error(e.response?.data?.message || 'Falha ao carregar análise de carteira.');
-        }
-      } finally {
-        if (!cancelled) setWalletForensicsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    refreshWalletForensics();
+  }, [selectedMessage?.id, selectedMessage?.subject, refreshWalletForensics]);
+
+  const refreshPasswordRecoveryContext = useCallback(async () => {
+    const id = selectedMessage?.id;
+    const subj = selectedMessage?.subject;
+    if (!id || !isPasswordResetTicket(subj)) return;
+    setPasswordRecoveryLoading(true);
+    try {
+      const res = await api.get(`/admin/support/${id}/password-recovery-context`);
+      if (res.data?.ok) setPasswordRecoveryCtx(res.data.context);
+      else setPasswordRecoveryCtx(null);
+    } catch (e) {
+      setPasswordRecoveryCtx(null);
+      toast.error(e.response?.data?.message || 'Falha ao carregar histórico de recuperação.');
+    } finally {
+      setPasswordRecoveryLoading(false);
+    }
   }, [selectedMessage?.id, selectedMessage?.subject]);
+
+  useEffect(() => {
+    if (!selectedMessage?.id || !isPasswordResetTicket(selectedMessage.subject)) {
+      setPasswordRecoveryCtx(null);
+      setPasswordRecoveryLoading(false);
+      return;
+    }
+    setPasswordRecoveryCtx(null);
+    refreshPasswordRecoveryContext();
+  }, [selectedMessage?.id, selectedMessage?.subject, refreshPasswordRecoveryContext]);
 
   const fetchMessages = async () => {
     try {
@@ -127,6 +156,7 @@ export default function AdminSupport() {
             prev.map((m) => (m.id === selectedMessage.id ? { ...m, isReplied: true } : m))
           );
         }
+        await refreshPasswordRecoveryContext();
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Falha ao enviar o link.');
@@ -187,9 +217,9 @@ export default function AdminSupport() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-250px)]">
-        {/* Sidebar: Message List */}
-        <div className="lg:col-span-4 flex flex-col space-y-4 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:items-start">
+        {/* Sidebar: lista com scroll próprio; painel direito usa o scroll do main */}
+        <div className="lg:col-span-4 flex flex-col gap-4 min-h-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-5.5rem)] lg:self-start">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -213,7 +243,7 @@ export default function AdminSupport() {
             </select>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-slate-800">
+          <div className="flex-1 min-h-0 max-h-[50vh] lg:max-h-none overflow-y-auto space-y-2 pr-2 pb-2 scrollbar-thin scrollbar-thumb-slate-800 overscroll-y-contain touch-pan-y">
             {loading && messages.length === 0 ? (
               [...Array(5)].map((_, i) => (
                 <div key={i} className="h-20 bg-slate-900/50 rounded-2xl animate-pulse" />
@@ -253,13 +283,13 @@ export default function AdminSupport() {
         </div>
 
         {/* Content: Selected Message */}
-        <div className="lg:col-span-8 bg-slate-950/50 border border-slate-800 rounded-3xl overflow-hidden flex flex-col">
+        <div className="lg:col-span-8 bg-slate-950/50 border border-slate-800 rounded-3xl flex flex-col min-w-0">
           {loadingDetails ? (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex items-center justify-center py-24">
               <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
             </div>
           ) : selectedMessage ? (
-            <div className="flex-1 flex flex-col p-8 overflow-hidden">
+            <div className="flex flex-col p-6 sm:p-8 min-w-0">
               <div className="flex justify-between items-start border-b border-slate-800 pb-6 mb-6">
                 <div className="space-y-1">
                   <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">{selectedMessage.subject}</h2>
@@ -281,14 +311,71 @@ export default function AdminSupport() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto space-y-6 pr-4 mb-6 scrollbar-thin scrollbar-thumb-slate-800">
+              <div className="space-y-6 pb-4">
+                {isWalletRecoveryTicket(selectedMessage.subject) ? (
+                  <WalletForensicsPanel
+                    loading={walletForensicsLoading}
+                    data={walletForensics}
+                    onRefresh={refreshWalletForensics}
+                  />
+                ) : null}
+
                 {/* Initial Message */}
-                <div className="bg-slate-900/30 p-6 rounded-3xl border border-slate-800/50">
-                  <div className="flex items-center gap-2 mb-2 text-[10px] font-black text-slate-500 uppercase">
-                    <User className="w-3 h-3" /> Usuário
+                {isWalletRecoveryTicket(selectedMessage.subject) ? (
+                  <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] pt-2 border-t border-zinc-800">
+                    Texto enviado no chamado
+                  </p>
+                ) : null}
+                {walletTicketParsed ? (
+                  <div className="space-y-4">
+                    <p className="text-xs font-black text-cyan-400 uppercase tracking-wide">
+                      Formulário de depósito (cópia legível)
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="bg-zinc-900 p-4 rounded-2xl border border-emerald-500/50 min-h-0 max-h-72 overflow-y-auto">
+                        <p className="text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-wider">Carteiras informadas</p>
+                        <pre className="text-sm text-white font-mono whitespace-pre-wrap break-all leading-relaxed">
+                          {walletTicketParsed.wallets || '—'}
+                        </pre>
+                      </div>
+                      <div className="bg-zinc-900 p-4 rounded-2xl border border-amber-500/50 min-h-0 max-h-72 overflow-y-auto">
+                        <p className="text-[10px] font-black text-amber-300 uppercase mb-2 tracking-wider">TxHashes</p>
+                        <pre className="text-sm text-white font-mono whitespace-pre-wrap break-all leading-relaxed">
+                          {walletTicketParsed.hashes && walletTicketParsed.hashes !== '(nenhum informado)'
+                            ? walletTicketParsed.hashes
+                            : '—'}
+                        </pre>
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-600 min-h-0 max-h-56 overflow-y-auto">
+                      <p className="text-[10px] font-black text-zinc-400 uppercase mb-2 tracking-wider">Dados automáticos da conta</p>
+                      <pre className="text-sm text-zinc-100 font-mono whitespace-pre-wrap break-all leading-relaxed">
+                        {walletTicketParsed.auto || '—'}
+                      </pre>
+                    </div>
+                    {walletTicketParsed.notes && walletTicketParsed.notes !== '(nenhuma)' ? (
+                      <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-600">
+                        <p className="text-[10px] font-black text-zinc-400 uppercase mb-2 tracking-wider">Observações extras</p>
+                        <p className="text-sm text-zinc-100 whitespace-pre-wrap leading-relaxed">{walletTicketParsed.notes}</p>
+                      </div>
+                    ) : null}
+                    <details className="text-xs text-zinc-400">
+                      <summary className="cursor-pointer font-bold text-zinc-300 hover:text-white py-2">
+                        Ver mensagem bruta (completa)
+                      </summary>
+                      <pre className="mt-2 p-4 rounded-xl bg-black border border-zinc-700 text-zinc-200 font-mono whitespace-pre-wrap break-all text-xs max-h-64 overflow-y-auto">
+                        {selectedMessage.message}
+                      </pre>
+                    </details>
                   </div>
-                  <p className="text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedMessage.message}</p>
-                </div>
+                ) : (
+                  <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-600">
+                    <div className="flex items-center gap-2 mb-3 text-[10px] font-black text-zinc-300 uppercase tracking-widest">
+                      <User className="w-3 h-3 text-amber-500" /> Mensagem do utilizador
+                    </div>
+                    <p className="text-sm text-zinc-50 whitespace-pre-wrap leading-relaxed break-words">{selectedMessage.message}</p>
+                  </div>
+                )}
 
                 {/* Legacy Reply Support */}
                 {selectedMessage.reply && (!selectedMessage.replies || selectedMessage.replies.length === 0) && (
@@ -322,19 +409,114 @@ export default function AdminSupport() {
                 ))}
               </div>
 
-              <div className="mt-auto space-y-4 border-t border-slate-800 pt-6">
+              <div className="space-y-4 border-t border-slate-800 pt-6 mt-8 shrink-0">
                 {isPasswordResetTicket(selectedMessage.subject) ? (
-                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-4">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/90">
+                        Histórico de recuperação
+                      </p>
+                      {passwordRecoveryLoading ? (
+                        <div className="flex items-center gap-2 text-slate-500 text-xs">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          A carregar…
+                        </div>
+                      ) : passwordRecoveryCtx ? (
+                        <ul className="text-[11px] text-slate-400 leading-relaxed space-y-1.5 list-none pl-0">
+                          <li>
+                            <span className="text-slate-200 font-bold">
+                              {passwordRecoveryCtx.senhaTicketTotal}
+                            </span>{' '}
+                            chamado(s) com {SUPPORT_PASSWORD_RESET_TICKET_MARKER} para este e-mail ou conta
+                            {passwordRecoveryCtx.hadPriorSenhaTickets ? (
+                              <span className="text-amber-400 font-bold"> — já pediu recuperação antes</span>
+                            ) : (
+                              <span className="text-slate-500"> — primeiro chamado deste tipo (neste critério)</span>
+                            )}
+                            .
+                          </li>
+                          <li>
+                            Link(s) de redefinição enviado(s) pela equipe (respostas do painel):{' '}
+                            <span className="text-slate-200 font-bold">
+                              {passwordRecoveryCtx.adminResetLinkSendsCount}
+                            </span>
+                            .
+                          </li>
+                          {passwordRecoveryCtx.linkedUser ? (
+                            <li>
+                              Conta associada:{' '}
+                              <span className="text-slate-200 font-mono text-[10px]">
+                                {passwordRecoveryCtx.linkedUser.email}
+                              </span>{' '}
+                              (id {passwordRecoveryCtx.linkedUser.id})
+                            </li>
+                          ) : (
+                            <li className="text-amber-400/90">
+                              Nenhuma conta encontrada pelos dados deste ticket — confira o e-mail no formulário.
+                            </li>
+                          )}
+                          {passwordRecoveryCtx.accountCreatedBySupportTicket ? (
+                            <li className="text-cyan-400/90">
+                              Conta criada automaticamente ao abrir chamado [Senha] (e-mail não existia).{' '}
+                              {passwordRecoveryCtx.supportAutoProvisionAt
+                                ? `Registo: ${new Date(passwordRecoveryCtx.supportAutoProvisionAt).toLocaleString()}.`
+                                : null}
+                            </li>
+                          ) : null}
+                          {!passwordRecoveryCtx.smtpConfigured ? (
+                            <li className="text-red-400/90 font-bold">
+                              SMTP não configurado no servidor — o botão abaixo não conseguirá enviar e-mail.
+                            </li>
+                          ) : null}
+                          <li className="text-slate-500 text-[10px] pt-1">
+                            Tentativas pela página “Esqueci a senha” não aparecem aqui; só chamados de suporte e envios pelo
+                            painel.
+                          </li>
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-slate-500">Sem dados de histórico.</p>
+                      )}
+                    </div>
+                    {passwordRecoveryCtx?.senhaTickets?.length ? (
+                      <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-3 max-h-36 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+                        <p className="text-[9px] font-black uppercase text-slate-500 mb-2 tracking-wider">
+                          Chamados [Senha] (mais recentes primeiro)
+                        </p>
+                        <ul className="space-y-1.5 text-[10px] text-slate-400 font-mono">
+                          {passwordRecoveryCtx.senhaTickets.slice(0, 12).map((t) => (
+                            <li
+                              key={t.id}
+                              className={`flex flex-wrap gap-x-2 gap-y-0.5 ${t.isCurrent ? 'text-emerald-300' : ''}`}
+                            >
+                              <span>#{t.id}</span>
+                              <span>{new Date(t.createdAt).toLocaleString()}</span>
+                              {t.isCurrent ? (
+                                <span className="text-emerald-500 font-bold uppercase">este</span>
+                              ) : null}
+                              {t.isReplied ? (
+                                <span className="text-slate-500">respondido</span>
+                              ) : (
+                                <span className="text-amber-600/90">pendente</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Gera um novo token e envia o link de redefinição para o{' '}
-                      <span className="text-slate-200 font-bold">e-mail cadastrado na conta</span>. O link expira conforme{' '}
-                      <span className="text-slate-300 font-mono text-[10px]">PASSWORD_RESET_TOKEN_TTL</span> no servidor (padrão:{' '}
-                      <span className="text-slate-200 font-bold">24 horas</span>). SMTP/Gmail tem de estar configurado.
+                      <span className="text-slate-200 font-bold">Liberar recuperação</span> gera um novo token e envia o link
+                      para o e-mail cadastrado na conta. O link expira conforme{' '}
+                      <span className="text-slate-300 font-mono text-[10px]">PASSWORD_RESET_TOKEN_TTL</span> (padrão: 24 horas).
                     </p>
                     <button
                       type="button"
                       onClick={handleSendResetLink}
-                      disabled={sendingResetLink}
+                      disabled={
+                        sendingResetLink ||
+                        passwordRecoveryLoading ||
+                        (passwordRecoveryCtx && !passwordRecoveryCtx.smtpConfigured) ||
+                        (passwordRecoveryCtx && !passwordRecoveryCtx.linkedUser)
+                      }
                       className="w-full h-11 flex items-center justify-center gap-2 bg-emerald-600/90 hover:bg-emerald-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
                     >
                       {sendingResetLink ? (
@@ -342,245 +524,10 @@ export default function AdminSupport() {
                       ) : (
                         <>
                           <KeyRound className="w-4 h-4" />
-                          Enviar link de redefinição por e-mail
+                          Liberar recuperação — enviar link por e-mail
                         </>
                       )}
                     </button>
-                  </div>
-                ) : null}
-
-                {isWalletRecoveryTicket(selectedMessage.subject) ? (
-                  <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-4 space-y-4">
-                    <div className="flex items-center gap-2 text-cyan-400">
-                      <ScanSearch className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        Análise de depósito / blockchain
-                      </span>
-                    </div>
-                    {walletForensicsLoading ? (
-                      <div className="flex items-center gap-2 text-slate-500 text-xs py-4">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Carregando cruzamento de ledger e explorer…
-                      </div>
-                    ) : walletForensics ? (
-                      <div className="space-y-4 text-[11px] text-slate-300 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
-                        <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-2">
-                          <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">
-                            Endereço de depósito do jogo (env)
-                          </p>
-                          <p className="font-mono text-[10px] break-all text-cyan-200/90">
-                            {walletForensics.gameDepositAddress || '—'}
-                          </p>
-                          {walletForensics.depositEnvReason ? (
-                            <p className="text-[10px] text-amber-400/90">{walletForensics.depositEnvReason}</p>
-                          ) : null}
-                        </div>
-
-                        {walletForensics.linkedUser ? (
-                          <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-2">
-                            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-2">
-                              <Wallet className="w-3 h-3" /> Conta vinculada ao ticket
-                            </p>
-                            <div className="grid sm:grid-cols-2 gap-2 text-[10px]">
-                              <div>
-                                <span className="text-slate-500">ID</span>{' '}
-                                <span className="text-white font-bold">{walletForensics.linkedUser.id}</span>
-                              </div>
-                              <div>
-                                <span className="text-slate-500">@</span>{' '}
-                                <span className="text-white font-bold">{walletForensics.linkedUser.username || '—'}</span>
-                              </div>
-                              <div className="sm:col-span-2 break-all">
-                                <span className="text-slate-500">E-mail</span>{' '}
-                                <span className="text-slate-200">{walletForensics.linkedUser.email}</span>
-                              </div>
-                              <div className="sm:col-span-2 font-mono break-all">
-                                <span className="text-slate-500">Carteira cadastrada</span>{' '}
-                                <span className="text-emerald-300/90">{walletForensics.linkedUser.walletAddress || '—'}</span>
-                              </div>
-                              <div className="sm:col-span-2">
-                                <span className="text-slate-500">Saldo POL interno (referência)</span>{' '}
-                                <span className="text-white font-bold tabular-nums">
-                                  {Number(walletForensics.linkedUser.polBalance || 0).toFixed(6)}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400">
-                              Carteira no texto do ticket bate com a da conta?{' '}
-                              <span className={walletForensics.walletComparison?.sameAsTicket ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
-                                {walletForensics.walletComparison?.sameAsTicket === null
-                                  ? 'N/A'
-                                  : walletForensics.walletComparison?.sameAsTicket
-                                    ? 'Sim'
-                                    : 'Não — conferir fraude / conta errada'}
-                              </span>
-                            </div>
-                            {walletForensics.ticketWallets?.length ? (
-                              <p className="text-[10px] text-slate-500 font-mono break-all">
-                                Endereços detectados no ticket: {walletForensics.ticketWallets.join(', ')}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <p className="text-amber-400/90 text-[10px] font-bold">
-                            Nenhuma conta resolvida a partir do ticket (userId/e-mail). Ainda assim, veja endereços no texto e a amostra on-chain abaixo.
-                          </p>
-                        )}
-
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-3">
-                            <p className="text-[9px] font-black uppercase text-slate-500 flex items-center gap-1 mb-2">
-                              <ArrowDownCircle className="w-3 h-3 text-emerald-500" /> Depósitos (ledger)
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              Registros: {walletForensics.ledger?.depositSummary?.count ?? 0} · Concluídos (soma POL):{' '}
-                              <span className="text-white font-bold tabular-nums">
-                                {(walletForensics.ledger?.depositSummary?.completedSum ?? 0).toFixed(4)}
-                              </span>
-                            </p>
-                            <p className="text-[10px] text-slate-500 mt-1 font-mono">
-                              {JSON.stringify(walletForensics.ledger?.depositSummary?.byStatus || {})}
-                            </p>
-                          </div>
-                          <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-3">
-                            <p className="text-[9px] font-black uppercase text-slate-500 flex items-center gap-1 mb-2">
-                              <ArrowUpCircle className="w-3 h-3 text-orange-400" /> Saques (ledger)
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              Registros: {walletForensics.ledger?.withdrawalSummary?.count ?? 0} · Concluídos (soma POL):{' '}
-                              <span className="text-white font-bold tabular-nums">
-                                {(walletForensics.ledger?.withdrawalSummary?.completedSum ?? 0).toFixed(4)}
-                              </span>
-                            </p>
-                            <p className="text-[10px] text-slate-500 mt-1 font-mono">
-                              {JSON.stringify(walletForensics.ledger?.withdrawalSummary?.byStatus || {})}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-slate-800 overflow-hidden">
-                          <p className="text-[9px] font-black uppercase text-slate-500 px-3 py-2 bg-slate-900/80">
-                            Últimos depósitos (interno)
-                          </p>
-                          <div className="max-h-32 overflow-y-auto">
-                            {(walletForensics.ledger?.deposits || []).slice(0, 12).map((row) => (
-                              <div
-                                key={row.id}
-                                className="px-3 py-1.5 border-t border-slate-800/80 flex flex-wrap gap-2 text-[10px] font-mono justify-between"
-                              >
-                                <span className="text-slate-400">{row.status}</span>
-                                <span className="text-white tabular-nums">{row.amount}</span>
-                                <a
-                                  href={`${walletForensics.polygonscanBase || 'https://polygonscan.com/tx/'}${row.txHash || ''}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-cyan-400 hover:underline truncate max-w-[140px]"
-                                >
-                                  {row.txHash ? `${row.txHash.slice(0, 10)}…` : '—'}
-                                </a>
-                              </div>
-                            ))}
-                            {!(walletForensics.ledger?.deposits || []).length ? (
-                              <p className="p-3 text-slate-600 text-[10px]">Sem depósitos listados neste recorte.</p>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl border border-slate-800 overflow-hidden">
-                          <p className="text-[9px] font-black uppercase text-slate-500 px-3 py-2 bg-slate-900/80">
-                            Últimos saques (interno)
-                          </p>
-                          <div className="max-h-32 overflow-y-auto">
-                            {(walletForensics.ledger?.withdrawals || []).slice(0, 12).map((row) => (
-                              <div
-                                key={row.id}
-                                className="px-3 py-1.5 border-t border-slate-800/80 flex flex-wrap gap-2 text-[10px] font-mono justify-between"
-                              >
-                                <span className="text-slate-400">{row.status}</span>
-                                <span className="text-white tabular-nums">{row.amount}</span>
-                                <span className="text-slate-500 truncate max-w-[120px]">{row.address || '—'}</span>
-                              </div>
-                            ))}
-                            {!(walletForensics.ledger?.withdrawals || []).length ? (
-                              <p className="p-3 text-slate-600 text-[10px]">Sem saques listados neste recorte.</p>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-3 space-y-2">
-                          <p className="text-[9px] font-black uppercase text-slate-500">Órfãos (tabela orphan_deposits)</p>
-                          {walletForensics.orphansError ? (
-                            <p className="text-[10px] text-amber-500/90">{walletForensics.orphansError}</p>
-                          ) : (walletForensics.orphans || []).length ? (
-                            <ul className="text-[10px] font-mono space-y-1">
-                              {walletForensics.orphans.map((o, i) => (
-                                <li key={i}>
-                                  {o.wallet_address} → {o.amount} POL
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="text-[10px] text-slate-500">Nenhuma linha para a carteira usada no scan.</p>
-                          )}
-                        </div>
-
-                        <div className="rounded-xl border border-slate-800 overflow-hidden">
-                          <p className="text-[9px] font-black uppercase text-slate-500 px-3 py-2 bg-slate-900/80 flex items-center gap-2">
-                            Amostra on-chain (90d) — carteira:{' '}
-                            <span className="text-cyan-300 font-mono normal-case">
-                              {walletForensics.walletComparison?.scanWallet || '—'}
-                            </span>
-                          </p>
-                          {walletForensics.chainError ? (
-                            <p className="p-3 text-[10px] text-amber-500/90">{walletForensics.chainError}</p>
-                          ) : (
-                            <div className="max-h-48 overflow-y-auto">
-                              {(walletForensics.chainSample || []).map((tx) => (
-                                <div
-                                  key={tx.hash}
-                                  className="px-3 py-2 border-t border-slate-800/80 text-[10px] space-y-1"
-                                >
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span
-                                      className={
-                                        tx.tag === 'out_to_game'
-                                          ? 'text-emerald-400 font-bold'
-                                          : tx.tag === 'in_from_game'
-                                            ? 'text-orange-300 font-bold'
-                                            : 'text-slate-500'
-                                      }
-                                    >
-                                      {tx.tag === 'out_to_game'
-                                        ? '→ envio para carteira do jogo'
-                                        : tx.tag === 'in_from_game'
-                                          ? '← recebido do endereço do jogo'
-                                          : 'outra movimentação'}
-                                    </span>
-                                    <a
-                                      href={`${walletForensics.polygonscanBase || 'https://polygonscan.com/tx/'}${tx.hash}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-cyan-400 hover:underline inline-flex items-center gap-1"
-                                    >
-                                      Explorer <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                  </div>
-                                  <p className="font-mono text-slate-400 break-all">
-                                    {tx.valuePol?.toFixed?.(6) ?? tx.valuePol} POL · de {tx.from?.slice(0, 8)}… para{' '}
-                                    {tx.to?.slice(0, 8)}…
-                                  </p>
-                                </div>
-                              ))}
-                              {!(walletForensics.chainSample || []).length ? (
-                                <p className="p-3 text-slate-600 text-[10px]">Sem transações no período ou explorer indisponível.</p>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-500">Não foi possível carregar a análise.</p>
-                    )}
                   </div>
                 ) : null}
 
@@ -608,7 +555,7 @@ export default function AdminSupport() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center opacity-30">
+            <div className="flex flex-col items-center justify-center p-12 text-center opacity-30 min-h-[40vh]">
               <Inbox className="w-20 h-20 mb-4 text-slate-600" />
               <h3 className="text-xl font-bold text-white uppercase tracking-tighter italic">Selecione uma mensagem</h3>
               <p className="text-sm">Clique em uma mensagem da lista ao lado para visualizar os detalhes</p>

@@ -3,9 +3,7 @@ import crypto from "crypto";
 import prisma from "../src/db/prisma.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
 import { signPasswordResetToken } from "../utils/passwordResetToken.js";
-
-/** Mesmo marcador que o cliente usa no assunto do chamado de recuperação. */
-const PASSWORD_RESET_SUPPORT_MARKER = "[Senha]";
+import { SUPPORT_PASSWORD_RESET_TICKET_MARKER } from "../constants/supportTicketSubjects.js";
 const WELCOME_MINER_SLUG = "welcome-10ghs";
 const WELCOME_MINER_NAME = "Welcome Miner";
 const WELCOME_MINER_HASH_RATE = 10_000_000_000;
@@ -159,7 +157,7 @@ export const createMessage = async (req, res) => {
     }
 
     const isPasswordRecoveryTicket =
-      String(subject).includes(PASSWORD_RESET_SUPPORT_MARKER) && isLikelyEmail(normalizeSupportEmail(email));
+      String(subject).includes(SUPPORT_PASSWORD_RESET_TICKET_MARKER) && isLikelyEmail(normalizeSupportEmail(email));
 
     if (isPasswordRecoveryTicket) {
       try {

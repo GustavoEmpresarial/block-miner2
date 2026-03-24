@@ -3,8 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle, LifeBuoy } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
+import { SUPPORT_PASSWORD_RESET_TICKET_MARKER } from '../constants/supportWalletTicket';
 
-const PASSWORD_RESET_TICKET_SUBJECT = '[Senha] Não recebi o link de redefinição';
+const PASSWORD_RESET_TICKET_SUBJECT = `${SUPPORT_PASSWORD_RESET_TICKET_MARKER} Não recebi o link de redefinição`;
 
 function sanitizeResetToken(rawToken) {
   return String(rawToken || '')

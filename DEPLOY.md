@@ -95,6 +95,7 @@ O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/r
 
 - **`JWT_SECRET`** — **obrigatório** em produção (string longa e aleatória). Sem isto, o login falha com mensagem genérica (“Login falhou”) porque a assinatura do token lança erro; a app agora **nem arranca** em `NODE_ENV=production` se faltar.
 - `DATABASE_URL` — Postgres (no compose já vem override para o serviço `db`).
+- **`POLYGONSCAN_API_KEY`** ou **`ETHERSCAN_API_KEY`** — **obrigatório** para listar transações na Polygon (API v2 Etherscan com `chainid=137`): re-sync de depósitos na wallet do jogador, verificação de depósito por TxHash e painel admin (tickets `[Saldo/POL]`). Chave gratuita: [etherscan.io/apis](https://etherscan.io/apis). Sem chave, essas funções devolvem erro explícito (não há fallback para outros explorers).
 - Opcional: `MEMORY_GAME_REWARD_HS` — recompensa do minigame em **H/s** (ex.: `5000000000` = 5 GH/s).
 
 ## 5) Problemas comuns
@@ -106,6 +107,7 @@ O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/r
 | Log: `prisma.user.findFirst()` — **column does not exist** / `(not available)` | O código atual usa `select` mínimo no login/sessão (não precisa de todas as colunas). Mesmo assim, alinhe a BD com `db:push` ou com `scripts/sql/patch_users_columns_for_prisma.sql` para o resto da app (admin, loja, etc.). |
 | `gpu_id` required mas há NULL em `auto_mining_gpu_logs` | O schema trata `gpuId` como opcional. Se o `db push` ainda reclamar, na VPS: `docker compose exec -T db psql -U blockminer -d blockminer_db < scripts/sql/ensure_gpu_logs_gpu_id_nullable.sql` |
 | Risco de depósito duplicado (mesmo `txHash`) | Aplique índice único parcial: `docker compose exec -T db psql -U blockminer -d blockminer_db < scripts/sql/ensure_unique_deposit_tx_hash.sql` |
+| Re-sync de depósitos / admin “análise blockchain” falha com mensagem sobre chave de API | Defina `POLYGONSCAN_API_KEY` ou `ETHERSCAN_API_KEY` no `.env` da VPS e reinicie o `app`. |
 | `Missing script: migrate:hashrate:dry` | `git pull` — o `package.json` da VPS está antigo. |
 | `client password must be a string` | `DATABASE_URL` inválida ou vazia no container / `.env`. |
 | Porta 5432 em uso | Outro Postgres na VPS; pare o outro ou mude a porta no compose. |

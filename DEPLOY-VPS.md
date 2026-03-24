@@ -49,6 +49,7 @@ Esperado: `200` (ou o código que a app expuser em `/health`).
 ## Depois do deploy
 
 - Variáveis reais ficam em `/root/block-miner/.env` **no servidor** (não vêm no tarball).
+- **Explorer:** em produção é obrigatório `POLYGONSCAN_API_KEY` ou `ETHERSCAN_API_KEY` (Etherscan API v2, Polygon) para re-sync de depósitos, verificação por TxHash e análise de tickets `[Saldo/POL]` no admin.
 - Documentação extra: [DEPLOY.md](./DEPLOY.md) (migrações, Prisma, problemas comuns).
 
 ## Segurança
