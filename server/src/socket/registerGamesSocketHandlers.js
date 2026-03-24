@@ -221,16 +221,18 @@ async function finishGame(socket, state, success, engine) {
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     try {
-      // ANTI-CHEAT: Limita o máximo de poderes ativos acumulados pelo minigame a um valor seguro (ex: max 10 instâncias = 500 H/s)
-      const activePowersCount = await prisma.userPowerGame.count({
+      // Keep a safety cap, but never block the player:
+      // if cap is reached, replace the oldest active bonus with a fresh one.
+      const activePowers = await prisma.userPowerGame.findMany({
         where: {
           userId: Number(state.userId),
           expiresAt: { gt: new Date() }
-        }
+        },
+        select: { id: true, playedAt: true },
+        orderBy: { playedAt: "asc" }
       });
-
-      if (activePowersCount >= 10) {
-         return socket.emit("game:finished", { success: false, message: "LIMITE MÁXIMO DE BÔNUS ATINGIDO! Aguarde um bônus expirar." });
+      if (activePowers.length >= 10) {
+        await prisma.userPowerGame.delete({ where: { id: activePowers[0].id } });
       }
 
       await prisma.userPowerGame.create({ 
