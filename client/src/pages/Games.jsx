@@ -99,6 +99,7 @@ export default function Games() {
   const [cooldowns, setCooldowns] = useState({ memory: 0, 'match-3': 0 });
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
+  const activeGameRef = useRef(null);
 
   // High Precision Engine States
   const canvasRef = useRef(null);
@@ -106,6 +107,10 @@ export default function Games() {
   const particles = useRef([]);
   const visualBoard = useRef([]);
   const pointer = useRef({ x: 400, y: 250, isDown: false });
+
+  useEffect(() => {
+    activeGameRef.current = activeGame;
+  }, [activeGame]);
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL, {
@@ -182,8 +187,9 @@ export default function Games() {
     newSocket.on('game:score_update', (data) => { setGameState(prev => prev ? ({ ...prev, score: data.score }) : prev); });
     newSocket.on('game:finished', (data) => {
       setIsGameOver(true);
-      if (activeGame) {
-        setCooldowns((prev) => ({ ...prev, [activeGame]: 60 }));
+      const currentGame = activeGameRef.current;
+      if (currentGame) {
+        setCooldowns((prev) => ({ ...prev, [currentGame]: 60 }));
       }
       setSelectedCell(null);
       if (data.success) {
@@ -197,7 +203,7 @@ export default function Games() {
       newSocket.disconnect();
       setSocketReady(false);
     };
-  }, [token, activeGame]);
+  }, [token]);
 
   useEffect(() => {
     if (gameState && !isGameOver && timeLeft > 0) {
