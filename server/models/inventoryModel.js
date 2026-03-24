@@ -30,7 +30,11 @@ export async function listInventory(userId) {
     const base = { ...r, hashRate: stripAccidentalBillionScaleHs(r.hashRate) };
     if (base.expiresAt == null) return base;
     const byCatalog = r.minerId != null && permanentIds.has(r.minerId);
-    const byName = String(r.minerName || '') === 'Pulse Mini v1';
+    const name = String(r.minerName || '');
+    const byName =
+      name === 'Pulse Mini v1' ||
+      name === 'Pulse GPU v1' ||
+      /^GPU\s+\d+(\.\d+)?\s*GHS$/i.test(name);
     if (byCatalog || byName) {
       return { ...base, expiresAt: null };
     }

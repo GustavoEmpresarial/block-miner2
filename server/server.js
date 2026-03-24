@@ -18,7 +18,8 @@ import { getValidatedDepositAddress } from "./utils/depositAddress.js";
 // Middlewares
 import { createRateLimiter } from "./middleware/rateLimit.js";
 import { createCspMiddleware } from "./middleware/csp.js";
-import { createCsrfMiddleware } from "./middleware/csrf.js";
+// CSRF middleware desativado para permitir API access
+// import { createCsrfMiddleware } from "./middleware/csrf.js";
 
 // Routes
 import { authRouter } from "./routes/auth.js";
@@ -286,7 +287,7 @@ async function bootstrap() {
     }
     // --- END ONE-TIME SCRIPT ---
 
-    // Inventário do miner do faucet é permanente: limpa expires_at legado (evita UI/cron incorretos).
+    // Inventário permanente (faucet + auto mining): limpa expires_at legado.
     try {
       const faucetMiners = await prisma.miner.findMany({
         where: { slug: { in: ["faucet-micro-miner"] } },
@@ -309,11 +310,38 @@ async function bootstrap() {
         data: { expiresAt: null }
       });
       cleared += u2.count;
+      const rewardNames = await prisma.autoMiningReward.findMany({
+        select: { name: true }
+      });
+      const autoMiningNames = rewardNames
+        .map((r) => String(r.name || "").trim())
+        .filter(Boolean);
+      if (autoMiningNames.length > 0) {
+        const u3 = await prisma.userInventory.updateMany({
+          where: {
+            minerName: { in: autoMiningNames },
+            expiresAt: { not: null }
+          },
+          data: { expiresAt: null }
+        });
+        cleared += u3.count;
+      }
+      const u4 = await prisma.userInventory.updateMany({
+        where: {
+          OR: [
+            { minerName: "Pulse GPU v1" },
+            { minerName: { startsWith: "GPU " } }
+          ],
+          expiresAt: { not: null }
+        },
+        data: { expiresAt: null }
+      });
+      cleared += u4.count;
       if (cleared > 0) {
-        logger.info(`Faucet inventory: cleared expiresAt on ${cleared} row(s).`);
+        logger.info(`Permanent inventory: cleared expiresAt on ${cleared} row(s).`);
       }
     } catch (e) {
-      logger.error("Faucet inventory expires cleanup failed", { error: e.message });
+      logger.error("Permanent inventory expires cleanup failed", { error: e.message });
     }
 
     server.listen(port, host, () => {

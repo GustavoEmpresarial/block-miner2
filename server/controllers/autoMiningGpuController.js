@@ -121,7 +121,7 @@ export async function claimGPUHandler(req, res) {
         data: { autoMiningSecondsBalance: { decrement: 300 } }
       });
 
-      // ADD TO INVENTORY AS A TEMPORARY MACHINE
+      // ADD TO INVENTORY AS A PERMANENT MACHINE (não expira)
       const reward = gpuWithReward.reward;
       await tx.userInventory.create({
         data: {
@@ -131,8 +131,7 @@ export async function claimGPUHandler(req, res) {
           hashRate: gpu.gpuHashRate,
           slotSize: 1,
           imageUrl: reward?.imageUrl || "/assets/machines/reward2.png",
-          acquiredAt: now,
-          expiresAt: expiresAt
+          acquiredAt: now
         }
       });
 
