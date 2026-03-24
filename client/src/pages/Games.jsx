@@ -332,14 +332,14 @@ export default function Games() {
   }, [activeGame, gameState, isGameOver, selectedCell, isMobileViewport]);
 
   const getMemoryLayout = () => {
-    const size = isMobileViewport ? 128 : 100;
+    const size = isMobileViewport ? 108 : 100;
     const padding = isMobileViewport ? 16 : 20;
     return { size, padding };
   };
 
   const getMatch3Layout = () => {
-    const cell = isMobileViewport ? 58 : 50;
-    const gap = isMobileViewport ? 10 : 8;
+    const cell = isMobileViewport ? 54 : 50;
+    const gap = isMobileViewport ? 9 : 8;
     return { cell, gap };
   };
 
@@ -576,8 +576,10 @@ export default function Games() {
             ) : !gameState ? (
               <div className={`flex flex-col items-center justify-center gap-6 py-8 ${mobileFullscreen ? 'h-full' : 'min-h-[min(550px,70dvh)] sm:h-[550px]'}`}><div className="w-16 h-16 sm:w-24 sm:h-24 border-4 sm:border-8 border-primary border-t-transparent rounded-full animate-spin shadow-glow" /><p className="text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] animate-pulse text-xs sm:text-base text-center px-2">Sincronizando...</p></div>
             ) : (
-              <div className={`relative w-full overflow-hidden bg-black shadow-inner ${mobileFullscreen ? 'rounded-xl flex-1 min-h-0 flex items-center justify-center' : 'min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem]'}`}>
-                <canvas ref={canvasRef} width={800} height={500} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp} className="w-full h-full object-fill" style={{ cursor: isMobileViewport ? 'default' : 'none' }} />
+              <div className={`relative w-full overflow-hidden bg-black shadow-inner ${mobileFullscreen ? 'rounded-xl flex-1 min-h-0 flex items-center justify-center p-1' : 'min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem]'}`}>
+                <div className={mobileFullscreen ? "w-full max-w-[98vw] aspect-[8/5] max-h-full" : "w-full h-full"}>
+                  <canvas ref={canvasRef} width={800} height={500} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp} className="w-full h-full object-contain" style={{ cursor: isMobileViewport ? 'default' : 'none' }} />
+                </div>
               </div>
             )}
           </div>
