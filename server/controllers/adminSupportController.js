@@ -1,9 +1,31 @@
+import { Prisma } from "@prisma/client";
 import prisma from "../src/db/prisma.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
 import { signPasswordResetToken, getPasswordResetExpiryHumanPt } from "../utils/passwordResetToken.js";
 import loggerLib from "../utils/logger.js";
+import { getValidatedDepositAddress } from "../utils/depositAddress.js";
+import { fetchRecentWalletTxs } from "./walletController.js";
+import { SUPPORT_WALLET_RECOVERY_MARKER } from "../constants/supportTicketSubjects.js";
 
 const logger = loggerLib.child("AdminSupport");
+
+const ETH_ADDR_RE = /0x[a-fA-F0-9]{40}/g;
+
+function extractWalletAddressesFromText(text) {
+  const s = String(text || "");
+  const found = s.match(ETH_ADDR_RE);
+  if (!found?.length) return [];
+  const seen = new Set();
+  const out = [];
+  for (const a of found) {
+    const low = a.toLowerCase();
+    if (!seen.has(low)) {
+      seen.add(low);
+      out.push(low);
+    }
+  }
+  return out;
+}
 
 async function resolveUserFromTicket(ticket) {
   if (ticket.userId) {
@@ -195,5 +217,189 @@ export const sendPasswordResetLink = async (req, res) => {
   } catch (error) {
     logger.error("sendPasswordResetLink failed", { error: error.message });
     res.status(500).json({ ok: false, message: error.message || "Erro ao enviar o link." });
+  }
+};
+
+/**
+ * Admin: análise aprofundada para tickets [Saldo/POL] — depósitos, saques, órfãos, amostra on-chain.
+ */
+export const getWalletRecoveryForensics = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, message: "ID inválido." });
+    }
+
+    const ticket = await prisma.supportMessage.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ ok: false, message: "Ticket não encontrado." });
+    }
+
+    if (!String(ticket.subject || "").includes(SUPPORT_WALLET_RECOVERY_MARKER)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Este protocolo não é de análise de saldo/carteira."
+      });
+    }
+
+    const ticketWallets = extractWalletAddressesFromText(`${ticket.message}\n${ticket.subject}`);
+    const userRow = await resolveUserFromTicket(ticket);
+    const depositCfg = getValidatedDepositAddress();
+    const gameDeposit = String(depositCfg.address || "").trim().toLowerCase() || null;
+
+    let linkedUser = null;
+    let deposits = [];
+    let withdrawals = [];
+
+    if (userRow) {
+      const full = await prisma.user.findUnique({
+        where: { id: userRow.id },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          walletAddress: true,
+          polBalance: true
+        }
+      });
+      if (full) {
+        linkedUser = {
+          id: full.id,
+          email: full.email,
+          username: full.username,
+          walletAddress: full.walletAddress,
+          polBalance: Number(full.polBalance || 0)
+        };
+      }
+
+      const txs = await prisma.transaction.findMany({
+        where: { userId: userRow.id },
+        orderBy: { createdAt: "desc" },
+        take: 80,
+        select: {
+          id: true,
+          type: true,
+          amount: true,
+          status: true,
+          txHash: true,
+          address: true,
+          fromAddress: true,
+          createdAt: true,
+          completedAt: true
+        }
+      });
+
+      for (const t of txs) {
+        const row = {
+          id: t.id,
+          type: t.type,
+          amount: Number(t.amount),
+          status: t.status,
+          txHash: t.txHash,
+          address: t.address,
+          fromAddress: t.fromAddress,
+          createdAt: t.createdAt,
+          completedAt: t.completedAt
+        };
+        if (t.type === "deposit") {
+          deposits.push(row);
+        } else if (t.type === "withdrawal") {
+          withdrawals.push(row);
+        }
+      }
+    }
+
+    const summarize = (rows) => {
+      const byStatus = {};
+      let completedSum = 0;
+      let pendingSum = 0;
+      for (const r of rows) {
+        byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+        if (r.status === "completed") completedSum += r.amount;
+        if (r.status === "pending") pendingSum += r.amount;
+      }
+      return { count: rows.length, byStatus, completedSum, pendingSum };
+    };
+
+    const depositSummary = summarize(deposits);
+    const withdrawalSummary = summarize(withdrawals);
+
+    const linkedLower = String(linkedUser?.walletAddress || "").trim().toLowerCase();
+    const ticketFirst = ticketWallets[0] || null;
+    const scanWallet = linkedLower || ticketFirst;
+    let chainSample = [];
+    let chainError = null;
+
+    if (scanWallet) {
+      try {
+        const raw = await fetchRecentWalletTxs(scanWallet);
+        const minTs = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
+        chainSample = raw
+          .filter((tx) => Number(tx.timeStamp || 0) >= minTs)
+          .slice(0, 40)
+          .map((tx) => {
+            const valuePol = Number(tx.value || 0) / 1e18;
+            const to = String(tx.to || "").toLowerCase();
+            const from = String(tx.from || "").toLowerCase();
+            let tag = "other";
+            if (gameDeposit && from === scanWallet && to === gameDeposit) tag = "out_to_game";
+            else if (gameDeposit && to === scanWallet && from === gameDeposit) tag = "in_from_game";
+            return {
+              hash: tx.hash,
+              from,
+              to,
+              valuePol,
+              timeStamp: Number(tx.timeStamp || 0),
+              tag
+            };
+          });
+      } catch (e) {
+        chainError = String(e?.message || e);
+        logger.warn("wallet-forensics chain fetch failed", { ticketId: id, error: chainError });
+      }
+    }
+
+    let orphans = [];
+    let orphansError = null;
+    if (scanWallet) {
+      try {
+        orphans = await prisma.$queryRaw(
+          Prisma.sql`SELECT wallet_address, amount::float AS amount FROM public.orphan_deposits WHERE LOWER(wallet_address) = ${scanWallet}`
+        );
+      } catch (e) {
+        orphansError = String(e?.message || e);
+        orphans = [];
+      }
+    }
+
+    res.json({
+      ok: true,
+      forensics: {
+        ticketWallets,
+        gameDepositAddress: gameDeposit,
+        depositEnvReason: depositCfg.reason || null,
+        linkedUser,
+        walletComparison: {
+          linkedWallet: linkedLower || null,
+          firstWalletInTicket: ticketFirst,
+          sameAsTicket: linkedLower && ticketFirst ? linkedLower === ticketFirst : null,
+          scanWallet: scanWallet || null
+        },
+        ledger: {
+          deposits,
+          withdrawals,
+          depositSummary,
+          withdrawalSummary
+        },
+        orphans: Array.isArray(orphans) ? orphans : [],
+        orphansError,
+        chainSample,
+        chainError,
+        polygonscanBase: "https://polygonscan.com/tx/"
+      }
+    });
+  } catch (error) {
+    logger.error("getWalletRecoveryForensics failed", { error: error.message });
+    res.status(500).json({ ok: false, message: error.message || "Erro na análise." });
   }
 };

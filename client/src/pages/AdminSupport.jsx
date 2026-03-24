@@ -16,10 +16,18 @@ import {
   X,
   RefreshCw,
   Loader2,
-  KeyRound
+  KeyRound,
+  ExternalLink,
+  Wallet,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  ScanSearch
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
+
+/** Alinhar com server/constants/supportTicketSubjects.js */
+const SUPPORT_WALLET_RECOVERY_MARKER = '[Saldo/POL]';
 
 export default function AdminSupport() {
   const [messages, setMessages] = useState([]);
@@ -31,13 +39,47 @@ export default function AdminSupport() {
   const [filter, setFilter] = useState('all'); // all, unread, replied
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [sendingResetLink, setSendingResetLink] = useState(false);
+  const [walletForensics, setWalletForensics] = useState(null);
+  const [walletForensicsLoading, setWalletForensicsLoading] = useState(false);
 
   const isPasswordResetTicket = (subject) =>
     String(subject || '').includes('[Senha]');
 
+  const isWalletRecoveryTicket = (subject) =>
+    String(subject || '').includes(SUPPORT_WALLET_RECOVERY_MARKER);
+
   useEffect(() => {
     fetchMessages();
   }, []);
+
+  useEffect(() => {
+    const id = selectedMessage?.id;
+    const subj = selectedMessage?.subject;
+    if (!id || !isWalletRecoveryTicket(subj)) {
+      setWalletForensics(null);
+      return;
+    }
+    let cancelled = false;
+    setWalletForensicsLoading(true);
+    (async () => {
+      try {
+        const res = await api.get(`/admin/support/${id}/wallet-forensics`);
+        if (!cancelled && res.data?.ok) {
+          setWalletForensics(res.data.forensics);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setWalletForensics(null);
+          toast.error(e.response?.data?.message || 'Falha ao carregar análise de carteira.');
+        }
+      } finally {
+        if (!cancelled) setWalletForensicsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMessage?.id, selectedMessage?.subject]);
 
   const fetchMessages = async () => {
     try {
@@ -306,6 +348,242 @@ export default function AdminSupport() {
                     </button>
                   </div>
                 ) : null}
+
+                {isWalletRecoveryTicket(selectedMessage.subject) ? (
+                  <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-4 space-y-4">
+                    <div className="flex items-center gap-2 text-cyan-400">
+                      <ScanSearch className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        Análise de depósito / blockchain
+                      </span>
+                    </div>
+                    {walletForensicsLoading ? (
+                      <div className="flex items-center gap-2 text-slate-500 text-xs py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Carregando cruzamento de ledger e explorer…
+                      </div>
+                    ) : walletForensics ? (
+                      <div className="space-y-4 text-[11px] text-slate-300 max-h-[420px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                        <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-2">
+                          <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider">
+                            Endereço de depósito do jogo (env)
+                          </p>
+                          <p className="font-mono text-[10px] break-all text-cyan-200/90">
+                            {walletForensics.gameDepositAddress || '—'}
+                          </p>
+                          {walletForensics.depositEnvReason ? (
+                            <p className="text-[10px] text-amber-400/90">{walletForensics.depositEnvReason}</p>
+                          ) : null}
+                        </div>
+
+                        {walletForensics.linkedUser ? (
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-2">
+                            <p className="text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-2">
+                              <Wallet className="w-3 h-3" /> Conta vinculada ao ticket
+                            </p>
+                            <div className="grid sm:grid-cols-2 gap-2 text-[10px]">
+                              <div>
+                                <span className="text-slate-500">ID</span>{' '}
+                                <span className="text-white font-bold">{walletForensics.linkedUser.id}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">@</span>{' '}
+                                <span className="text-white font-bold">{walletForensics.linkedUser.username || '—'}</span>
+                              </div>
+                              <div className="sm:col-span-2 break-all">
+                                <span className="text-slate-500">E-mail</span>{' '}
+                                <span className="text-slate-200">{walletForensics.linkedUser.email}</span>
+                              </div>
+                              <div className="sm:col-span-2 font-mono break-all">
+                                <span className="text-slate-500">Carteira cadastrada</span>{' '}
+                                <span className="text-emerald-300/90">{walletForensics.linkedUser.walletAddress || '—'}</span>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <span className="text-slate-500">Saldo POL interno (referência)</span>{' '}
+                                <span className="text-white font-bold tabular-nums">
+                                  {Number(walletForensics.linkedUser.polBalance || 0).toFixed(6)}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400">
+                              Carteira no texto do ticket bate com a da conta?{' '}
+                              <span className={walletForensics.walletComparison?.sameAsTicket ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                                {walletForensics.walletComparison?.sameAsTicket === null
+                                  ? 'N/A'
+                                  : walletForensics.walletComparison?.sameAsTicket
+                                    ? 'Sim'
+                                    : 'Não — conferir fraude / conta errada'}
+                              </span>
+                            </div>
+                            {walletForensics.ticketWallets?.length ? (
+                              <p className="text-[10px] text-slate-500 font-mono break-all">
+                                Endereços detectados no ticket: {walletForensics.ticketWallets.join(', ')}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="text-amber-400/90 text-[10px] font-bold">
+                            Nenhuma conta resolvida a partir do ticket (userId/e-mail). Ainda assim, veja endereços no texto e a amostra on-chain abaixo.
+                          </p>
+                        )}
+
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-3">
+                            <p className="text-[9px] font-black uppercase text-slate-500 flex items-center gap-1 mb-2">
+                              <ArrowDownCircle className="w-3 h-3 text-emerald-500" /> Depósitos (ledger)
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              Registros: {walletForensics.ledger?.depositSummary?.count ?? 0} · Concluídos (soma POL):{' '}
+                              <span className="text-white font-bold tabular-nums">
+                                {(walletForensics.ledger?.depositSummary?.completedSum ?? 0).toFixed(4)}
+                              </span>
+                            </p>
+                            <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                              {JSON.stringify(walletForensics.ledger?.depositSummary?.byStatus || {})}
+                            </p>
+                          </div>
+                          <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-3">
+                            <p className="text-[9px] font-black uppercase text-slate-500 flex items-center gap-1 mb-2">
+                              <ArrowUpCircle className="w-3 h-3 text-orange-400" /> Saques (ledger)
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              Registros: {walletForensics.ledger?.withdrawalSummary?.count ?? 0} · Concluídos (soma POL):{' '}
+                              <span className="text-white font-bold tabular-nums">
+                                {(walletForensics.ledger?.withdrawalSummary?.completedSum ?? 0).toFixed(4)}
+                              </span>
+                            </p>
+                            <p className="text-[10px] text-slate-500 mt-1 font-mono">
+                              {JSON.stringify(walletForensics.ledger?.withdrawalSummary?.byStatus || {})}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-800 overflow-hidden">
+                          <p className="text-[9px] font-black uppercase text-slate-500 px-3 py-2 bg-slate-900/80">
+                            Últimos depósitos (interno)
+                          </p>
+                          <div className="max-h-32 overflow-y-auto">
+                            {(walletForensics.ledger?.deposits || []).slice(0, 12).map((row) => (
+                              <div
+                                key={row.id}
+                                className="px-3 py-1.5 border-t border-slate-800/80 flex flex-wrap gap-2 text-[10px] font-mono justify-between"
+                              >
+                                <span className="text-slate-400">{row.status}</span>
+                                <span className="text-white tabular-nums">{row.amount}</span>
+                                <a
+                                  href={`${walletForensics.polygonscanBase || 'https://polygonscan.com/tx/'}${row.txHash || ''}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-cyan-400 hover:underline truncate max-w-[140px]"
+                                >
+                                  {row.txHash ? `${row.txHash.slice(0, 10)}…` : '—'}
+                                </a>
+                              </div>
+                            ))}
+                            {!(walletForensics.ledger?.deposits || []).length ? (
+                              <p className="p-3 text-slate-600 text-[10px]">Sem depósitos listados neste recorte.</p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-800 overflow-hidden">
+                          <p className="text-[9px] font-black uppercase text-slate-500 px-3 py-2 bg-slate-900/80">
+                            Últimos saques (interno)
+                          </p>
+                          <div className="max-h-32 overflow-y-auto">
+                            {(walletForensics.ledger?.withdrawals || []).slice(0, 12).map((row) => (
+                              <div
+                                key={row.id}
+                                className="px-3 py-1.5 border-t border-slate-800/80 flex flex-wrap gap-2 text-[10px] font-mono justify-between"
+                              >
+                                <span className="text-slate-400">{row.status}</span>
+                                <span className="text-white tabular-nums">{row.amount}</span>
+                                <span className="text-slate-500 truncate max-w-[120px]">{row.address || '—'}</span>
+                              </div>
+                            ))}
+                            {!(walletForensics.ledger?.withdrawals || []).length ? (
+                              <p className="p-3 text-slate-600 text-[10px]">Sem saques listados neste recorte.</p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl bg-slate-900/50 border border-slate-800 p-3 space-y-2">
+                          <p className="text-[9px] font-black uppercase text-slate-500">Órfãos (tabela orphan_deposits)</p>
+                          {walletForensics.orphansError ? (
+                            <p className="text-[10px] text-amber-500/90">{walletForensics.orphansError}</p>
+                          ) : (walletForensics.orphans || []).length ? (
+                            <ul className="text-[10px] font-mono space-y-1">
+                              {walletForensics.orphans.map((o, i) => (
+                                <li key={i}>
+                                  {o.wallet_address} → {o.amount} POL
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-[10px] text-slate-500">Nenhuma linha para a carteira usada no scan.</p>
+                          )}
+                        </div>
+
+                        <div className="rounded-xl border border-slate-800 overflow-hidden">
+                          <p className="text-[9px] font-black uppercase text-slate-500 px-3 py-2 bg-slate-900/80 flex items-center gap-2">
+                            Amostra on-chain (90d) — carteira:{' '}
+                            <span className="text-cyan-300 font-mono normal-case">
+                              {walletForensics.walletComparison?.scanWallet || '—'}
+                            </span>
+                          </p>
+                          {walletForensics.chainError ? (
+                            <p className="p-3 text-[10px] text-amber-500/90">{walletForensics.chainError}</p>
+                          ) : (
+                            <div className="max-h-48 overflow-y-auto">
+                              {(walletForensics.chainSample || []).map((tx) => (
+                                <div
+                                  key={tx.hash}
+                                  className="px-3 py-2 border-t border-slate-800/80 text-[10px] space-y-1"
+                                >
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span
+                                      className={
+                                        tx.tag === 'out_to_game'
+                                          ? 'text-emerald-400 font-bold'
+                                          : tx.tag === 'in_from_game'
+                                            ? 'text-orange-300 font-bold'
+                                            : 'text-slate-500'
+                                      }
+                                    >
+                                      {tx.tag === 'out_to_game'
+                                        ? '→ envio para carteira do jogo'
+                                        : tx.tag === 'in_from_game'
+                                          ? '← recebido do endereço do jogo'
+                                          : 'outra movimentação'}
+                                    </span>
+                                    <a
+                                      href={`${walletForensics.polygonscanBase || 'https://polygonscan.com/tx/'}${tx.hash}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-cyan-400 hover:underline inline-flex items-center gap-1"
+                                    >
+                                      Explorer <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                  <p className="font-mono text-slate-400 break-all">
+                                    {tx.valuePol?.toFixed?.(6) ?? tx.valuePol} POL · de {tx.from?.slice(0, 8)}… para{' '}
+                                    {tx.to?.slice(0, 8)}…
+                                  </p>
+                                </div>
+                              ))}
+                              {!(walletForensics.chainSample || []).length ? (
+                                <p className="p-3 text-slate-600 text-[10px]">Sem transações no período ou explorer indisponível.</p>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-500">Não foi possível carregar a análise.</p>
+                    )}
+                  </div>
+                ) : null}
+
                 <textarea
                   placeholder="Escreva sua resposta aqui..."
                   value={reply}

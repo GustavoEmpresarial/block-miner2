@@ -17,15 +17,21 @@ import {
     Smartphone,
     TrendingUp,
     ChevronRight,
-    QrCode
+    QrCode,
+    MessageSquare,
+    ChevronDown
 } from 'lucide-react';
-import { api } from '../store/auth';
+import { api, useAuthStore } from '../store/auth';
 import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
 import { useWallet } from '../hooks/useWallet';
 import { QRCodeSVG } from 'qrcode.react';
 
+/** Alinhar com server/constants/supportTicketSubjects.js */
+const SUPPORT_WALLET_RECOVERY_MARKER = '[Saldo/POL]';
+
 export default function Wallet() {
     const { t } = useTranslation();
+    const user = useAuthStore((s) => s.user);
     const { account, isConnected, isConnecting, isCorrectNetwork, connect, switchNetwork } = useWallet();
 
     const [balance, setBalance] = useState({
@@ -43,6 +49,7 @@ export default function Wallet() {
     /** null | 'not_configured' | 'fetch_failed' */
     const [depositError, setDepositError] = useState(null);
     const depositNotConfiguredToastRef = useRef(false);
+    const balanceTicketAnchorRef = useRef(null);
 
     const [withdrawForm, setWithdrawForm] = useState({
         address: '',
@@ -54,6 +61,11 @@ export default function Wallet() {
     });
     const [showManualForm, setShowManualForm] = useState(false);
     const [polPrice, setPolPrice] = useState(0);
+    const [lastResyncResult, setLastResyncResult] = useState(null);
+    const [balanceTicketOpen, setBalanceTicketOpen] = useState(false);
+    const [balanceTicketNotes, setBalanceTicketNotes] = useState('');
+    const [balanceTicketSending, setBalanceTicketSending] = useState(false);
+    const [balanceTicketSent, setBalanceTicketSent] = useState(false);
 
     const fetchPrice = async () => {
         try {
@@ -214,6 +226,21 @@ export default function Wallet() {
         }
     };
 
+    const promptBalanceTicketAfterManualFailure = () => {
+        setBalanceTicketOpen(true);
+        setBalanceTicketSent(false);
+        toast.info(
+            t(
+                'wallet.manual_verify_ticket_hint',
+                'A verificação automática falhou. O chamado de análise foi aberto — a equipe cruza o TxHash na blockchain com a carteira da conta.'
+            ),
+            { duration: 10000 }
+        );
+        window.setTimeout(() => {
+            balanceTicketAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 200);
+    };
+
     const handleManualDeposit = async () => {
         setIsActionLoading(true);
         try {
@@ -244,10 +271,12 @@ export default function Wallet() {
                 fetchWalletData();
             } else {
                 toast.error(res.data.message || 'Deposit verification failed');
+                promptBalanceTicketAfterManualFailure();
             }
         } catch (error) {
             console.error("Manual deposit error", error);
             toast.error(error.response?.data?.message || error.message || 'Verification failed');
+            promptBalanceTicketAfterManualFailure();
         } finally {
             setIsActionLoading(false);
         }
@@ -258,15 +287,80 @@ export default function Wallet() {
             setIsActionLoading(true);
             const res = await api.post('/wallet/resync-deposits', { days: 90 });
             if (res.data?.ok) {
+                setLastResyncResult({
+                    credited: res.data.credited ?? 0,
+                    skipped: res.data.skipped ?? 0,
+                    scanned: res.data.scanned ?? 0,
+                    days: res.data.days ?? 90
+                });
                 toast.success(`Resync concluido: ${res.data.credited} deposito(s) creditado(s), ${res.data.skipped} ignorado(s).`);
                 fetchWalletData();
+                if ((res.data.credited ?? 0) === 0) {
+                    toast.info(
+                        t(
+                            'wallet.resync_zero_hint',
+                            'Nenhum depósito novo foi creditado. Se o POL já saiu da sua carteira, abra um chamado abaixo para análise on-chain.'
+                        ),
+                        { duration: 8000 }
+                    );
+                }
             } else {
+                setLastResyncResult(null);
                 toast.error(res.data?.message || 'Falha ao sincronizar depositos.');
             }
         } catch (err) {
+            setLastResyncResult(null);
             toast.error(err.response?.data?.message || 'Falha ao sincronizar depositos.');
         } finally {
             setIsActionLoading(false);
+        }
+    };
+
+    const handleBalanceRecoveryTicket = async (e) => {
+        e?.preventDefault?.();
+        if (!user?.email) {
+            toast.error(t('wallet.ticket_need_session', 'Sessão inválida. Faça login novamente.'));
+            return;
+        }
+        const notes = balanceTicketNotes.trim();
+        const lr = lastResyncResult;
+        const auto = `--- Dados para a equipe (não apague) ---
+User ID: ${user.id}
+E-mail da conta: ${user.email}
+Nome: ${user.name || ''}
+Carteira Web3 (sessão): ${isConnected && account ? account : '(não conectado)'}
+Última tentativa Re-sync (${lr?.days ?? 90}d): creditados=${lr != null ? lr.credited : '—'}, ignorados=${lr != null ? lr.skipped : '—'}, txs candidatas=${lr != null ? lr.scanned : '—'}
+TxHash manual digitado: ${depositForm.txHash.trim() || '(nenhum)'}
+Valor manual digitado: ${depositForm.amount || '(nenhum)'}
+Saldo POL na conta (após último refresh): ${balance.amount}
+Endereço depósito do jogo (tela): ${systemDepositAddress || '(indisponível)'}
+`;
+        const bodyMsg = `${auto}\n--- Observações do jogador ---\n${notes || '(nenhuma)'}`;
+        const shortW =
+            isConnected && account
+                ? `${account.slice(0, 6)}…${account.slice(-4)}`
+                : 'carteira';
+        const subject = `${SUPPORT_WALLET_RECOVERY_MARKER} Análise de depósito — ${shortW}`;
+        try {
+            setBalanceTicketSending(true);
+            const res = await api.post('/support', {
+                name: user.name || user.email.split('@')[0] || 'Jogador',
+                email: user.email,
+                subject,
+                message: bodyMsg
+            });
+            if (res.data?.ok) {
+                setBalanceTicketSent(true);
+                toast.success(
+                    t('wallet.ticket_sent', 'Chamado enviado. Nossa equipe vai analisar a blockchain e o histórico da conta.')
+                );
+            } else {
+                toast.error(res.data?.message || t('common.error', 'Erro'));
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('common.error', 'Erro'));
+        } finally {
+            setBalanceTicketSending(false);
         }
     };
 
@@ -632,6 +726,81 @@ export default function Wallet() {
                                     >
                                         Re-sync wallet deposits (last 90 days)
                                     </button>
+
+                                    {lastResyncResult && lastResyncResult.credited === 0 && (
+                                        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-[10px] text-amber-100/90 font-bold leading-relaxed">
+                                            {t(
+                                                'wallet.resync_zero_banner',
+                                                'O re-sync não creditou novos depósitos. Se você já enviou POL para o endereço do jogo, abra um chamado — vamos cruzar sua carteira com o endereço da plataforma na blockchain.'
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div
+                                        ref={balanceTicketAnchorRef}
+                                        className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden scroll-mt-24"
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setBalanceTicketOpen((o) => !o);
+                                                if (balanceTicketSent) setBalanceTicketSent(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-800/50 transition-colors"
+                                        >
+                                            <MessageSquare className="w-4 h-4 text-indigo-400 shrink-0" />
+                                            <span className="flex-1 text-[10px] font-black uppercase tracking-widest text-slate-200">
+                                                {t(
+                                                    'wallet.open_balance_ticket',
+                                                    'Não resolveu? Abrir chamado de análise de depósito'
+                                                )}
+                                            </span>
+                                            <ChevronDown
+                                                className={`w-4 h-4 text-slate-500 shrink-0 transition-transform ${balanceTicketOpen ? 'rotate-180' : ''}`}
+                                            />
+                                        </button>
+                                        {balanceTicketOpen ? (
+                                            <div className="px-4 pb-4 pt-0 space-y-3 border-t border-slate-800/80">
+                                                {balanceTicketSent ? (
+                                                    <p className="text-[11px] text-emerald-400/90 font-bold py-2">
+                                                        {t(
+                                                            'wallet.ticket_sent_detail',
+                                                            'Protocolo registrado. A equipe responde por este e-mail da conta quando houver análise.'
+                                                        )}
+                                                    </p>
+                                                ) : (
+                                                    <>
+                                                        <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
+                                                            {t(
+                                                                'wallet.ticket_explain',
+                                                                'Enviamos sua carteira e o contexto da conta para a equipe verificar envios para o endereço do jogo, histórico interno e fila de saques.'
+                                                            )}
+                                                        </p>
+                                                        <textarea
+                                                            value={balanceTicketNotes}
+                                                            onChange={(e) => setBalanceTicketNotes(e.target.value)}
+                                                            placeholder={t(
+                                                                'wallet.ticket_placeholder',
+                                                                'Opcional: data aproximada, valor enviado, hash da transação, rede usada…'
+                                                            )}
+                                                            rows={3}
+                                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50 resize-none"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleBalanceRecoveryTicket}
+                                                            disabled={balanceTicketSending}
+                                                            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {balanceTicketSending
+                                                                ? t('common.loading', 'Enviando…')
+                                                                : t('wallet.send_ticket', 'Enviar chamado ao suporte')}
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ) : null}
+                                    </div>
 
                                     {showManualForm && (
                                         <div className="p-6 bg-slate-900/80 border border-primary/20 rounded-3xl space-y-4 animate-in slide-in-from-top-4 duration-500">

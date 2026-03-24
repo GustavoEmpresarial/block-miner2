@@ -24,7 +24,7 @@ function normalizeExplorerTx(tx) {
   };
 }
 
-async function fetchRecentWalletTxs(address) {
+export async function fetchRecentWalletTxs(address) {
   const apiKey = String(
     process.env.POLYGONSCAN_API_KEY ||
     process.env.ETHERSCAN_API_KEY ||

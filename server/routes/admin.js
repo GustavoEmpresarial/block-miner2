@@ -21,6 +21,7 @@ adminRouter.use(requireAdminAuth, adminLimiter);
 
 // Support tickets (admin panel)
 adminRouter.get("/support", adminSupportController.listMessages);
+adminRouter.get("/support/:id/wallet-forensics", adminSupportController.getWalletRecoveryForensics);
 adminRouter.get("/support/:id", adminSupportController.getMessage);
 adminRouter.post("/support/:id/reply", adminSupportController.replyToMessage);
 adminRouter.post("/support/:id/send-reset-link", adminSupportController.sendPasswordResetLink);
