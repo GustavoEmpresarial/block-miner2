@@ -14,6 +14,8 @@ export default function YouTubeWatch() {
     const [countdown, setCountdown] = useState(60);
     const [status, setStatus] = useState(null);
     const [stats, setStats] = useState(null);
+    /** Re-render ao mudar separador para alinhar countdown com heartbeats (só creditam com separador visível). */
+    const [tabVisible, setTabVisible] = useState(() => (typeof document !== 'undefined' ? !document.hidden : true));
 
     const timerRef = useRef(null);
     const GH = 1000000000;
@@ -81,6 +83,12 @@ export default function YouTubeWatch() {
         fetchUserStats();
     }, [fetchStatus, fetchUserStats]);
 
+    useEffect(() => {
+        const onVis = () => setTabVisible(!document.hidden);
+        document.addEventListener('visibilitychange', onVis);
+        return () => document.removeEventListener('visibilitychange', onVis);
+    }, []);
+
     const handleLoadVideo = (e) => {
         if (!validateTrustedEvent(e)) return;
         const id = extractVideoId(url);
@@ -92,7 +100,8 @@ export default function YouTubeWatch() {
         }
     };
 
-    const claimReward = async () => {
+    const claimReward = useCallback(async () => {
+        if (!videoId) return;
         try {
             const res = await api.post('/youtube/claim', { videoId });
             if (res.data.ok) {
@@ -105,7 +114,7 @@ export default function YouTubeWatch() {
             toast.error(err.response?.data?.message || 'Falha no resgate.');
             setIsRunning(false);
         }
-    };
+    }, [videoId, fetchStatus, fetchUserStats]);
 
     // Heartbeat to sync time with server (anti-cheat + focus check)
     useEffect(() => {
@@ -138,21 +147,26 @@ export default function YouTubeWatch() {
     }, [isRunning]);
 
     useEffect(() => {
-        if (isRunning && !document.hidden) {
-            timerRef.current = setInterval(() => {
-                setCountdown(prev => {
-                    if (prev <= 1) {
-                        claimReward();
-                        return 60;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-        } else {
+        if (!isRunning || !tabVisible) {
             clearInterval(timerRef.current);
+            timerRef.current = null;
+            return undefined;
         }
-        return () => clearInterval(timerRef.current);
-    }, [isRunning, videoId]);
+        timerRef.current = setInterval(() => {
+            setCountdown((prev) => {
+                if (document.hidden) return prev;
+                if (prev <= 1) {
+                    void claimReward();
+                    return 60;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        };
+    }, [isRunning, videoId, tabVisible, claimReward]);
 
     const handleToggleRunning = (e) => {
         if (!validateTrustedEvent(e)) return;

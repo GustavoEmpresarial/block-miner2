@@ -28,7 +28,7 @@ const DURATION_HOURS = 24;
  */
 const YT_CLAIM_SECONDS_COST = (() => {
   const n = Number(process.env.YT_CLAIM_SECONDS_COST);
-  if (!Number.isFinite(n) || n < 1) return 45;
+  if (!Number.isFinite(n) || n < 1) return 40;
   return Math.min(120, Math.floor(n));
 })();
 
