@@ -28,7 +28,6 @@ adminRouter.put("/users/:id/ban", adminController.setUserBan);
 // Miners
 adminRouter.get("/miners", adminController.listMiners);
 adminRouter.post("/miners/grant-to-all-users", adminController.grantMinerInventoryToAllUsers);
-adminRouter.post("/mining/resync-powers-from-catalog", adminController.resyncMiningPowersFromCatalog);
 adminRouter.post("/miners/upload-image", adminController.uploadMinerImage);
 adminRouter.post("/miners/:id/propagate-to-instances", adminController.propagateMinerCatalogToInstances);
 adminRouter.post("/miners", adminController.createMiner);
