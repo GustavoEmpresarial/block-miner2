@@ -103,6 +103,7 @@ O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/r
 | “Login falhou” genérico no site (antes: app subia mas login dava 500) | Mesmo: `JWT_SECRET` no `.env` da VPS; ver `docker compose logs app` após tentativa de login. |
 | Log: `prisma.user.findFirst()` — **column does not exist** / `(not available)` | O código atual usa `select` mínimo no login/sessão (não precisa de todas as colunas). Mesmo assim, alinhe a BD com `db:push` ou com `scripts/sql/patch_users_columns_for_prisma.sql` para o resto da app (admin, loja, etc.). |
 | `gpu_id` required mas há NULL em `auto_mining_gpu_logs` | O schema trata `gpuId` como opcional. Se o `db push` ainda reclamar, na VPS: `docker compose exec -T db psql -U blockminer -d blockminer_db < scripts/sql/ensure_gpu_logs_gpu_id_nullable.sql` |
+| Risco de depósito duplicado (mesmo `txHash`) | Aplique índice único parcial: `docker compose exec -T db psql -U blockminer -d blockminer_db < scripts/sql/ensure_unique_deposit_tx_hash.sql` |
 | `Missing script: migrate:hashrate:dry` | `git pull` — o `package.json` da VPS está antigo. |
 | `client password must be a string` | `DATABASE_URL` inválida ou vazia no container / `.env`. |
 | Porta 5432 em uso | Outro Postgres na VPS; pare o outro ou mude a porta no compose. |

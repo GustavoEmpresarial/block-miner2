@@ -113,7 +113,11 @@ export async function requestDeposit(req, res) {
     if (!amount || !txHash) {
       return res.status(400).json({ ok: false, message: "Amount and TX Hash required." });
     }
-    await walletModel.createDepositRequest(req.user.id, amount, txHash);
+    const parsedAmount = Number(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ ok: false, message: "Invalid deposit amount." });
+    }
+    await walletModel.createDepositRequest(req.user.id, parsedAmount, txHash);
     res.json({ ok: true, message: "Deposit completed and confirmed." });
   } catch (error) {
     logger.error("Error requesting deposit", { error: error.message });

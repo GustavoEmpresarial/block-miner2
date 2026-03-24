@@ -3,6 +3,20 @@ import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
 import { ethers } from "ethers";
 import { getValidatedDepositAddress } from "../utils/depositAddress.js";
 
+const DEPOSIT_MIN_CONFIRMATIONS = Math.max(1, Number(process.env.DEPOSIT_MIN_CONFIRMATIONS || 3));
+
+function hashToAdvisoryBigInt(txHash) {
+  const normalized = String(txHash || "").trim().toLowerCase();
+  if (!normalized) return 0n;
+  const clean = normalized.startsWith("0x") ? normalized.slice(2) : normalized;
+  const slice = clean.padStart(16, "0").slice(0, 16);
+  try {
+    return BigInt(`0x${slice}`);
+  } catch {
+    return 0n;
+  }
+}
+
 async function getUserBalance(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -49,11 +63,27 @@ async function createDepositRequest(userId, amount, txHash) {
   if (!txHash || !amount) {
     throw new Error("Amount and TX Hash required.");
   }
+  const normalizedTxHash = String(txHash).trim().toLowerCase();
 
   return prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, walletAddress: true }
+    });
+    if (!user) {
+      throw new Error("User not found.");
+    }
+    const linkedWallet = String(user.walletAddress || "").trim().toLowerCase();
+    if (!linkedWallet) {
+      throw new Error("No wallet linked. Connect your wallet first.");
+    }
+
+    const lockKey = hashToAdvisoryBigInt(normalizedTxHash);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey});`;
+
     // 1. Check if txHash already exists to prevent double spend
     const existingTx = await tx.transaction.findFirst({
-      where: { txHash, type: 'deposit' }
+      where: { txHash: normalizedTxHash, type: 'deposit' }
     });
 
     if (existingTx) {
@@ -90,6 +120,9 @@ async function createDepositRequest(userId, amount, txHash) {
       if (!transaction.to || transaction.to.toLowerCase() !== depositAddress.toLowerCase()) {
         throw new Error("Transaction was not sent to the correct deposit address.");
       }
+      if (!transaction.from || transaction.from.toLowerCase() !== linkedWallet) {
+        throw new Error("Transaction sender does not match your linked wallet.");
+      }
 
       // Chain ID check (Polygon Mainnet is 137)
       if (transaction.chainId !== 137n && transaction.chainId !== 137) {
@@ -107,10 +140,11 @@ async function createDepositRequest(userId, amount, txHash) {
         throw new Error("Transaction is not confirmed yet or has failed on-chain.");
       }
 
-      // Optional: Check minimum confirmations
+      // Check minimum confirmations for safer crediting
       const currentBlock = await provider.getBlockNumber();
-      if (currentBlock - receipt.blockNumber < 1) {
-        // We allow 1 confirmation for speed, but could increase for security
+      const confirmations = Math.max(0, currentBlock - receipt.blockNumber);
+      if (confirmations < DEPOSIT_MIN_CONFIRMATIONS) {
+        throw new Error(`Transaction has ${confirmations} confirmations. Minimum required: ${DEPOSIT_MIN_CONFIRMATIONS}.`);
       }
     }
 
@@ -120,7 +154,7 @@ async function createDepositRequest(userId, amount, txHash) {
         userId,
         type: 'deposit',
         amount,
-        txHash,
+        txHash: normalizedTxHash,
         status: 'completed',
         completedAt: new Date()
       }
