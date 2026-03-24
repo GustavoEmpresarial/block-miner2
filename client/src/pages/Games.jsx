@@ -331,31 +331,38 @@ export default function Games() {
     if (!visualBoard.current.length) return;
     const s = 50, p = 8;
     const sx = (800 - (8 * (s + p))) / 2, sy = (500 - (8 * (s + p))) / 2;
+    const glowPulse = 0.65 + Math.sin(Date.now() / 170) * 0.2;
     visualBoard.current.forEach((row, y) => {
       row.forEach((piece, x) => {
         piece.visualY += (y - piece.visualY) * MATCH3_FALL_EASING;
         piece.visualX += (x - piece.visualX) * MATCH3_FALL_EASING;
         const px = sx + piece.visualX * (s + p), py = sy + piece.visualY * (s + p);
         const isSelected = selectedCell && selectedCell.x === x && selectedCell.y === y;
-        const lift = isSelected ? 4 : 0;
-        const scale = isSelected ? 1.06 : 1;
+        const scale = isSelected ? 1.12 : 1;
 
         ctx.fillStyle = 'rgba(30, 41, 59, 0.6)';
         drawRoundedRect(ctx, sx + x * (s + p), sy + y * (s + p), s, s, 12);
         ctx.fill();
 
         if (isSelected) {
-          ctx.strokeStyle = '#60a5fa';
-          ctx.lineWidth = 2;
-          drawRoundedRect(ctx, sx + x * (s + p) - 1, sy + y * (s + p) - 1, s + 2, s + 2, 12);
+          const bx = sx + x * (s + p) - 1.5;
+          const by = sy + y * (s + p) - 1.5;
+          const bw = s + 3;
+          const bh = s + 3;
+          ctx.save();
+          ctx.strokeStyle = `rgba(96,165,250,${glowPulse})`;
+          ctx.lineWidth = 2.4;
+          ctx.shadowBlur = 18;
+          ctx.shadowColor = '#60a5fa';
+          drawRoundedRect(ctx, bx, by, bw, bh, 13);
           ctx.stroke();
+          ctx.restore();
         }
         const img = ICON_IMAGES[piece.symbol];
         if (canDrawImage(img)) {
           ctx.save();
-          ctx.translate(px + s / 2, py + s / 2 - lift);
+          ctx.translate(px + s / 2, py + s / 2);
           ctx.scale(scale, scale);
-          ctx.scale(-1, 1);
           try {
             ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
           } catch (_) {
@@ -366,7 +373,7 @@ export default function Games() {
           }
           ctx.restore();
         } else {
-          drawSymbolFallback(ctx, piece.symbol, px + 8, py + 8 - lift, s - 16);
+          drawSymbolFallback(ctx, piece.symbol, px + 8, py + 8, s - 16);
         }
       });
     });
