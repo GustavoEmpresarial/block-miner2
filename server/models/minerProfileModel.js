@@ -1,6 +1,7 @@
 import prisma from '../src/db/prisma.js';
 import crypto from 'crypto';
 import { stripAccidentalBillionScaleHs } from '../utils/hashRateScale.js';
+import { syncOnlineMinerPolBalance } from '../src/runtime/miningRuntime.js';
 
 export async function getOrCreateMinerProfile(user) {
   if (!user?.id) return null;
@@ -90,15 +91,57 @@ export async function getOrCreateMinerProfile(user) {
   };
 }
 
+/**
+ * Alinha RAM ↔ BD sem gravar `pol_balance = miner.balance` cegamente.
+ * Recompensas de bloco entram só por persistBlockRewards (increment na BD).
+ * Boost/rig debitam a BD nos handlers de socket.
+ * Isto evita a RAM "fantasma" (compra já na BD) repor o saldo antigo — o que parecia anti-cheat/bug.
+ */
 export async function persistMinerProfile(miner) {
   if (!miner?.userId) return;
-  
-  return prisma.user.update({
+
+  const row = await prisma.user.findUnique({
     where: { id: miner.userId },
-    data: {
-      polBalance: miner.balance
-    }
+    select: { polBalance: true }
   });
+  if (!row) return;
+
+  const EPS = 1e-10;
+  const dbBal = Number(row.polBalance);
+  const memBal = Number(miner.balance);
+
+  const rowFresh = await prisma.user.findUnique({
+    where: { id: miner.userId },
+    select: { polBalance: true }
+  });
+  if (!rowFresh) return;
+
+  let fresh = Number(rowFresh.polBalance);
+
+  if (fresh + EPS < dbBal) {
+    // Débito noutro pedido entre leituras (ex.: loja)
+    syncOnlineMinerPolBalance(miner.userId, fresh);
+    miner.balance = fresh;
+  }
+
+  const mem = Number(miner.balance);
+
+  if (fresh > mem + EPS) {
+    // Crédito só na BD (depósito, etc.) — puxar a RAM, sem tocar na BD
+    miner.balance = fresh;
+    syncOnlineMinerPolBalance(miner.userId, fresh);
+    return;
+  }
+
+  if (mem > fresh + EPS) {
+    // RAM acima da BD: compra/saque já refletidos na BD ou recompensa ainda não persistida.
+    // Nunca promover pol_balance com este valor; alinhar RAM à BD (recompensa entra por increment no persistBlockRewards).
+    miner.balance = fresh;
+    syncOnlineMinerPolBalance(miner.userId, fresh);
+    return;
+  }
+
+  // ~ alinhado — nada a gravar (evita UPDATE desnecessário)
 }
 
 export async function syncUserBaseHashRate(userId) {

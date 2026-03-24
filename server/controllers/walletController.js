@@ -1,4 +1,4 @@
-import { verifyMessage } from "ethers";
+import { verifyMessage, getAddress, isAddress } from "ethers";
 import walletModel from "../models/walletModel.js";
 import loggerLib from "../utils/logger.js";
 import { getValidatedDepositAddress } from "../utils/depositAddress.js";
@@ -89,7 +89,9 @@ export async function getBalance(req, res) {
       ok: true,
       ...balance,
       depositAddress,
-      depositConfigured: Boolean(depositAddress)
+      depositConfigured: Boolean(depositAddress),
+      minWithdrawal: walletModel.WITHDRAW_MIN_POL,
+      maxWithdrawal: walletModel.WITHDRAW_MAX_POL
     });
   } catch (error) {
     logger.error("Error getting balance", { error: error.message });
@@ -154,8 +156,22 @@ export async function requestWithdrawal(req, res) {
     if (!amount || !address) {
       return res.status(400).json({ ok: false, message: "Amount and address are required." });
     }
-    const transaction = await walletModel.createWithdrawal(req.user.id, amount, address);
-    res.json({ ok: true, message: "Withdrawal request created and pending processing.", transaction });
+    const addr = String(address).trim();
+    if (!isAddress(addr)) {
+      return res.status(400).json({ ok: false, message: "Invalid Polygon wallet address." });
+    }
+    let checksummed;
+    try {
+      checksummed = getAddress(addr);
+    } catch {
+      return res.status(400).json({ ok: false, message: "Invalid Polygon wallet address." });
+    }
+    const transaction = await walletModel.createWithdrawal(req.user.id, amount, checksummed);
+    res.json({
+      ok: true,
+      message: "Solicitação registrada. O valor foi reservado do seu saldo; aguarde a análise da equipe.",
+      transaction
+    });
   } catch (error) {
     logger.error("Error requesting withdrawal", { error: error.message });
     if (error.message === "Pending withdrawal exists") {

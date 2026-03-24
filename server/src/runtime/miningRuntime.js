@@ -15,3 +15,10 @@ export function applyUserBalanceDelta(userId, delta) {
     miner.balance += delta;
   }
 }
+
+/** Após mutar `pol_balance` na BD, alinha o minerador em RAM (evita persist periódico reverter compra/saque). */
+export function syncOnlineMinerPolBalance(userId, polBalance) {
+  if (!miningEngine || userId == null) return;
+  const miner = miningEngine.findMinerByUserId(Number(userId));
+  if (miner) miner.balance = Number(polBalance);
+}

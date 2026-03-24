@@ -1,12 +1,13 @@
 import * as inventoryModel from "../models/inventoryModel.js";
 import * as minersModel from "../models/minersModel.js";
 import prisma from "../src/db/prisma.js";
-import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
+import { syncOnlineMinerPolBalance } from "../src/runtime/miningRuntime.js";
 import { createNotification } from "./notificationController.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
-const SHOP_PURCHASES_ENABLED = String(process.env.SHOP_PURCHASES_ENABLED || "false").toLowerCase() === "true";
+/** Default on: list miners + allow POL balance purchases. Set SHOP_PURCHASES_ENABLED=false to turn off. */
+const SHOP_PURCHASES_ENABLED = String(process.env.SHOP_PURCHASES_ENABLED ?? "true").toLowerCase() === "true";
 
 export async function listMiners(req, res) {
   try {
@@ -88,7 +89,8 @@ export async function purchaseMiner(req, res) {
     try {
       updatedUser = await prisma.$transaction(async (tx) => {
         const user = await tx.user.findUnique({ where: { id: req.user.id } });
-        if (!user || user.polBalance < price) {
+        const pol = Number(user?.polBalance ?? 0);
+        if (!user || !Number.isFinite(pol) || pol + 1e-12 < price) {
           throw new Error("Insufficient balance.");
         }
 
@@ -113,8 +115,8 @@ export async function purchaseMiner(req, res) {
 
         return newUser;
       });
-      
-      applyUserBalanceDelta(req.user.id, -price);
+
+      syncOnlineMinerPolBalance(req.user.id, updatedUser.polBalance);
 
       // Create Notification
       await createNotification({

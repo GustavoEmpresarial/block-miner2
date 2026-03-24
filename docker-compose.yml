@@ -31,6 +31,10 @@ services:
       BACKUP_INTERVAL_HOURS: 24
       BACKUP_CLOUD_ENABLED: ${BACKUP_CLOUD_ENABLED:-false}
       BACKUP_CLOUD_REMOTE: ${BACKUP_CLOUD_REMOTE:-}
+      # Check-in: valor padrão 0,01 POL se .env não definir (receiver usa CHECKIN_RECEIVER ou DEPOSIT_WALLET_ADDRESS no código)
+      CHECKIN_AMOUNT_WEI: ${CHECKIN_AMOUNT_WEI:-10000000000000000}
+      # Redefinição de senha: sobrepõe PASSWORD_RESET_TOKEN_TTL do .env (evita e-mail a dizer 20m por configs antigas).
+      PASSWORD_RESET_TOKEN_TTL: "24h"
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups

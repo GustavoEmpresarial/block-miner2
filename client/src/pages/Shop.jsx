@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { ShoppingCart, Zap, TrendingUp, Info, X, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import { api } from '../store/auth';
 import { useGameStore } from '../store/game';
+import { formatHashrate } from '../utils/machine';
 
 export default function Shop() {
     const { t } = useTranslation();
@@ -15,7 +16,7 @@ export default function Shop() {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [purchasesEnabled, setPurchasesEnabled] = useState(false);
     const [shopDisabled, setShopDisabled] = useState(false);
-    const { fetchAll } = useGameStore();
+    const { fetchAll, setMinerPolBalance } = useGameStore();
 
     useEffect(() => {
         const fetchMiners = async () => {
@@ -58,8 +59,12 @@ export default function Shop() {
             setIsPurchasing(true);
             const res = await api.post('/shop/purchase', { minerId: selectedMiner.id });
             if (res.data.ok) {
-                toast.success(res.data.message || t('shop.purchase_success'));
-                fetchAll(); // Refresh balance and inventory
+                toast.success(res.data.message || t('shop.success_purchase'));
+                const nb = Number(res.data.newBalance);
+                if (Number.isFinite(nb)) {
+                    setMinerPolBalance(nb);
+                }
+                fetchAll(); // Refresh machines / inventory / racks
                 setShowConfirmModal(false);
             }
         } catch (err) {
@@ -127,7 +132,7 @@ export default function Shop() {
                                 <h3 className="text-xl font-black text-white truncate">{miner.name}</h3>
                                 <div className="flex items-center gap-2 text-primary font-bold">
                                     <Zap className="w-4 h-4" />
-                                    <span className="text-sm">{miner.baseHashRate} GH/S</span>
+                                    <span className="text-sm tabular-nums">{formatHashrate(miner.baseHashRate)}</span>
                                 </div>
                             </div>
 
@@ -198,7 +203,7 @@ export default function Shop() {
                                     </div>
                                     <div>
                                         <h4 className="font-bold text-white leading-none">{selectedMiner.name}</h4>
-                                        <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-2 block">{selectedMiner.baseHashRate} GH/S</span>
+                                        <span className="text-[10px] font-black text-primary tracking-[0.2em] mt-2 block tabular-nums">{formatHashrate(selectedMiner.baseHashRate)}</span>
                                     </div>
                                 </div>
                                 <div className="h-[1px] bg-gray-800 w-full" />

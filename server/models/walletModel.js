@@ -1,9 +1,15 @@
 import prisma from '../src/db/prisma.js';
-import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
+import { Prisma } from "@prisma/client";
+import { syncOnlineMinerPolBalance } from "../src/runtime/miningRuntime.js";
 import { ethers } from "ethers";
 import { getValidatedDepositAddress } from "../utils/depositAddress.js";
 
 const DEPOSIT_MIN_CONFIRMATIONS = Math.max(1, Number(process.env.DEPOSIT_MIN_CONFIRMATIONS || 3));
+
+const WITHDRAW_MIN_POL = Number(process.env.MIN_WITHDRAWAL) > 0 ? Number(process.env.MIN_WITHDRAWAL) : 10;
+const WITHDRAW_MAX_POL = Number(process.env.MAX_WITHDRAWAL) > 0 ? Number(process.env.MAX_WITHDRAWAL) : 1_000_000;
+
+const IN_FLIGHT_WITHDRAW_STATUSES = ["pending", "approved"];
 
 function hashToAdvisoryBigInt(txHash) {
   const normalized = String(txHash || "").trim().toLowerCase();
@@ -160,13 +166,13 @@ async function createDepositRequest(userId, amount, txHash) {
       }
     });
 
-    await tx.user.update({
+    const afterDeposit = await tx.user.update({
       where: { id: userId },
-      data: { polBalance: { increment: amount } }
+      data: { polBalance: { increment: amount } },
+      select: { polBalance: true }
     });
 
-    // Notify runtime
-    applyUserBalanceDelta(userId, Number(amount));
+    syncOnlineMinerPolBalance(userId, afterDeposit.polBalance);
 
     // 6. Create User Notification
     try {
@@ -187,38 +193,53 @@ async function createDepositRequest(userId, amount, txHash) {
 
 async function hasPendingWithdrawal(userId) {
   const pending = await prisma.transaction.findFirst({
-    where: { userId, type: 'withdrawal', status: 'pending' }
+    where: { userId, type: "withdrawal", status: { in: IN_FLIGHT_WITHDRAW_STATUSES } }
   });
   return !!pending;
 }
 
 async function createWithdrawal(userId, amount, address) {
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    throw new Error("Invalid withdrawal amount");
+  }
+  if (amt < WITHDRAW_MIN_POL) {
+    throw new Error(`Saque mínimo é ${WITHDRAW_MIN_POL} POL`);
+  }
+  if (amt > WITHDRAW_MAX_POL) {
+    throw new Error(`Saque máximo é ${WITHDRAW_MAX_POL} POL`);
+  }
+
+  const dec = new Prisma.Decimal(String(amt));
+
   return prisma.$transaction(async (tx) => {
-    const pending = await tx.transaction.findFirst({
-      where: { userId, type: 'withdrawal', status: 'pending' }
+    const inFlight = await tx.transaction.findFirst({
+      where: { userId, type: "withdrawal", status: { in: IN_FLIGHT_WITHDRAW_STATUSES } }
     });
-    if (pending) throw new Error("Pending withdrawal exists");
+    if (inFlight) throw new Error("Pending withdrawal exists");
 
     const user = await tx.user.findUnique({ where: { id: userId } });
-    if (user.polBalance.lt(amount)) throw new Error("Insufficient balance");
+    if (!user) throw new Error("User not found");
+    if (user.polBalance.lt(dec)) throw new Error("Insufficient balance");
 
-    await tx.user.update({
+    const afterWithdraw = await tx.user.update({
       where: { id: userId },
-      data: { polBalance: { decrement: amount } }
+      data: { polBalance: { decrement: dec } },
+      select: { polBalance: true }
     });
 
     const transaction = await tx.transaction.create({
       data: {
         userId,
-        type: 'withdrawal',
-        amount,
+        type: "withdrawal",
+        amount: dec,
         address,
-        status: 'pending',
+        status: "pending",
         fundsReserved: true
       }
     });
 
-    applyUserBalanceDelta(userId, -Number(amount));
+    syncOnlineMinerPolBalance(userId, afterWithdraw.polBalance);
     return transaction;
   });
 }
@@ -254,11 +275,12 @@ async function updateTransactionStatus(transactionId, status, txHash = null) {
       }
       if (status === 'failed' && prevStatus !== 'failed' && prevStatus !== 'completed') {
         if (transaction.fundsReserved) {
-          await tx.user.update({
+          const refunded = await tx.user.update({
             where: { id: transaction.userId },
-            data: { polBalance: { increment: transaction.amount } }
+            data: { polBalance: { increment: transaction.amount } },
+            select: { polBalance: true }
           });
-          applyUserBalanceDelta(transaction.userId, Number(transaction.amount));
+          syncOnlineMinerPolBalance(transaction.userId, refunded.polBalance);
         }
       }
     }
@@ -268,15 +290,23 @@ async function updateTransactionStatus(transactionId, status, txHash = null) {
 
 async function getPendingWithdrawals() {
   return prisma.transaction.findMany({
-    where: { type: 'withdrawal', status: { in: ['pending', 'approved'] } },
-    include: { user: { select: { username: true } } },
-    orderBy: { createdAt: 'asc' }
+    where: { type: "withdrawal", status: { in: ["pending", "approved"] } },
+    include: { user: { select: { username: true, email: true, id: true } } },
+    orderBy: { createdAt: "asc" }
+  });
+}
+
+/** Só saques já aprovados pelo admin — usado pelo cron automático (não envia `pending`). */
+async function getApprovedWithdrawals() {
+  return prisma.transaction.findMany({
+    where: { type: "withdrawal", status: "approved" },
+    orderBy: { createdAt: "asc" }
   });
 }
 
 async function failAllPendingWithdrawals() {
   const pending = await prisma.transaction.findMany({
-    where: { type: 'withdrawal', status: 'pending' }
+    where: { type: "withdrawal", status: "pending" }
   });
 
   for (const tx of pending) {
@@ -294,7 +324,10 @@ const walletModel = {
   getTransactions,
   updateTransactionStatus,
   getPendingWithdrawals,
-  failAllPendingWithdrawals
+  getApprovedWithdrawals,
+  failAllPendingWithdrawals,
+  WITHDRAW_MIN_POL,
+  WITHDRAW_MAX_POL
 };
 
 export default walletModel;
@@ -307,5 +340,8 @@ export {
   getTransactions,
   updateTransactionStatus,
   getPendingWithdrawals,
-  failAllPendingWithdrawals
+  getApprovedWithdrawals,
+  failAllPendingWithdrawals,
+  WITHDRAW_MIN_POL,
+  WITHDRAW_MAX_POL
 };

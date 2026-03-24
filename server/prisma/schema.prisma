@@ -83,6 +83,8 @@ model User {
   
   blockMinerRewards BlockMinerReward[]
   notifications     Notification[]
+  supportMessages   SupportMessage[]
+  supportRepliesSent SupportReply[] @relation("SupportReplySender")
 
   @@map("users")
 }
@@ -676,4 +678,39 @@ model BlockMinerReward {
   @@index([blockId])
   @@index([userId])
   @@map("block_miner_rewards")
+}
+
+model SupportMessage {
+  id        Int       @id @default(autoincrement())
+  userId    Int?      @map("user_id")
+  name      String
+  email     String
+  subject   String
+  message   String
+  reply     String?
+  isRead    Boolean   @default(false) @map("is_read")
+  isReplied Boolean   @default(false) @map("is_replied")
+  repliedAt DateTime? @map("replied_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user    User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  replies SupportReply[]
+
+  @@index([createdAt])
+  @@map("support_messages")
+}
+
+model SupportReply {
+  id               Int      @id @default(autoincrement())
+  supportMessageId Int      @map("support_message_id")
+  senderId         Int?     @map("sender_id")
+  message          String
+  isAdmin          Boolean  @default(false) @map("is_admin")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  supportMessage SupportMessage @relation(fields: [supportMessageId], references: [id], onDelete: Cascade)
+  sender         User?          @relation("SupportReplySender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([supportMessageId])
+  @@map("support_replies")
 }

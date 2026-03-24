@@ -18,6 +18,7 @@ import { addInventoryItem } from "../models/inventoryModel.js";
 import { getAnonymizedRequestIp, getClientIpForStorage, getUserAgentForStorage } from "../utils/clientIp.js";
 import { getMiningEngine } from "../src/miningEngineInstance.js";
 import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
+import { signPasswordResetToken, verifyPasswordResetToken } from "../utils/passwordResetToken.js";
 import loggerLib from "../utils/logger.js";
 
 const logger = loggerLib.child("AuthRoutes");
@@ -28,9 +29,6 @@ const WELCOME_MINER_NAME = "Welcome Miner";
 const WELCOME_MINER_HASH_RATE = 10_000_000_000; // 10 GH/s represented in H/s base
 const WELCOME_MINER_SLOT_SIZE = 1;
 const WELCOME_MINER_IMAGE_URL = "/machines/reward1.png";
-const PASSWORD_RESET_TOKEN_TTL = process.env.PASSWORD_RESET_TOKEN_TTL || "20m";
-const JWT_ISSUER = process.env.JWT_ISSUER || "blockminer";
-const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "blockminer.app";
 const APP_URL = process.env.APP_URL || "https://blockminer.space";
 
 // Helper functions using Prisma
@@ -207,44 +205,6 @@ function sanitizeResetToken(value) {
     .trim()
     .replace(/^['"]+|['"]+$/g, "")
     .replace(/\s+/g, "");
-}
-
-function signPasswordResetToken(userId) {
-  if (!process.env.JWT_SECRET) {
-    throw new Error("JWT_SECRET is required.");
-  }
-
-  return jwt.sign({ sub: String(userId), typ: "pwd_reset" }, process.env.JWT_SECRET, {
-    expiresIn: PASSWORD_RESET_TOKEN_TTL,
-    issuer: JWT_ISSUER,
-    audience: JWT_AUDIENCE
-  });
-}
-
-function verifyPasswordResetToken(token) {
-  try {
-    if (!process.env.JWT_SECRET) return null;
-    const payload = jwt.verify(token, process.env.JWT_SECRET, {
-      issuer: JWT_ISSUER,
-      audience: JWT_AUDIENCE
-    });
-    if (payload?.typ !== "pwd_reset") return null;
-    return payload;
-  } catch (strictError) {
-    // Backward-compatible fallback for legacy reset tokens that may miss issuer/audience.
-    try {
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
-      if (!payload?.sub) return null;
-      if (payload?.typ && payload.typ !== "pwd_reset") return null;
-      return payload;
-    } catch (legacyError) {
-      logger.warn("Invalid password reset token", {
-        strictReason: strictError?.message,
-        legacyReason: legacyError?.message
-      });
-      return null;
-    }
-  }
 }
 
 async function findUserByIdentifier(identifier) {
@@ -652,8 +612,7 @@ authRouter.post("/forgot-password", authLimiter, async (req, res) => {
         await sendPasswordResetEmail({
           to: storedEmail,
           name: user.name,
-          resetUrl,
-          ttlMinutes: Number(String(PASSWORD_RESET_TOKEN_TTL).replace(/[^0-9]/g, "")) || 20
+          resetUrl
         });
         smtpDelivered = true;
       } catch (smtpError) {

@@ -1,4 +1,22 @@
 import { getTokenFromRequest } from "../../utils/token.js";
+import prisma from "../../src/db/prisma.js";
+import { syncOnlineMinerPolBalance } from "../../src/runtime/miningRuntime.js";
+
+function rollbackBoost(miner, polSpent) {
+  if (!miner || !Number.isFinite(Number(polSpent))) return;
+  miner.balance += Number(polSpent);
+  miner.boostMultiplier = 1;
+  miner.boostEndsAt = 0;
+}
+
+function rollbackRigUpgrade(miner, polSpent) {
+  if (!miner || !Number.isFinite(Number(polSpent))) return;
+  miner.balance += Number(polSpent);
+  if (miner.rigs > 1) {
+    miner.rigs -= 1;
+    miner.baseHashRate -= 18;
+  }
+}
 
 export function registerMinerSocketHandlers({
   io,
@@ -82,29 +100,67 @@ export function registerMinerSocketHandlers({
       callback?.({ ok: true, state: engine.getPublicState(minerId) });
     });
 
-    socket.on("miner:boost", (_payload, callback) => {
+    socket.on("miner:boost", async (_payload, callback) => {
       const minerId = socket.data.minerId;
-      if (!minerId) {
+      const userId = socket.data.userId;
+      if (!minerId || !userId) {
         callback?.({ ok: false, message: "Conecte-se primeiro." });
         return;
       }
 
+      const miner = engine.miners.get(minerId);
       const result = engine.applyBoost(minerId);
+      if (result?.ok && miner && result.polSpent > 0) {
+        try {
+          const row = await prisma.user.findUnique({ where: { id: userId }, select: { polBalance: true } });
+          if (!row || Number(row.polBalance) + 1e-12 < result.polSpent) {
+            rollbackBoost(miner, result.polSpent);
+            callback?.({ ok: false, message: "Saldo insuficiente na conta.", state: engine.getPublicState(minerId) });
+            return;
+          }
+          const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { polBalance: { decrement: result.polSpent } },
+            select: { polBalance: true }
+          });
+          syncOnlineMinerPolBalance(userId, Number(updated.polBalance));
+        } catch {
+          rollbackBoost(miner, result.polSpent);
+          callback?.({ ok: false, message: "Erro ao registrar gasto do boost.", state: engine.getPublicState(minerId) });
+          return;
+        }
+      }
       callback?.({ ...result, state: engine.getPublicState(minerId) });
     });
 
     socket.on("miner:upgrade-rig", async (_payload, callback) => {
       const minerId = socket.data.minerId;
-      if (!minerId) {
+      const userId = socket.data.userId;
+      if (!minerId || !userId) {
         callback?.({ ok: false, message: "Conecte-se primeiro." });
         return;
       }
 
+      const miner = engine.miners.get(minerId);
       const result = engine.upgradeRig(minerId);
-      if (result?.ok) {
-        const miner = engine.miners.get(minerId);
-        if (persistMinerProfile && miner) {
-          await persistMinerProfile(miner);
+      if (result?.ok && miner && result.polSpent > 0) {
+        try {
+          const row = await prisma.user.findUnique({ where: { id: userId }, select: { polBalance: true } });
+          if (!row || Number(row.polBalance) + 1e-12 < result.polSpent) {
+            rollbackRigUpgrade(miner, result.polSpent);
+            callback?.({ ok: false, message: "Saldo insuficiente na conta.", state: engine.getPublicState(minerId) });
+            return;
+          }
+          const updated = await prisma.user.update({
+            where: { id: userId },
+            data: { polBalance: { decrement: result.polSpent } },
+            select: { polBalance: true }
+          });
+          syncOnlineMinerPolBalance(userId, Number(updated.polBalance));
+        } catch {
+          rollbackRigUpgrade(miner, result.polSpent);
+          callback?.({ ok: false, message: "Erro ao registrar compra do rig.", state: engine.getPublicState(minerId) });
+          return;
         }
       }
       callback?.({ ...result, state: engine.getPublicState(minerId) });

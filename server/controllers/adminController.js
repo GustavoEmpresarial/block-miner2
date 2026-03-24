@@ -4,6 +4,7 @@ import os from "os";
 import { promisify } from "util";
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
+import { isHexString } from "ethers";
 import prisma from "../src/db/prisma.js";
 import * as minersModel from "../models/minersModel.js";
 import * as walletModel from "../models/walletModel.js";
@@ -428,9 +429,17 @@ export async function listPendingWithdrawals(_req, res) {
 export async function approveWithdrawal(req, res) {
   try {
     const { withdrawalId } = req.params;
+    const id = Number(withdrawalId);
+    const row = await prisma.transaction.findUnique({ where: { id } });
+    if (!row || row.type !== "withdrawal") {
+      return res.status(404).json({ ok: false, message: "Saque não encontrado." });
+    }
+    if (row.status !== "pending") {
+      return res.status(400).json({ ok: false, message: "Só é possível aprovar saques pendentes." });
+    }
     await prisma.transaction.update({
-      where: { id: Number(withdrawalId) },
-      data: { status: 'approved', updatedAt: new Date() }
+      where: { id },
+      data: { status: "approved", updatedAt: new Date() }
     });
     res.json({ ok: true, message: "Withdrawal approved" });
   } catch (error) {
@@ -441,18 +450,56 @@ export async function approveWithdrawal(req, res) {
 export async function rejectWithdrawal(req, res) {
   try {
     const { withdrawalId } = req.params;
-    await walletModel.updateTransactionStatus(Number(withdrawalId), "failed");
+    const id = Number(withdrawalId);
+    const row = await prisma.transaction.findUnique({ where: { id } });
+    if (!row || row.type !== "withdrawal") {
+      return res.status(404).json({ ok: false, message: "Saque não encontrado." });
+    }
+    if (!["pending", "approved"].includes(row.status)) {
+      return res.status(400).json({ ok: false, message: "Este saque não pode ser rejeitado." });
+    }
+    await walletModel.updateTransactionStatus(id, "failed");
     res.json({ ok: true, message: "Withdrawal rejected" });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Rejection failed" });
   }
 }
 
+function normalizeTxHash(raw) {
+  let h = String(raw || "").trim();
+  if (!h) return "";
+  if (!h.startsWith("0x") && /^[a-fA-F0-9]{64}$/.test(h)) {
+    h = `0x${h}`;
+  }
+  const lower = h.toLowerCase();
+  if (!isHexString(lower, 32)) {
+    throw new Error("Hash inválido: use o tx hash da Polygon (0x + 64 hex).");
+  }
+  return lower;
+}
+
 export async function completeWithdrawal(req, res) {
   try {
     const { withdrawalId } = req.params;
-    const { txHash } = req.body;
-    await walletModel.updateTransactionStatus(Number(withdrawalId), "completed", txHash);
+    const id = Number(withdrawalId);
+    const { txHash } = req.body || {};
+    let normalized;
+    try {
+      normalized = normalizeTxHash(txHash);
+    } catch (e) {
+      return res.status(400).json({ ok: false, message: e.message });
+    }
+    if (!normalized) {
+      return res.status(400).json({ ok: false, message: "Informe o hash da transação on-chain." });
+    }
+    const row = await prisma.transaction.findUnique({ where: { id } });
+    if (!row || row.type !== "withdrawal") {
+      return res.status(404).json({ ok: false, message: "Saque não encontrado." });
+    }
+    if (row.status !== "approved") {
+      return res.status(400).json({ ok: false, message: "Só é possível concluir saques já aprovados." });
+    }
+    await walletModel.updateTransactionStatus(id, "completed", normalized);
     res.json({ ok: true, message: "Withdrawal marked as completed" });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Marking as completed failed" });

@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import loggerLib from "./logger.js";
+import { getPasswordResetExpiryHumanEn } from "./passwordResetToken.js";
 
 const logger = loggerLib.child("Mailer");
 
@@ -96,7 +97,7 @@ function getTransporter() {
   return transporter;
 }
 
-export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes }) {
+export async function sendPasswordResetEmail({ to, name, resetUrl }) {
   const cfg = getSmtpConfig();
   const tx = getTransporter();
   if (!tx) {
@@ -108,7 +109,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes })
   const safeName = escapeHtml(String(name || "Miner").trim() || "Miner");
   const safeUrlText = String(resetUrl || "");
   const safeUrlAttr = escapeHtml(safeUrlText);
-  const safeTtl = Number(ttlMinutes || 20);
+  const expiryHuman = escapeHtml(getPasswordResetExpiryHumanEn());
 
   const html = `
   <div style="font-family:Arial,Helvetica,sans-serif; color:#111; line-height:1.5;">
@@ -118,11 +119,12 @@ export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes })
       To continue, click the link below:<br />
       <a href="${safeUrlAttr}">${escapeHtml(safeUrlText)}</a>
     </p>
-    <p>This link expires in ${safeTtl} minutes.</p>
+    <p>This link expires in ${expiryHuman}.</p>
     <p>If you did not request this change, you can safely ignore this email.</p>
   </div>`;
 
   const textName = String(name || "Miner").trim() || "Miner";
+  const expiryPlain = getPasswordResetExpiryHumanEn();
   const text = [
     "BlockMiner - Password Reset",
     "",
@@ -131,7 +133,7 @@ export async function sendPasswordResetEmail({ to, name, resetUrl, ttlMinutes })
     "",
     `Open this link: ${safeUrlText}`,
     "",
-    `This link expires in ${safeTtl} minutes.`,
+    `This link expires in ${expiryPlain}.`,
     "If you did not request this change, you can safely ignore this email."
   ].join("\n");
 

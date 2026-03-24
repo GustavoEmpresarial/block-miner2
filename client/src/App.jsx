@@ -36,6 +36,7 @@ import AdminFinance from './pages/AdminFinance';
 import AdminBackups from './pages/AdminBackups';
 import AdminLogs from './pages/AdminLogs';
 import AdminMetrics from './pages/AdminMetrics';
+import AdminSupport from './pages/AdminSupport';
 
 // Main App Component
 const Landing = () => {
@@ -191,6 +192,7 @@ function App() {
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/miners" element={<AdminMiners />} />
           <Route path="/admin/finance" element={<AdminFinance />} />
+          <Route path="/admin/support" element={<AdminSupport />} />
           <Route path="/admin/backups" element={<AdminBackups />} />
           <Route path="/admin/logs" element={<AdminLogs />} />
           <Route path="/admin/metrics" element={<AdminMetrics />} />

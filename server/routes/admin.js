@@ -1,5 +1,6 @@
 import express from "express";
 import * as adminController from "../controllers/adminController.js";
+import * as adminSupportController from "../controllers/adminSupportController.js";
 import { requireAdminAuth } from "../middleware/adminAuth.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import * as walletModel from "../models/walletModel.js";
@@ -17,6 +18,12 @@ const adminLimiter = createRateLimiter({
 
 // Protect all admin routes
 adminRouter.use(requireAdminAuth, adminLimiter);
+
+// Support tickets (admin panel)
+adminRouter.get("/support", adminSupportController.listMessages);
+adminRouter.get("/support/:id", adminSupportController.getMessage);
+adminRouter.post("/support/:id/reply", adminSupportController.replyToMessage);
+adminRouter.post("/support/:id/send-reset-link", adminSupportController.sendPasswordResetLink);
 
 // Dashboard Stats
 adminRouter.get("/stats", adminController.getStats);

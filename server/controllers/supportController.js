@@ -1,4 +1,150 @@
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import prisma from "../src/db/prisma.js";
+import { isSmtpConfigured, sendPasswordResetEmail } from "../utils/mailer.js";
+import { signPasswordResetToken } from "../utils/passwordResetToken.js";
+
+/** Mesmo marcador que o cliente usa no assunto do chamado de recuperação. */
+const PASSWORD_RESET_SUPPORT_MARKER = "[Senha]";
+const WELCOME_MINER_SLUG = "welcome-10ghs";
+const WELCOME_MINER_NAME = "Welcome Miner";
+const WELCOME_MINER_HASH_RATE = 10_000_000_000;
+const WELCOME_MINER_SLOT_SIZE = 1;
+const WELCOME_MINER_IMAGE_URL = "/machines/reward1.png";
+
+function normalizeSupportEmail(raw) {
+  return String(raw || "")
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase();
+}
+
+function isLikelyEmail(s) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+async function generateUniqueRefCode() {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const code = crypto.randomBytes(5).toString("hex");
+    const exists = await prisma.user.findUnique({ where: { refCode: code }, select: { id: true } });
+    if (!exists) return code;
+  }
+  throw new Error("Unable to generate referral code");
+}
+
+async function ensureWelcomeMinerForRecovery() {
+  let miner = await prisma.miner.findUnique({ where: { slug: WELCOME_MINER_SLUG } });
+  if (!miner) {
+    miner = await prisma.miner.create({
+      data: {
+        name: WELCOME_MINER_NAME,
+        slug: WELCOME_MINER_SLUG,
+        baseHashRate: WELCOME_MINER_HASH_RATE,
+        price: 0,
+        slotSize: WELCOME_MINER_SLOT_SIZE,
+        imageUrl: WELCOME_MINER_IMAGE_URL,
+        isActive: true,
+        showInShop: false
+      }
+    });
+  }
+  return miner;
+}
+
+async function pickUsernameFromEmail(normalizedEmail) {
+  const raw = (normalizedEmail.split("@")[0] || "user").toLowerCase().replace(/[^a-z0-9._-]/g, "");
+  let base = raw.length >= 3 ? raw.slice(0, 24) : "";
+  if (base.length < 3) base = `u_${crypto.randomBytes(4).toString("hex")}`;
+  let candidate = base;
+  for (let i = 0; i < 8; i += 1) {
+    const clash = await prisma.user.findFirst({
+      where: { username: { equals: candidate, mode: "insensitive" } },
+      select: { id: true }
+    });
+    if (!clash) return candidate;
+    candidate = `${base.slice(0, 20)}_${crypto.randomBytes(2).toString("hex")}`;
+  }
+  return `u_${crypto.randomBytes(6).toString("hex")}`;
+}
+
+/**
+ * Procura por e-mail exatamente (normalizado). Se não existir, cria conta com senha aleatória (só para o link de reset).
+ * @returns {{ user: { id: number, email: string, name: string }, created: boolean } | { user: null, created: false }}
+ */
+async function findOrCreateUserForPasswordRecovery({ normalizedEmail, displayName }) {
+  if (!isLikelyEmail(normalizedEmail)) return { user: null, created: false };
+
+  let user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true, email: true, name: true }
+  });
+  if (user) return { user, created: false };
+
+  const randomPass = crypto.randomBytes(32).toString("hex");
+  const passwordHash = await bcrypt.hash(randomPass, 10);
+  const username = await pickUsernameFromEmail(normalizedEmail);
+  const name = String(displayName || "").trim().slice(0, 48) || username;
+  const refCode = await generateUniqueRefCode();
+  const welcomeMiner = await ensureWelcomeMinerForRecovery();
+
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          name,
+          username,
+          email: normalizedEmail,
+          passwordHash,
+          refCode,
+          polBalance: 0,
+          usdcBalance: 0
+        }
+      });
+      await tx.userInventory.create({
+        data: {
+          userId: u.id,
+          minerId: welcomeMiner.id,
+          minerName: welcomeMiner.name,
+          hashRate: welcomeMiner.baseHashRate,
+          slotSize: welcomeMiner.slotSize,
+          imageUrl: welcomeMiner.imageUrl,
+          acquiredAt: new Date()
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: u.id,
+          action: "support_auto_provision",
+          detailsJson: JSON.stringify({ reason: "password_reset_ticket", email: normalizedEmail })
+        }
+      });
+      return u;
+    });
+    return { user: { id: created.id, email: normalizedEmail, name }, created: true };
+  } catch (err) {
+    if (err?.code === "P2002") {
+      user = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+        select: { id: true, email: true, name: true }
+      });
+      if (user) return { user, created: false };
+    }
+    throw err;
+  }
+}
+
+async function trySendPasswordResetForUser(user) {
+  if (!isSmtpConfigured()) return false;
+  const resetToken = signPasswordResetToken(user.id);
+  const APP_URL = process.env.APP_URL || "https://blockminer.space";
+  const resetUrl = `${APP_URL.replace(/\/$/, "")}/forgot-password?token=${encodeURIComponent(resetToken)}`;
+  await sendPasswordResetEmail({
+    to: user.email,
+    name: user.name,
+    resetUrl
+  });
+  return true;
+}
 
 /**
  * Public: Create a new support message.
@@ -6,10 +152,29 @@ import prisma from "../src/db/prisma.js";
 export const createMessage = async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
-    const userId = req.user?.id || null;
+    let userId = req.user?.id || null;
 
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ ok: false, message: "All fields are required" });
+    }
+
+    const isPasswordRecoveryTicket =
+      String(subject).includes(PASSWORD_RESET_SUPPORT_MARKER) && isLikelyEmail(normalizeSupportEmail(email));
+
+    if (isPasswordRecoveryTicket) {
+      try {
+        const normalizedEmail = normalizeSupportEmail(email);
+        const { user: resolvedUser } = await findOrCreateUserForPasswordRecovery({
+          normalizedEmail,
+          displayName: name
+        });
+        if (resolvedUser) {
+          userId = resolvedUser.id;
+          await trySendPasswordResetForUser(resolvedUser);
+        }
+      } catch (recoveryErr) {
+        console.error("[SupportController] Password recovery ticket flow failed:", recoveryErr);
+      }
     }
 
     const newMessage = await prisma.supportMessage.create({
@@ -18,8 +183,8 @@ export const createMessage = async (req, res) => {
         name,
         email,
         subject,
-        message,
-      },
+        message
+      }
     });
 
     res.status(201).json({ ok: true, message: "Support message sent successfully", id: newMessage.id });

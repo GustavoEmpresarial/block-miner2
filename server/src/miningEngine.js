@@ -138,7 +138,7 @@ export class MiningEngine {
     miner.boostMultiplier = 1.25;
     miner.boostEndsAt = Date.now() + 30000;
 
-    return { ok: true, message: "Boost ativado por 30s." };
+    return { ok: true, message: "Boost ativado por 30s.", polSpent: boostCost };
   }
 
   upgradeRig(minerId) {
@@ -154,7 +154,7 @@ export class MiningEngine {
     miner.rigs += 1;
     miner.baseHashRate += 18;
 
-    return { ok: true, message: `Rig #${miner.rigs} comprado com sucesso.` };
+    return { ok: true, message: `Rig #${miner.rigs} comprado com sucesso.`, polSpent: rigCost };
   }
 
   getMinerHashRate(miner) {

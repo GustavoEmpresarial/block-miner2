@@ -15,7 +15,8 @@ import {
   Settings,
   X,
   RefreshCw,
-  Loader2
+  Loader2,
+  KeyRound
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
@@ -29,6 +30,10 @@ export default function AdminSupport() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all'); // all, unread, replied
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [sendingResetLink, setSendingResetLink] = useState(false);
+
+  const isPasswordResetTicket = (subject) =>
+    String(subject || '').includes('[Senha]');
 
   useEffect(() => {
     fetchMessages();
@@ -63,6 +68,28 @@ export default function AdminSupport() {
       toast.error('Erro ao carregar detalhes');
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const handleSendResetLink = async () => {
+    if (!selectedMessage?.id) return;
+    setSendingResetLink(true);
+    try {
+      const res = await api.post(`/admin/support/${selectedMessage.id}/send-reset-link`);
+      if (res.data.ok) {
+        toast.success(res.data.message || 'Link enviado.');
+        const detailsRes = await api.get(`/admin/support/${selectedMessage.id}`);
+        if (detailsRes.data.ok) {
+          setSelectedMessage(detailsRes.data.message);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === selectedMessage.id ? { ...m, isReplied: true } : m))
+          );
+        }
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Falha ao enviar o link.');
+    } finally {
+      setSendingResetLink(false);
     }
   };
 
@@ -254,6 +281,31 @@ export default function AdminSupport() {
               </div>
 
               <div className="mt-auto space-y-4 border-t border-slate-800 pt-6">
+                {isPasswordResetTicket(selectedMessage.subject) ? (
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Gera um novo token e envia o link de redefinição para o{' '}
+                      <span className="text-slate-200 font-bold">e-mail cadastrado na conta</span>. O link expira conforme{' '}
+                      <span className="text-slate-300 font-mono text-[10px]">PASSWORD_RESET_TOKEN_TTL</span> no servidor (padrão:{' '}
+                      <span className="text-slate-200 font-bold">24 horas</span>). SMTP/Gmail tem de estar configurado.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleSendResetLink}
+                      disabled={sendingResetLink}
+                      className="w-full h-11 flex items-center justify-center gap-2 bg-emerald-600/90 hover:bg-emerald-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+                    >
+                      {sendingResetLink ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <KeyRound className="w-4 h-4" />
+                          Enviar link de redefinição por e-mail
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : null}
                 <textarea
                   placeholder="Escreva sua resposta aqui..."
                   value={reply}

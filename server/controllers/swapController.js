@@ -1,7 +1,7 @@
 import prisma from '../src/db/prisma.js';
 import { createAuditLog } from "../models/auditLogModel.js";
 import { getAnonymizedRequestIp } from "../utils/clientIp.js";
-import { applyUserBalanceDelta } from "../src/runtime/miningRuntime.js";
+import { syncOnlineMinerPolBalance } from "../src/runtime/miningRuntime.js";
 
 const PRICE_TTL_MS = 2 * 60 * 1000;
 const priceCache = new Map();
@@ -46,23 +46,26 @@ export async function executeSwap(req, res) {
     const rate = price;
     const output = fromAsset === "POL" ? amountNum * rate : amountNum / rate;
 
+    let polAfterSwap = null;
     await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
-      
+
       if (fromAsset === "POL") {
         if (Number(user.polBalance) < amountNum) throw new Error("Insufficient POL balance");
-        await tx.user.update({
+        const updated = await tx.user.update({
           where: { id: userId },
-          data: { polBalance: { decrement: amountNum }, usdcBalance: { increment: output } }
+          data: { polBalance: { decrement: amountNum }, usdcBalance: { increment: output } },
+          select: { polBalance: true }
         });
-        applyUserBalanceDelta(userId, -amountNum);
+        polAfterSwap = updated.polBalance;
       } else {
         if (Number(user.usdcBalance) < amountNum) throw new Error("Insufficient USDC balance");
-        await tx.user.update({
+        const updated = await tx.user.update({
           where: { id: userId },
-          data: { usdcBalance: { decrement: amountNum }, polBalance: { increment: output } }
+          data: { usdcBalance: { decrement: amountNum }, polBalance: { increment: output } },
+          select: { polBalance: true }
         });
-        applyUserBalanceDelta(userId, output);
+        polAfterSwap = updated.polBalance;
       }
 
       await createAuditLog({
@@ -73,6 +76,8 @@ export async function executeSwap(req, res) {
         details: { fromAsset, toAsset, amount: amountNum, output, rate }
       });
     });
+
+    if (polAfterSwap != null) syncOnlineMinerPolBalance(userId, polAfterSwap);
 
     res.json({ ok: true, rate, output });
   } catch (error) {

@@ -1,5 +1,7 @@
 # Deploy na VPS (Ubuntu + Docker)
 
+**Referência rápida (host, pasta, fluxo tarball + compose):** ver [DEPLOY-VPS.md](./DEPLOY-VPS.md).
+
 Eu **não tenho acesso** ao seu servidor nem às suas chaves GitHub. Siga estes passos no **seu PC** e depois na **VPS**.
 
 ## 1) No seu PC (Windows) — enviar código

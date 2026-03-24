@@ -260,5 +260,17 @@ export const useGameStore = create((set, get) => ({
             get().fetchNotifications()
         ]);
         set({ isLoading: false });
-    }
+    },
+
+    /** Atualiza saldo POL no estado do miner (ex.: após compra na loja, antes do próximo tick do socket). */
+    setMinerPolBalance: (balance) =>
+        set((state) => {
+            if (state.stats?.miner == null) return state;
+            return {
+                stats: {
+                    ...state.stats,
+                    miner: { ...state.stats.miner, balance: Number(balance) || 0 }
+                }
+            };
+        })
 }));

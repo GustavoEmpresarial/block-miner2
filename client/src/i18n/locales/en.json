@@ -109,6 +109,10 @@
     "power": "Power",
     "investment": "Investment",
     "est_return": "Est. Return",
+    "price": "Price",
+    "buy": "Buy",
+    "slots": "slots",
+    "avail_models": "models available",
     "buy_now": "Buy Now",
     "confirm_purchase": "Do you really want to buy this miner?",
     "success_purchase": "Purchase successful!",
@@ -173,7 +177,10 @@
       "completed": "Completed",
       "pending": "Pending"
     },
-    "tip_deposit": "Deposits are processed instantly after 1 confirmation on the Polygon network."
+    "tip_deposit": "Deposits are processed instantly after 1 confirmation on the Polygon network.",
+    "min_withdraw_pol": "Minimum withdrawal is {{min}} POL",
+    "max_withdraw_pol": "Maximum withdrawal is {{max}} POL",
+    "min_withdraw_hint": "Minimum withdrawal: {{min}} POL"
   },
   "faucet": {
     "title": "Equipment Faucet",
@@ -213,13 +220,29 @@
   },
   "checkin": {
     "title": "Daily Check-in",
-    "subtitle": "Return every day to claim your free reward and maintain your streak.",
+    "subtitle": "Pay a small POL fee with your linked wallet on Polygon to record check-in and keep your streak. No POL is credited to your in-app balance.",
     "claim_button": "Claim Daily Reward",
-    "claimed": "Already Claimed",
+    "pay_button": "Pay check-in with POL",
+    "fee_label": "Check-in fee",
+    "claimed": "Already checked in",
+    "claimed_hint": "You have already checked in today. Come back tomorrow to continue your streak.",
     "reset_in": "Your next bonus will be available in:",
     "streak": "Current Streak",
+    "streak_hint": "Current streak",
     "days": "days",
-    "reward_msg": "You received {{amount}} POL for your check-in!"
+    "milestone_bonus": "Game bonus",
+    "success_msg": "Check-in confirmed. Thank you for your payment!",
+    "not_configured": "Paid check-in is not configured on the server.",
+    "not_configured_hint": "Set a valid 0x address: CHECKIN_RECEIVER or DEPOSIT_WALLET_ADDRESS in the server .env (then restart the app). Default fee is 0.01 POL if CHECKIN_AMOUNT_WEI is unset.",
+    "connect_then_retry": "Wallet connected. Tap again to send the payment.",
+    "network_then_retry": "Network updated. Tap again to send the payment.",
+    "wallet_connect_hint": "Connect and verify your wallet (same as in Wallet).",
+    "wallet_linked": "Wallet: {{address}}",
+    "sending_tx": "Sending transaction...",
+    "confirming_tx": "Waiting for on-chain confirmation...",
+    "tx_failed": "The transaction failed or was reverted.",
+    "rejected": "Transaction rejected in wallet.",
+    "insufficient_funds": "Insufficient balance for the fee and gas."
   },
   "ptc": {
     "title": "Paid to Click",

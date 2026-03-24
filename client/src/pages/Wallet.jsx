@@ -31,7 +31,9 @@ export default function Wallet() {
     const [balance, setBalance] = useState({
         amount: 0,
         lifetimeMined: 0,
-        totalWithdrawn: 0
+        totalWithdrawn: 0,
+        minWithdrawal: 10,
+        maxWithdrawal: 1_000_000
     });
     const [transactions, setTransactions] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -77,7 +79,9 @@ export default function Wallet() {
                 setBalance({
                     amount: Number(balanceRes.data.balance || 0),
                     lifetimeMined: Number(balanceRes.data.lifetimeMined || 0),
-                    totalWithdrawn: Number(balanceRes.data.totalWithdrawn || 0)
+                    totalWithdrawn: Number(balanceRes.data.totalWithdrawn || 0),
+                    minWithdrawal: Number(balanceRes.data.minWithdrawal ?? 10),
+                    maxWithdrawal: Number(balanceRes.data.maxWithdrawal ?? 1_000_000)
                 });
                 const addr = balanceRes.data.depositAddress || null;
                 setSystemDepositAddress(addr);
@@ -269,13 +273,23 @@ export default function Wallet() {
     const handleWithdraw = async (e) => {
         e.preventDefault();
         const amount = parseFloat(withdrawForm.amount);
+        const minW = Number(balance.minWithdrawal) || 10;
+        const maxW = Number(balance.maxWithdrawal) || 1_000_000;
 
         if (!withdrawForm.address) {
             toast.error(t('wallet.dest_address'));
             return;
         }
-        if (isNaN(amount) || amount < 0.1) {
-            toast.error(t('wallet.min_withdrawal', 'Minimum withdrawal is 0.1 POL'));
+        if (isNaN(amount) || amount < minW) {
+            toast.error(
+                t('wallet.min_withdraw_pol', 'Minimum withdrawal is {{min}} POL', { min: minW })
+            );
+            return;
+        }
+        if (amount > maxW) {
+            toast.error(
+                t('wallet.max_withdraw_pol', 'Maximum withdrawal is {{max}} POL', { max: maxW })
+            );
             return;
         }
         if (amount > balance.amount) {
@@ -401,11 +415,11 @@ export default function Wallet() {
                 <div className="lg:col-span-8 space-y-6 sm:space-y-8 min-w-0">
 
                     {/* Premium Balance Card */}
-                    <div className="relative group overflow-hidden rounded-2xl sm:rounded-3xl">
-                        <div className="absolute inset-0 bg-gradient-to-br from-primary via-blue-600 to-indigo-900 opacity-90 transition-opacity" />
-                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay" />
+                    <div className="relative group overflow-hidden rounded-2xl sm:rounded-3xl isolate">
+                        <div className="absolute inset-0 z-0 bg-gradient-to-br from-primary via-blue-600 to-indigo-900 opacity-90 transition-opacity" />
+                        <div className="absolute inset-0 z-[1] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10 mix-blend-overlay pointer-events-none" />
 
-                        <div className="relative p-5 sm:p-8 lg:p-10 text-white space-y-8 sm:space-y-12 min-w-0">
+                        <div className="relative z-10 p-5 sm:p-8 lg:p-10 text-white space-y-8 sm:space-y-12 min-w-0">
                             <div className="flex justify-between items-start gap-3 min-w-0">
                                 <div className="min-w-0 flex-1">
                                     <p className="text-blue-100/60 font-black uppercase tracking-[0.3em] text-[8px] sm:text-[9px] mb-2 sm:mb-3">Total Liquid Assets</p>
@@ -447,8 +461,8 @@ export default function Wallet() {
                             </div>
                         </div>
 
-                        {/* Decorative Icons */}
-                        <div className="absolute right-[-20px] bottom-[-20px] opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-1000 pointer-events-none">
+                        {/* Decorative — z-[1] so digits / POL label stay above (was painting over balance) */}
+                        <div className="absolute right-[-20px] bottom-[-20px] z-[1] opacity-10 rotate-12 group-hover:scale-110 transition-transform duration-1000 pointer-events-none select-none" aria-hidden>
                             <WalletIcon className="w-64 h-64" />
                         </div>
                     </div>
@@ -501,10 +515,16 @@ export default function Wallet() {
 
                                         <div className="space-y-3">
                                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Amount (POL)</label>
+                                            <p className="text-[10px] text-slate-600 font-bold ml-2">
+                                                {t('wallet.min_withdraw_hint', 'Minimum withdrawal: {{min}} POL', {
+                                                    min: Number(balance.minWithdrawal) || 10
+                                                })}
+                                            </p>
                                             <div className="relative group">
                                                 <input
                                                     type="number"
                                                     step="0.000001"
+                                                    min={Number(balance.minWithdrawal) || 10}
                                                     value={withdrawForm.amount}
                                                     onChange={(e) => setWithdrawForm(prev => ({ ...prev, amount: e.target.value }))}
                                                     placeholder="0.00"

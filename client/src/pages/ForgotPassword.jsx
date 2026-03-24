@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, Loader2, ChevronRight, CheckCircle2, AlertCircle, LifeBuoy } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
+
+const PASSWORD_RESET_TICKET_SUBJECT = '[Senha] Não recebi o link de redefinição';
 
 function sanitizeResetToken(rawToken) {
   return String(rawToken || '')
@@ -22,6 +24,12 @@ export default function ForgotPassword() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [ticketName, setTicketName] = useState('');
+  const [ticketEmail, setTicketEmail] = useState('');
+  const [ticketMessage, setTicketMessage] = useState('');
+  const [ticketSending, setTicketSending] = useState(false);
+  const [ticketSent, setTicketSent] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,6 +46,7 @@ export default function ForgotPassword() {
         toast.success('Conta localizada. Defina sua nova senha agora.');
       } else {
         setDone(true);
+        setTicketEmail((prev) => prev || email.trim());
         toast.success('Confira seu e-mail e a caixa de spam. O link de redefinição foi enviado por e-mail.');
       }
     } catch (err) {
@@ -46,6 +55,41 @@ export default function ForgotPassword() {
       toast.error(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordHelpTicket = async (e) => {
+    e.preventDefault();
+    setError('');
+    const name = ticketName.trim() || ticketEmail.trim().split('@')[0] || 'Usuário';
+    const em = ticketEmail.trim();
+    const body =
+      ticketMessage.trim() ||
+      'Não recebi o e-mail com o link de redefinição de senha. Peço ajuda para concluir a recuperação.';
+
+    if (!em) {
+      const message = 'Informe um e-mail ou usuário para contato.';
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    try {
+      setTicketSending(true);
+      await api.post('/support', {
+        name,
+        email: em,
+        subject: PASSWORD_RESET_TICKET_SUBJECT,
+        message: body
+      });
+      setTicketSent(true);
+      toast.success('Chamado aberto. Nossa equipe vai analisar e enviar o link se a conta for localizada.');
+    } catch (err) {
+      const message = err.response?.data?.message || 'Não foi possível abrir o chamado agora.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setTicketSending(false);
     }
   };
 
@@ -204,12 +248,96 @@ export default function ForgotPassword() {
           ) : null}
 
           {done ? (
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5 flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-              <p className="text-emerald-300 text-xs font-bold leading-relaxed">
-                Solicitação registrada. Confira seu e-mail e a caixa de spam.
-                O link de redefinição foi enviado por e-mail.
-              </p>
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5 flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-emerald-300 text-xs font-bold leading-relaxed">
+                  Solicitação registrada. Confira seu e-mail e a caixa de spam.
+                  O link de redefinição foi enviado por e-mail — ele expira em até <span className="text-emerald-200">24 horas</span>{' '}
+                  (o prazo exato vem no corpo do e-mail).
+                </p>
+              </div>
+
+              {!ticketSent ? (
+                <div className="rounded-2xl border border-slate-700/80 bg-slate-900/40 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setTicketOpen((o) => !o)}
+                    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-slate-800/50 transition-colors"
+                  >
+                    <LifeBuoy className="w-5 h-5 text-primary shrink-0" />
+                    <span className="text-sm font-bold text-slate-200">
+                      Não recebeu o e-mail? Abrir chamado com o suporte
+                    </span>
+                    <ChevronRight
+                      className={`w-4 h-4 text-slate-500 ml-auto transition-transform ${ticketOpen ? 'rotate-90' : ''}`}
+                    />
+                  </button>
+                  {ticketOpen ? (
+                    <form onSubmit={handlePasswordHelpTicket} className="px-5 pb-5 pt-0 space-y-4 border-t border-slate-800/80">
+                      <p className="text-[11px] text-slate-500 leading-relaxed pt-4">
+                        Se o e-mail automático não chegou, abra um chamado aqui. A equipe pode reenviar o link manualmente para o
+                        e-mail da sua conta. Esse link também expira em até <span className="text-slate-400 font-bold">24 horas</span>.
+                      </p>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="ticket-name">
+                          Como podemos te chamar
+                        </label>
+                        <input
+                          id="ticket-name"
+                          type="text"
+                          value={ticketName}
+                          onChange={(e) => setTicketName(e.target.value)}
+                          className="block w-full px-4 py-3 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 text-sm focus:outline-none focus:border-primary/50"
+                          placeholder="Seu nome ou apelido"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="ticket-email">
+                          E-mail ou usuário do cadastro
+                        </label>
+                        <input
+                          id="ticket-email"
+                          type="text"
+                          required
+                          value={ticketEmail}
+                          onChange={(e) => setTicketEmail(e.target.value)}
+                          className="block w-full px-4 py-3 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 text-sm focus:outline-none focus:border-primary/50"
+                          placeholder='Mesmo dado usado em "Recuperar senha"'
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="ticket-msg">
+                          Mensagem (opcional)
+                        </label>
+                        <textarea
+                          id="ticket-msg"
+                          rows={3}
+                          value={ticketMessage}
+                          onChange={(e) => setTicketMessage(e.target.value)}
+                          className="block w-full px-4 py-3 border border-gray-800 rounded-2xl bg-background/50 text-gray-200 text-sm focus:outline-none focus:border-primary/50 resize-none"
+                          placeholder="Ex.: já verifiquei spam, outro e-mail de vocês chega normalmente…"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={ticketSending}
+                        className="w-full flex justify-center items-center gap-2 py-3.5 px-6 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest border border-slate-600 transition-all disabled:opacity-50"
+                      >
+                        {ticketSending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enviar chamado'}
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-primary/25 bg-primary/10 p-4 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                  <p className="text-slate-200 text-xs font-bold leading-relaxed">
+                    Chamado registrado. Em breve a equipe pode reenviar o link para o e-mail cadastrado na sua conta (o link
+                    enviado vale até <span className="text-primary">24 horas</span>).
+                  </p>
+                </div>
+              )}
             </div>
           ) : null}
 

@@ -69,6 +69,7 @@ export default function AdminDashboard() {
     };
 
     const handleApproveWithdrawal = async (id) => {
+        if (!confirm('Aprovar este saque?')) return;
         try {
             const res = await api.post(`/admin/withdrawals/${id}/approve`);
             if (res.data.ok) {
@@ -76,7 +77,39 @@ export default function AdminDashboard() {
                 fetchData();
             }
         } catch (err) {
-            toast.error('Erro ao aprovar saque.');
+            toast.error(err.response?.data?.message || 'Erro ao aprovar saque.');
+        }
+    };
+
+    const handleRejectWithdrawal = async (id) => {
+        if (!confirm('Rejeitar este saque? O valor será devolvido ao saldo POL do usuário.')) return;
+        try {
+            const res = await api.post(`/admin/withdrawals/${id}/reject`);
+            if (res.data.ok) {
+                toast.success('Saque rejeitado.');
+                fetchData();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao rejeitar saque.');
+        }
+    };
+
+    const handleCompleteWithdrawal = async (id) => {
+        const txHash = window.prompt('Hash da transação on-chain (0x + 64 hex):');
+        if (txHash === null) return;
+        const trimmed = String(txHash).trim();
+        if (!trimmed) {
+            toast.error('Hash obrigatório.');
+            return;
+        }
+        try {
+            const res = await api.post(`/admin/withdrawals/${id}/complete`, { txHash: trimmed });
+            if (res.data.ok) {
+                toast.success('Saque concluído.');
+                fetchData();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Erro ao concluir saque.');
         }
     };
 
@@ -147,6 +180,7 @@ export default function AdminDashboard() {
                                 <tr>
                                     <th className="px-8 py-4">Usuário</th>
                                     <th className="px-8 py-4">Valor</th>
+                                    <th className="px-8 py-4">Status</th>
                                     <th className="px-8 py-4">Ação</th>
                                 </tr>
                             </thead>
@@ -155,31 +189,65 @@ export default function AdminDashboard() {
                                     <tr key={w.id} className="hover:bg-slate-800/30 transition-colors group">
                                         <td className="px-8 py-5">
                                             <div className="flex flex-col">
-                                                <span className="text-white font-bold text-xs">ID #{w.user_id}</span>
+                                                <span className="text-white font-bold text-xs">{w.user?.username || `User #${w.userId ?? w.user_id}`}</span>
                                                 <span className="text-[10px] font-mono text-slate-500 truncate w-32">{w.address}</span>
                                             </div>
                                         </td>
                                         <td className="px-8 py-5">
-                                            <span className="text-amber-500 font-black">{w.amount.toFixed(4)} <span className="text-[10px] font-normal opacity-60">POL</span></span>
+                                            <span className="text-amber-500 font-black">{Number(w.amount).toFixed(4)} <span className="text-[10px] font-normal opacity-60">POL</span></span>
+                                        </td>
+                                        <td className="px-8 py-5 text-[9px] font-black uppercase text-slate-400">
+                                            {w.status === 'pending' ? 'Pendente' : w.status === 'approved' ? 'Aprovado' : w.status}
                                         </td>
                                         <td className="px-8 py-5">
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => handleApproveWithdrawal(w.id)}
-                                                    className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg transition-all"
-                                                >
-                                                    <CheckCircle2 className="w-4 h-4" />
-                                                </button>
-                                                <button className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all">
-                                                    <XCircle className="w-4 h-4" />
-                                                </button>
+                                            <div className="flex flex-wrap gap-2">
+                                                {w.status === 'pending' && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleApproveWithdrawal(w.id)}
+                                                            className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg transition-all"
+                                                            title="Aprovar"
+                                                        >
+                                                            <CheckCircle2 className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRejectWithdrawal(w.id)}
+                                                            className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all"
+                                                            title="Rejeitar"
+                                                        >
+                                                            <XCircle className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {w.status === 'approved' && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCompleteWithdrawal(w.id)}
+                                                            className="px-2 py-1 text-[9px] font-black uppercase bg-sky-500/20 text-sky-400 rounded-lg hover:bg-sky-500/30"
+                                                            title="Concluir com hash"
+                                                        >
+                                                            OK
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRejectWithdrawal(w.id)}
+                                                            className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all"
+                                                            title="Rejeitar e estornar"
+                                                        >
+                                                            <XCircle className="w-4 h-4" />
+                                                        </button>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
                                 {withdrawals.length === 0 && (
                                     <tr>
-                                        <td colSpan="3" className="px-8 py-12 text-center text-slate-500 italic">
+                                        <td colSpan="4" className="px-8 py-12 text-center text-slate-500 italic">
                                             Nenhum saque pendente no momento.
                                         </td>
                                     </tr>

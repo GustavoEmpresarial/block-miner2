@@ -11,6 +11,7 @@ export default function AdminFinance() {
     const [activity, setActivity] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [tab, setTab] = useState('withdrawals'); // 'withdrawals', 'activity'
+    const [completeModal, setCompleteModal] = useState({ open: false, id: null, txHash: '' });
 
     const fetchData = useCallback(async () => {
         try {
@@ -62,14 +63,23 @@ export default function AdminFinance() {
         }
     };
 
-    const handleComplete = async (id) => {
-        const txHash = prompt("Insira o Hash da Transação (opcional):");
-        if (txHash === null) return; // Cancelled
+    const openCompleteModal = (id) => {
+        setCompleteModal({ open: true, id, txHash: '' });
+    };
 
+    const submitComplete = async () => {
+        const { id, txHash } = completeModal;
+        if (!id) return;
+        const trimmed = String(txHash || '').trim();
+        if (!trimmed) {
+            toast.error('Informe o hash da transação (0x + 64 caracteres hex).');
+            return;
+        }
         try {
-            const res = await api.post(`/admin/withdrawals/${id}/complete`, { txHash });
+            const res = await api.post(`/admin/withdrawals/${id}/complete`, { txHash: trimmed });
             if (res.data.ok) {
                 toast.success('Saque marcado como concluído!');
+                setCompleteModal({ open: false, id: null, txHash: '' });
                 fetchData();
             }
         } catch (err) {
@@ -80,7 +90,38 @@ export default function AdminFinance() {
     if (isLoading && !overview) return <div className="p-8 text-slate-400 font-bold uppercase tracking-widest animate-pulse text-center py-40">Carregando financeiro...</div>;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
+        <div className="space-y-8 animate-in fade-in duration-700 relative">
+            {completeModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
+                        <h3 className="text-lg font-black text-white mb-2">Concluir saque</h3>
+                        <p className="text-xs text-slate-500 mb-4">Cole o hash da transação Polygon após o envio on-chain. O valor já foi reservado do saldo do usuário na solicitação.</p>
+                        <input
+                            type="text"
+                            value={completeModal.txHash}
+                            onChange={(e) => setCompleteModal((m) => ({ ...m, txHash: e.target.value }))}
+                            placeholder="0x..."
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-xs font-mono text-slate-200 mb-4 outline-none focus:border-sky-500"
+                        />
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setCompleteModal({ open: false, id: null, txHash: '' })}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={submitComplete}
+                                className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-black uppercase tracking-widest"
+                            >
+                                Confirmar concluído
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-black text-white flex items-center gap-3">
@@ -157,6 +198,7 @@ export default function AdminFinance() {
                                     <th className="px-8 py-4">Endereço (POLYGON)</th>
                                     <th className="px-8 py-4">Valor</th>
                                     <th className="px-8 py-4">Status</th>
+                                    <th className="px-8 py-4">Tx hash</th>
                                     <th className="px-8 py-4 text-right">Ação</th>
                                 </tr>
                             </thead>
@@ -187,8 +229,15 @@ export default function AdminFinance() {
                                                 <span className="text-[9px] font-black uppercase px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded">Aprovado</span>
                                             )}
                                         </td>
+                                        <td className="px-8 py-5 max-w-[200px]">
+                                            {w.txHash || w.tx_hash ? (
+                                                <span className="text-[9px] font-mono text-slate-400 break-all">{w.txHash || w.tx_hash}</span>
+                                            ) : (
+                                                <span className="text-[9px] text-slate-600">—</span>
+                                            )}
+                                        </td>
                                         <td className="px-8 py-5 text-right">
-                                            <div className="flex gap-2 justify-end">
+                                            <div className="flex flex-wrap gap-2 justify-end">
                                                 {w.status === 'pending' ? (
                                                     <>
                                                         <button
@@ -205,12 +254,22 @@ export default function AdminFinance() {
                                                         </button>
                                                     </>
                                                 ) : (
-                                                    <button
-                                                        onClick={() => handleComplete(w.id)}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-sky-500 border border-sky-400/20 hover:bg-sky-400 text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-500/20"
-                                                    >
-                                                        <CheckCircle2 className="w-3 h-3" /> Marcar Enviado
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openCompleteModal(w.id)}
+                                                            className="flex items-center gap-2 px-3 py-1.5 bg-sky-500 border border-sky-400/20 hover:bg-sky-400 text-white rounded-lg transition-all text-[10px] font-black uppercase tracking-widest shadow-lg shadow-sky-500/20"
+                                                        >
+                                                            <CheckCircle2 className="w-3 h-3" /> Concluído
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleReject(w.id)}
+                                                            className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-all text-[10px] font-bold uppercase tracking-widest"
+                                                        >
+                                                            <XCircle className="w-3 h-3" /> Rejeitar
+                                                        </button>
+                                                    </>
                                                 )}
                                             </div>
                                         </td>
@@ -218,7 +277,7 @@ export default function AdminFinance() {
                                 ))}
                                 {withdrawals.length === 0 && (
                                     <tr>
-                                        <td colSpan="6" className="px-8 py-12 text-center text-slate-500 italic font-medium">
+                                        <td colSpan="7" className="px-8 py-12 text-center text-slate-500 italic font-medium">
                                             Não há saques pendentes no momento. Tudo limpo!
                                         </td>
                                     </tr>

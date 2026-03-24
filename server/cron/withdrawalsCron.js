@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import * as walletModel from "../models/walletModel.js";
+import prisma from "../src/db/prisma.js";
 import loggerLib from "../utils/logger.js";
 import cron from "node-cron";
 
@@ -15,7 +16,8 @@ export async function processPendingWithdrawals() {
   }
 
   try {
-    const pending = await walletModel.getPendingWithdrawals();
+    // Apenas `approved`: saques `pending` aguardam ação no admin (não enviar sem aprovação).
+    const pending = await walletModel.getApprovedWithdrawals();
     if (!pending || pending.length === 0) return;
 
     if (!privateKey || privateKey === "0x0000000000000000000000000000000000000000000000000000000000000000") {
@@ -36,6 +38,12 @@ export async function processPendingWithdrawals() {
 
     for (const tx of pending) {
       try {
+        const fresh = await prisma.transaction.findUnique({ where: { id: tx.id } });
+        if (!fresh || fresh.type !== "withdrawal" || fresh.status !== "approved") {
+          logger.info(`Skip withdrawal ${tx.id}: no longer in approved state`);
+          continue;
+        }
+
         logger.info(`Sending ${tx.amount} POL to ${tx.address} for withdrawal ID ${tx.id}`);
 
         // Convert amount to Wei

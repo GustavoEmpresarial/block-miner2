@@ -110,6 +110,10 @@
     "power": "Poder",
     "investment": "Investimento",
     "est_return": "Retorno Est.",
+    "price": "Preço",
+    "buy": "Comprar",
+    "slots": "slots",
+    "avail_models": "modelos disponíveis",
     "buy_now": "Comprar Agora",
     "confirm_purchase": "Deseja realmente comprar esta mineradora?",
     "success_purchase": "Compra realizada com sucesso!",
@@ -176,7 +180,10 @@
       "completed": "Concluído",
       "pending": "Pendente"
     },
-    "tip_deposit": "Depósitos são processados instantaneamente após 1 confirmação na rede Polygon."
+    "tip_deposit": "Depósitos são processados instantaneamente após 1 confirmação na rede Polygon.",
+    "min_withdraw_pol": "O saque mínimo é {{min}} POL",
+    "max_withdraw_pol": "O saque máximo é {{max}} POL",
+    "min_withdraw_hint": "Saque mínimo: {{min}} POL"
   },
   "faucet": {
     "title": "Faucet de Equipamentos",
@@ -216,15 +223,29 @@
   },
   "checkin": {
     "title": "Check-in Diário",
-    "subtitle": "Retorne todos os dias para resgatar sua recompensa gratuita e manter sua sequência.",
+    "subtitle": "Pague uma taxa em POL com a carteira vinculada (Polygon) para registrar o check-in e manter sua sequência. Não há crédito de POL na conta.",
     "claim_button": "Resgatar Recompensa Diária",
-    "claimed": "Já Resgatado",
+    "pay_button": "Pagar check-in com POL",
+    "fee_label": "Taxa do check-in",
+    "claimed": "Já registrado",
+    "claimed_hint": "Você já fez o check-in de hoje. Volte amanhã para continuar a sequência.",
     "reset_in": "O seu próximo bônus estará disponível em:",
     "streak": "Sequência Atual",
+    "streak_hint": "Sequência ininterrupta",
     "days": "dias",
-    "reward_msg": "Você recebeu {{amount}} POL pelo seu check-in!",
+    "milestone_bonus": "Bônus em jogos",
+    "success_msg": "Check-in confirmado. Obrigado pelo pagamento!",
+    "not_configured": "Check-in por pagamento não está configurado no servidor.",
+    "not_configured_hint": "Defina um endereço 0x válido: CHECKIN_RECEIVER ou DEPOSIT_WALLET_ADDRESS no .env do servidor (e reinicie o app). A taxa padrão é 0,01 POL se CHECKIN_AMOUNT_WEI estiver vazio.",
+    "connect_then_retry": "Carteira conectada. Toque de novo para enviar o pagamento.",
+    "network_then_retry": "Rede atualizada. Toque de novo para enviar o pagamento.",
+    "wallet_connect_hint": "Conecte e verifique sua carteira (mesma da Carteira no app).",
+    "wallet_linked": "Carteira: {{address}}",
     "sending_tx": "Enviando transação...",
-    "confirming_tx": "Confirmando transação na blockchain..."
+    "confirming_tx": "Aguardando confirmação na blockchain...",
+    "tx_failed": "A transação falhou ou foi revertida.",
+    "rejected": "Transação cancelada na carteira.",
+    "insufficient_funds": "Saldo insuficiente para a taxa e para o gás."
   },
   "ptc": {
     "title": "Pago por Clique",

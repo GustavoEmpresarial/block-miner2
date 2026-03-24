@@ -1,6 +1,7 @@
 import prisma from '../../src/db/prisma.js';
 import { createNotification } from '../../controllers/notificationController.js';
 import { getMiningEngine } from '../../src/miningEngineInstance.js';
+import { syncOnlineMinerPolBalance } from '../../src/runtime/miningRuntime.js';
 
 export async function markCheckinConfirmed(checkinId, now) {
   return prisma.dailyCheckin.update({
@@ -75,12 +76,20 @@ export async function getMiningEngineStateRows() {
 
 export async function persistBlockRewards({ blockNumber, blockReward, totalWork, minerRewards, now }) {
   const engine = getMiningEngine();
-  
-  return prisma.$transaction(async (tx) => {
+  const referralCredits = [];
+
+  await prisma.$transaction(async (tx) => {
     const timestamp = new Date(now);
 
     for (const r of minerRewards) {
-      // 1. Log the reward
+      // 1. Creditar só o reward sobre o saldo atual na BD — nunca `polBalance = balanceAfter` da RAM:
+      //    se a RAM ainda não refletiu compra/saque, gravar o total do motor revertia o débito.
+      const updatedUser = await tx.user.update({
+        where: { id: r.userId },
+        data: { polBalance: { increment: r.rewardAmount } },
+        select: { polBalance: true }
+      });
+
       await tx.miningRewardsLog.create({
         data: {
           userId: r.userId,
@@ -89,20 +98,12 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
           totalNetworkWork: totalWork,
           sharePercentage: r.sharePercentage,
           rewardAmount: r.rewardAmount,
-          balanceAfterReward: r.balanceAfter,
+          balanceAfterReward: updatedUser.polBalance,
           createdAt: timestamp
         }
       });
 
-      // 2. Update user balances (merged into User in our schema)
-      await tx.user.update({
-        where: { id: r.userId },
-        data: {
-          polBalance: r.balanceAfter,
-        }
-      });
-
-      // 3. Referral Commission (1%)
+      // 2. Referral Commission (1%)
       const user = await tx.user.findUnique({
         where: { id: r.userId },
         select: { referredBy: true }
@@ -110,6 +111,7 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
 
       if (user?.referredBy && r.rewardAmount > 0) {
         const commission = r.rewardAmount * 0.01;
+        referralCredits.push({ referrerId: user.referredBy, commission });
         await tx.user.update({
           where: { id: user.referredBy },
           data: { polBalance: { increment: commission } }
@@ -126,7 +128,7 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
         });
       }
 
-      // 4. Create Notification
+      // 3. Create Notification
       if (r.rewardAmount > 0) {
         await createNotification({
           userId: r.userId,
@@ -138,7 +140,7 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
       }
     }
 
-    // 4. Persist global Block Distribution
+    // Persist global Block Distribution
     await tx.blockDistribution.create({
       data: {
         blockNumber,
@@ -159,6 +161,13 @@ export async function persistBlockRewards({ blockNumber, blockReward, totalWork,
     });
 
   });
+
+  const idsToSync = new Set(minerRewards.map((r) => r.userId));
+  for (const { referrerId } of referralCredits) idsToSync.add(referrerId);
+  for (const uid of idsToSync) {
+    const row = await prisma.user.findUnique({ where: { id: uid }, select: { polBalance: true } });
+    if (row) syncOnlineMinerPolBalance(uid, Number(row.polBalance));
+  }
 }
 
 export async function loadRecentBlocks(limit = 12) {
