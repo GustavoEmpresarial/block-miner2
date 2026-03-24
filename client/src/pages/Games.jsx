@@ -29,7 +29,7 @@ const SYMBOL_FALLBACK = {
 };
 const MEMORY_CLOSE_DELAY_MS = 420;
 const MEMORY_FLIP_EASING = 0.34;
-const MATCH3_FALL_EASING = 0.22;
+const MATCH3_FALL_EASING = 0.14;
 const PARTICLE_BURST_COUNT = 14;
 const BASE_CANVAS_WIDTH = 800;
 const BASE_CANVAS_HEIGHT = 500;
@@ -501,6 +501,20 @@ export default function Games() {
         const dx = Math.abs(cx - selectedCell.x);
         const dy = Math.abs(cy - selectedCell.y);
         if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+          // Optimistic local swap so player sees side-to-side movement immediately.
+          const fromX = selectedCell.x;
+          const fromY = selectedCell.y;
+          const toX = cx;
+          const toY = cy;
+          const fromPiece = visualBoard.current?.[fromY]?.[fromX];
+          const toPiece = visualBoard.current?.[toY]?.[toX];
+          if (fromPiece && toPiece) {
+            const nextBoard = visualBoard.current.map((row) => row.slice());
+            nextBoard[fromY][fromX] = { ...toPiece, x: fromX, y: fromY };
+            nextBoard[toY][toX] = { ...fromPiece, x: toX, y: toY };
+            visualBoard.current = nextBoard;
+          }
+
           socket.emit('game:action', {
             type: 'swap',
             from: { x: selectedCell.x, y: selectedCell.y },
