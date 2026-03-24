@@ -3,6 +3,7 @@ import loggerLib from '../../utils/logger.js';
 import { syncUserBaseHashRate } from '../../models/minerProfileModel.js';
 import { verifyAccessToken } from '../../utils/authTokens.js';
 import { getTokenFromRequest } from '../../utils/token.js';
+import { getBrazilCheckinDateKey } from '../../utils/checkinDate.js';
 
 const logger = loggerLib.child("GamesSocket");
 const GAME_SESSIONS = new Map();
@@ -219,22 +220,19 @@ async function finishGame(socket, state, success, engine) {
       return socket.emit("game:finished", { success: false, message: "AÇÃO SUSPEITA DETECTADA! Tempo de jogo irreal." });
     }
 
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const todayKey = getBrazilCheckinDateKey();
+    const hasTodayCheckin = await prisma.dailyCheckin.findFirst({
+      where: {
+        userId: Number(state.userId),
+        checkinDate: todayKey,
+        status: "confirmed"
+      },
+      select: { id: true }
+    });
+    const bonusHours = hasTodayCheckin ? 7 * 24 : 24;
+    const bonusLabel = hasTodayCheckin ? "7 DIAS" : "24H";
+    const expiresAt = new Date(Date.now() + bonusHours * 60 * 60 * 1000);
     try {
-      // Keep a safety cap, but never block the player:
-      // if cap is reached, replace the oldest active bonus with a fresh one.
-      const activePowers = await prisma.userPowerGame.findMany({
-        where: {
-          userId: Number(state.userId),
-          expiresAt: { gt: new Date() }
-        },
-        select: { id: true, playedAt: true },
-        orderBy: { playedAt: "asc" }
-      });
-      if (activePowers.length >= 10) {
-        await prisma.userPowerGame.delete({ where: { id: activePowers[0].id } });
-      }
-
       await prisma.userPowerGame.create({ 
         data: { 
           userId: Number(state.userId), 
@@ -250,7 +248,7 @@ async function finishGame(socket, state, success, engine) {
 
       socket.emit("game:finished", {
         success: true,
-        reward: `BÔNUS DE ${MEMORY_GAME_REWARD_HS} H/S ATIVADO POR 24H!`,
+        reward: `BÔNUS DE ${MEMORY_GAME_REWARD_HS} H/S ATIVADO POR ${bonusLabel}!`,
         game: state.slug,
         cooldownSec: Math.ceil(COOLDOWN_MS / 1000)
       });
