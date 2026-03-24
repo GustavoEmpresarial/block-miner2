@@ -5,6 +5,24 @@ import { getValidatedDepositAddress } from "../utils/depositAddress.js";
 
 const logger = loggerLib.child("WalletController");
 const POLYGONSCAN_API_BASE = "https://api.etherscan.io/v2/api";
+const BLOCKSCOUT_API_BASES = [
+  "https://polygon.blockscout.com/api",
+  "https://worldchain-mainnet.explorer.alchemy.com/api"
+];
+
+function normalizeExplorerTx(tx) {
+  if (!tx || typeof tx !== "object") return null;
+  const hash = String(tx.hash || tx.transactionHash || "").trim();
+  if (!hash) return null;
+  return {
+    hash,
+    from: String(tx.from || "").toLowerCase(),
+    to: String(tx.to || "").toLowerCase(),
+    value: String(tx.value || "0"),
+    timeStamp: String(tx.timeStamp || tx.timestamp || "0"),
+    isError: String(tx.isError || "0")
+  };
+}
 
 async function fetchRecentWalletTxs(address) {
   const apiKey = String(
@@ -15,19 +33,49 @@ async function fetchRecentWalletTxs(address) {
 
   const apiKeyParam = apiKey ? `&apikey=${encodeURIComponent(apiKey)}` : "";
   const url = `${POLYGONSCAN_API_BASE}?chainid=137&module=account&action=txlist&address=${encodeURIComponent(address)}&startblock=0&endblock=99999999&sort=desc${apiKeyParam}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Polygonscan request failed with status ${response.status}`);
+  try {
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      const messageText = String(data?.result || data?.message || "");
+      if (messageText.toLowerCase().includes("missing/invalid api key")) {
+        throw new Error("missing_api_key");
+      }
+      if (String(data?.status) !== "1" && String(data?.message || "").toUpperCase() !== "NO TRANSACTIONS FOUND") {
+        throw new Error(data?.result || data?.message || "Polygonscan response error");
+      }
+      return (Array.isArray(data?.result) ? data.result : [])
+        .map(normalizeExplorerTx)
+        .filter(Boolean);
+    }
+  } catch (err) {
+    logger.warn("Polygonscan txlist failed, trying blockscout fallback", {
+      address,
+      error: String(err?.message || err)
+    });
   }
-  const data = await response.json();
-  const messageText = String(data?.result || data?.message || "");
-  if (messageText.toLowerCase().includes("missing/invalid api key")) {
-    throw new Error("Explorer API requires key. Configure POLYGONSCAN_API_KEY or ETHERSCAN_API_KEY.");
+
+  for (const base of BLOCKSCOUT_API_BASES) {
+    const fallbackUrl = `${base}?module=account&action=txlist&address=${encodeURIComponent(address)}&startblock=0&endblock=99999999&sort=desc`;
+    try {
+      const resp = await fetch(fallbackUrl);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const msg = String(data?.message || "").toUpperCase();
+      if (String(data?.status) !== "1" && msg !== "NO TRANSACTIONS FOUND") continue;
+      return (Array.isArray(data?.result) ? data.result : [])
+        .map(normalizeExplorerTx)
+        .filter(Boolean);
+    } catch (err) {
+      logger.warn("Blockscout fallback failed", {
+        endpoint: base,
+        address,
+        error: String(err?.message || err)
+      });
+    }
   }
-  if (String(data?.status) !== "1" && String(data?.message || "").toUpperCase() !== "NO TRANSACTIONS FOUND") {
-    throw new Error(data?.result || data?.message || "Polygonscan response error");
-  }
-  return Array.isArray(data?.result) ? data.result : [];
+
+  throw new Error("Unable to query explorer transactions (configure POLYGONSCAN_API_KEY or check explorer availability).");
 }
 
 export async function getBalance(req, res) {
