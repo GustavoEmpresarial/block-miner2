@@ -21,6 +21,24 @@ const CRYPTO_ICONS = {
 const ICON_IMAGES = {};
 Object.entries(CRYPTO_ICONS).forEach(([k, v]) => { const img = new Image(); img.src = v; ICON_IMAGES[k] = img; });
 
+function drawRoundedRect(ctx, x, y, w, h, r = 12) {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, w, h, radius);
+    return;
+  }
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + w - radius, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+  ctx.lineTo(x + w, y + h - radius);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+  ctx.lineTo(x + radius, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+}
+
 export default function Games() {
   const { token } = useAuthStore();
   const [socket, setSocket] = useState(null);
@@ -154,42 +172,46 @@ export default function Games() {
     const render = () => {
       const canvas = canvasRef.current; if (!canvas) return;
       const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, 800, 500);
+      try {
+        ctx.clearRect(0, 0, 800, 500);
 
-      // Cyberpunk BG
-      ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, 800, 500);
-      ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
-      for (let i = 0; i < 800; i += 50) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 500); ctx.stroke(); }
-      for (let i = 0; i < 500; i += 50) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(800, i); ctx.stroke(); }
+        // Cyberpunk BG
+        ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, 800, 500);
+        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+        for (let i = 0; i < 800; i += 50) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 500); ctx.stroke(); }
+        for (let i = 0; i < 500; i += 50) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(800, i); ctx.stroke(); }
 
-      if (activeGame === 'memory') drawMemory(ctx, gameState);
-      if (activeGame === 'match-3') drawMatch3(ctx, gameState);
+        if (activeGame === 'memory') drawMemory(ctx, gameState);
+        if (activeGame === 'match-3') drawMatch3(ctx, gameState);
 
-      // Update Particles
-      particles.current = particles.current.filter(p => p.life > 0);
-      particles.current.forEach(p => {
-        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
-        ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
-      });
-      ctx.globalAlpha = 1.0;
+        // Update Particles
+        particles.current = particles.current.filter(p => p.life > 0);
+        particles.current.forEach(p => {
+          p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+          ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1.0;
 
-      // --- CUSTOM VIRTUAL CURSOR (Cyberpunk Mira) ---
-      const mx = pointer.current.x;
-      const my = pointer.current.y;
-      ctx.strokeStyle = pointer.current.isDown ? '#ef4444' : '#3b82f6';
-      ctx.lineWidth = 2;
-      ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle;
+        // --- CUSTOM VIRTUAL CURSOR (Cyberpunk Mira) ---
+        const mx = pointer.current.x;
+        const my = pointer.current.y;
+        ctx.strokeStyle = pointer.current.isDown ? '#ef4444' : '#3b82f6';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 10; ctx.shadowColor = ctx.strokeStyle;
 
-      // Circular scope
-      ctx.beginPath(); ctx.arc(mx, my, 12, 0, Math.PI * 2); ctx.stroke();
-      // Crosshair lines
-      ctx.beginPath(); ctx.moveTo(mx - 18, my); ctx.lineTo(mx + 18, my); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(mx, my - 18); ctx.lineTo(mx, my + 18); ctx.stroke();
-      // Dot center
-      ctx.fillStyle = ctx.strokeStyle;
-      ctx.beginPath(); ctx.arc(mx, my, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
+        // Circular scope
+        ctx.beginPath(); ctx.arc(mx, my, 12, 0, Math.PI * 2); ctx.stroke();
+        // Crosshair lines
+        ctx.beginPath(); ctx.moveTo(mx - 18, my); ctx.lineTo(mx + 18, my); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(mx, my - 18); ctx.lineTo(mx, my + 18); ctx.stroke();
+        // Dot center
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.beginPath(); ctx.arc(mx, my, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      } catch (e) {
+        console.error('Games render error', e);
+      }
 
       gameLoopRef.current = requestAnimationFrame(render);
     };
@@ -214,7 +236,7 @@ export default function Games() {
       ctx.fillStyle = (card.isFlipped || card.isMatched) ? '#2563eb' : '#1e293b';
       if (card.isMatched) ctx.fillStyle = '#059669';
       ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.5)';
-      ctx.beginPath(); ctx.roundRect(-size / 2, -size / 2, size, size, 16); ctx.fill();
+      drawRoundedRect(ctx, -size / 2, -size / 2, size, size, 16); ctx.fill();
       if (Math.abs(sX) > 0.1 && (card.isFlipped || card.isMatched)) {
         const img = ICON_IMAGES[card.symbol];
         if (img && img.complete) { ctx.scale(-1, 1); ctx.drawImage(img, -size / 3, -size / 3, size / 1.5, size / 1.5); }
@@ -232,7 +254,7 @@ export default function Games() {
         piece.visualY += (y - piece.visualY) * 0.15; piece.visualX += (x - piece.visualX) * 0.15;
         if (dragInfo && dragInfo.cx === x && dragInfo.cy === y) return;
         const px = sx + piece.visualX * (s + p), py = sy + piece.visualY * (s + p);
-        ctx.fillStyle = 'rgba(30, 41, 59, 0.6)'; ctx.beginPath(); ctx.roundRect(sx + x * (s + p), sy + y * (s + p), s, s, 12); ctx.fill();
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.6)'; drawRoundedRect(ctx, sx + x * (s + p), sy + y * (s + p), s, s, 12); ctx.fill();
         const img = ICON_IMAGES[piece.symbol];
         if (img && img.complete) {
           ctx.save(); ctx.translate(px + s / 2, py + s / 2);
