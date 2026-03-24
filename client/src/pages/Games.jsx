@@ -96,9 +96,9 @@ export default function Games() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [rewardMessage, setRewardMessage] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [cooldown, setCooldown] = useState(0);
+  const [cooldowns, setCooldowns] = useState({ memory: 0, 'match-3': 0 });
   const [isProcessing, setIsProcessing] = useState(false);
-  const [dragInfo, setDragInfo] = useState(null);
+  const [selectedCell, setSelectedCell] = useState(null);
 
   // High Precision Engine States
   const canvasRef = useRef(null);
@@ -134,6 +134,7 @@ export default function Games() {
 
     newSocket.on('game:started', (data) => {
       setGameState(data); setIsGameOver(false); setRewardMessage(null); setIsProcessing(false);
+      setSelectedCell(null);
       particles.current = [];
       if (data.game === 'crypto-match-3' && data.board) {
         visualBoard.current = data.board.map((row, y) => row.map((s, x) => ({ symbol: s, x, y, visualX: x, visualY: y })));
@@ -181,7 +182,10 @@ export default function Games() {
     newSocket.on('game:score_update', (data) => { setGameState(prev => prev ? ({ ...prev, score: data.score }) : prev); });
     newSocket.on('game:finished', (data) => {
       setIsGameOver(true);
-      setCooldown(60);
+      if (activeGame) {
+        setCooldowns((prev) => ({ ...prev, [activeGame]: 60 }));
+      }
+      setSelectedCell(null);
       if (data.success) {
         setRewardMessage(data.reward);
         toast.success(data.reward);
@@ -193,7 +197,7 @@ export default function Games() {
       newSocket.disconnect();
       setSocketReady(false);
     };
-  }, [token]);
+  }, [token, activeGame]);
 
   useEffect(() => {
     if (gameState && !isGameOver && timeLeft > 0) {
@@ -210,11 +214,16 @@ export default function Games() {
   }, [gameState, isGameOver, timeLeft, socket]);
 
   useEffect(() => {
-    if (cooldown > 0) {
-      const timer = setInterval(() => setCooldown(c => Math.max(0, c - 1)), 1000);
-      return () => clearInterval(timer);
-    }
-  }, [cooldown]);
+    const hasCooldown = cooldowns.memory > 0 || cooldowns['match-3'] > 0;
+    if (!hasCooldown) return undefined;
+    const timer = setInterval(() => {
+      setCooldowns((prev) => ({
+        memory: Math.max(0, prev.memory - 1),
+        'match-3': Math.max(0, prev['match-3'] - 1)
+      }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldowns]);
 
   const createExplosion = (x, y) => {
     for (let i = 0; i < PARTICLE_BURST_COUNT; i++) {
@@ -272,7 +281,7 @@ export default function Games() {
     };
     gameLoopRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(gameLoopRef.current);
-  }, [activeGame, gameState, isGameOver, dragInfo]);
+  }, [activeGame, gameState, isGameOver, selectedCell]);
 
   const drawMemory = (ctx, state) => {
     if (!state.board) return;
@@ -292,7 +301,6 @@ export default function Games() {
       ctx.scale(sX, 1);
       ctx.fillStyle = (card.isFlipped || card.isMatched) ? '#2563eb' : '#1e293b';
       if (card.isMatched) ctx.fillStyle = '#059669';
-      ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(0,0,0,0.5)';
       drawRoundedRect(ctx, -size / 2, -size / 2, size, size, 16); ctx.fill();
       if (Math.abs(sX) > 0.1 && shouldShowFace && card.symbol) {
         const img = ICON_IMAGES[card.symbol];
@@ -321,12 +329,26 @@ export default function Games() {
       row.forEach((piece, x) => {
         piece.visualY += (y - piece.visualY) * MATCH3_FALL_EASING;
         piece.visualX += (x - piece.visualX) * MATCH3_FALL_EASING;
-        if (dragInfo && dragInfo.cx === x && dragInfo.cy === y) return;
         const px = sx + piece.visualX * (s + p), py = sy + piece.visualY * (s + p);
-        ctx.fillStyle = 'rgba(30, 41, 59, 0.6)'; drawRoundedRect(ctx, sx + x * (s + p), sy + y * (s + p), s, s, 12); ctx.fill();
+        const isSelected = selectedCell && selectedCell.x === x && selectedCell.y === y;
+        const lift = isSelected ? 4 : 0;
+        const scale = isSelected ? 1.06 : 1;
+
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.6)';
+        drawRoundedRect(ctx, sx + x * (s + p), sy + y * (s + p), s, s, 12);
+        ctx.fill();
+
+        if (isSelected) {
+          ctx.strokeStyle = '#60a5fa';
+          ctx.lineWidth = 2;
+          drawRoundedRect(ctx, sx + x * (s + p) - 1, sy + y * (s + p) - 1, s + 2, s + 2, 12);
+          ctx.stroke();
+        }
         const img = ICON_IMAGES[piece.symbol];
         if (canDrawImage(img)) {
-          ctx.save(); ctx.translate(px + s / 2, py + s / 2);
+          ctx.save();
+          ctx.translate(px + s / 2, py + s / 2 - lift);
+          ctx.scale(scale, scale);
           ctx.scale(-1, 1);
           try {
             ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
@@ -338,31 +360,10 @@ export default function Games() {
           }
           ctx.restore();
         } else {
-          drawSymbolFallback(ctx, piece.symbol, px + 8, py + 8, s - 16);
+          drawSymbolFallback(ctx, piece.symbol, px + 8, py + 8 - lift, s - 16);
         }
       });
     });
-    if (dragInfo && state.board) {
-      const symbol = state.board[dragInfo.cy]?.[dragInfo.cx];
-      if (symbol) {
-        const img = ICON_IMAGES[symbol];
-        if (canDrawImage(img)) {
-          ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = '#3b82f6';
-          ctx.translate(dragInfo.mX, dragInfo.mY); ctx.scale(-1.2, 1.2);
-          try {
-            ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
-          } catch (_) {
-            img.__broken = true;
-            ctx.restore();
-            drawSymbolFallback(ctx, symbol, dragInfo.mX - s / 2 + 10, dragInfo.mY - s / 2 + 10, s - 20);
-            return;
-          }
-          ctx.restore();
-        } else {
-          drawSymbolFallback(ctx, symbol, dragInfo.mX - s / 2 + 10, dragInfo.mY - s / 2 + 10, s - 20);
-        }
-      }
-    }
   };
 
   const syncMouse = (e) => {
@@ -396,27 +397,37 @@ export default function Games() {
     } else if (activeGame === 'match-3') {
       const s = 50, p = 8, sx = (800 - (8 * (s + p))) / 2, sy = (500 - (8 * (s + p))) / 2;
       const cx = Math.floor((x - sx) / (s + p)), cy = Math.floor((y - sy) / (s + p));
-      if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8) setDragInfo({ cx, cy, mX: x, mY: y });
+      if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8) {
+        if (!selectedCell) {
+          setSelectedCell({ x: cx, y: cy });
+          return;
+        }
+
+        const dx = Math.abs(cx - selectedCell.x);
+        const dy = Math.abs(cy - selectedCell.y);
+        if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+          socket.emit('game:action', {
+            type: 'swap',
+            from: { x: selectedCell.x, y: selectedCell.y },
+            to: { x: cx, y: cy }
+          });
+          setSelectedCell(null);
+        } else {
+          setSelectedCell({ x: cx, y: cy });
+        }
+      } else {
+        setSelectedCell(null);
+      }
     }
   };
 
   const handleMouseMove = (e) => {
-    const { x, y } = syncMouse(e);
-    if (dragInfo) setDragInfo(p => ({ ...p, mX: x, mY: y }));
+    syncMouse(e);
   };
 
   const handleMouseUp = (e) => {
     pointer.current.isDown = false;
-    if (activeGame === 'match-3' && dragInfo) {
-      const { x, y } = syncMouse(e);
-      const s = 50, p = 8, sx = (800 - (8 * (s + p))) / 2, sy = (500 - (8 * (s + p))) / 2;
-      const cx = Math.floor((x - sx) / (s + p)), cy = Math.floor((y - sy) / (s + p));
-      if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8) {
-        const dx = Math.abs(cx - dragInfo.cx), dy = Math.abs(cy - dragInfo.cy);
-        if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) socket.emit('game:action', { type: 'swap', from: { x: dragInfo.cx, y: dragInfo.cy }, to: { x: cx, y: cy } });
-      }
-      setDragInfo(null);
-    }
+    syncMouse(e);
   };
 
   return (
@@ -446,8 +457,8 @@ export default function Games() {
 
       {!activeGame ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldown > 0 || !socketReady} cooldown={cooldown} />
-          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldown > 0 || !socketReady} cooldown={cooldown} />
+          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldowns.memory > 0 || !socketReady} cooldown={cooldowns.memory} />
+          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldowns['match-3'] > 0 || !socketReady} cooldown={cooldowns['match-3']} />
         </div>
       ) : (
         <div className="relative">
@@ -459,10 +470,10 @@ export default function Games() {
                 {rewardMessage ? <div className="p-12 bg-emerald-500/10 border border-emerald-500/20 rounded-[3rem] shadow-2xl backdrop-blur-md"><p className="text-emerald-400 font-black text-4xl uppercase">Bônus Concedido!</p><p className="text-emerald-400/70 font-bold mt-2 text-xl uppercase">{rewardMessage}</p></div> : <div className="p-10 bg-red-500/10 border border-red-500/20 rounded-[2rem]"><p className="text-red-400 font-black text-2xl uppercase tracking-widest">Missão Falhou</p></div>}
                 <button 
                   onClick={() => socket.emit('game:start', activeGame === 'memory' ? 'crypto-memory' : 'crypto-match-3')} 
-                  disabled={cooldown > 0}
-                  className={`px-20 py-7 bg-primary text-white font-black rounded-[2rem] hover:scale-105 transition-all uppercase italic tracking-widest shadow-glow text-xl ${cooldown > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={cooldowns[activeGame] > 0}
+                  className={`px-20 py-7 bg-primary text-white font-black rounded-[2rem] hover:scale-105 transition-all uppercase italic tracking-widest shadow-glow text-xl ${cooldowns[activeGame] > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {cooldown > 0 ? `AGUARDE ${cooldown}s` : 'REINICIAR LINK'}
+                  {cooldowns[activeGame] > 0 ? `AGUARDE ${cooldowns[activeGame]}s` : 'REINICIAR LINK'}
                 </button>
                 <button onClick={() => { setActiveGame(null); setGameState(null); }} className="text-slate-500 font-bold uppercase text-xs tracking-[0.3em] hover:text-white transition-colors">Voltar ao Terminal</button>
               </div>
