@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuthStore } from '../store/auth';
-import { Brain, LayoutGrid, Trophy, Clock, Zap, RotateCcw, Play, Fingerprint, MousePointer2 } from 'lucide-react';
+import { Brain, LayoutGrid, Trophy, Clock, RotateCcw, Play } from 'lucide-react';
 import { toast } from 'sonner';
 
 const SOCKET_URL =
@@ -502,8 +502,8 @@ export default function Games() {
 
       {!activeGame ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldowns.memory > 0 || !socketReady} cooldown={cooldowns.memory} />
-          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldowns['match-3'] > 0 || !socketReady} cooldown={cooldowns['match-3']} />
+          <GameCard title="Memory Sync" description="Combine pares de moedas em alta velocidade." icon={Brain} color="from-blue-600 to-indigo-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setIsGameOver(false); setRewardMessage(null); setGameState(null); setSelectedCell(null); setActiveGame('memory'); socket.emit('game:start', 'crypto-memory'); }} disabled={cooldowns.memory > 0 || !socketReady} cooldown={cooldowns.memory} />
+          <GameCard title="Power Match" description="Gere cascatas de energia minerando ativos." icon={LayoutGrid} color="from-primary to-orange-700" onClick={() => { if (!socketReady) return toast.error('Socket dos jogos desconectado.'); setIsGameOver(false); setRewardMessage(null); setGameState(null); setSelectedCell(null); setActiveGame('match-3'); socket.emit('game:start', 'crypto-match-3'); }} disabled={cooldowns['match-3'] > 0 || !socketReady} cooldown={cooldowns['match-3']} />
         </div>
       ) : (
         <div className={mobileFullscreen ? "relative h-full flex items-center justify-center" : "relative"}>
