@@ -99,7 +99,7 @@ O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/r
 |------|-------------|
 | Container `app` a sair logo ao arrancar com `JWT_SECRET is missing` | Crie/edite `/root/block-miner/.env` com `JWT_SECRET=...` (32+ caracteres). `docker compose up -d app`. |
 | “Login falhou” genérico no site (antes: app subia mas login dava 500) | Mesmo: `JWT_SECRET` no `.env` da VPS; ver `docker compose logs app` após tentativa de login. |
-| Log: `prisma.user.findFirst()` — **column does not exist** / `(not available)` | A tabela `users` está atrás do `schema.prisma`. Nos logs de arranque do `app` deve aparecer **prisma db push FAILED**. Corra o patch SQL (abaixo) ou `docker compose exec app npm run db:push` e reinicie o `app`. |
+| Log: `prisma.user.findFirst()` — **column does not exist** / `(not available)` | O código atual usa `select` mínimo no login/sessão (não precisa de todas as colunas). Mesmo assim, alinhe a BD com `db:push` ou com `scripts/sql/patch_users_columns_for_prisma.sql` para o resto da app (admin, loja, etc.). |
 | `Missing script: migrate:hashrate:dry` | `git pull` — o `package.json` da VPS está antigo. |
 | `client password must be a string` | `DATABASE_URL` inválida ou vazia no container / `.env`. |
 | Porta 5432 em uso | Outro Postgres na VPS; pare o outro ou mude a porta no compose. |

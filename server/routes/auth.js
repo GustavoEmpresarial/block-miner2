@@ -7,7 +7,7 @@ import prisma from "../src/db/prisma.js";
 import { getTokenFromRequest, getRefreshTokenFromRequest, ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME } from "../utils/token.js";
 import { signAccessToken, createRefreshToken, parseRefreshToken, verifyAccessToken } from "../utils/authTokens.js";
 import { createRefreshTokenRecord, getRefreshTokenById, revokeRefreshToken } from "../models/refreshTokenModel.js";
-import { updateUserLoginMeta } from "../models/userModel.js";
+import { updateUserLoginMeta, getUserById } from "../models/userModel.js";
 import { createAuditLog } from "../models/auditLogModel.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import { validateBody } from "../middleware/validate.js";
@@ -37,7 +37,7 @@ const APP_URL = process.env.APP_URL || "https://blockminer.space";
 async function generateUniqueRefCode() {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const code = crypto.randomBytes(5).toString("hex");
-    const exists = await prisma.user.findUnique({ where: { refCode: code } });
+    const exists = await prisma.user.findUnique({ where: { refCode: code }, select: { id: true } });
     if (!exists) return code;
   }
   throw new Error("Unable to generate referral code");
@@ -113,6 +113,59 @@ function normalizeEmail(value) {
   return normalizeIdentifier(value).toLowerCase();
 }
 
+function isPrismaMissingColumnError(err) {
+  return err?.code === "P2022" || /column.*does not exist/i.test(String(err?.message || ""));
+}
+
+/** Só colunas necessárias ao login — não faz SELECT de todo o modelo User (evita erro se faltar coluna na BD). */
+const USER_LOGIN_SELECT_TIERS = [
+  {
+    id: true,
+    name: true,
+    email: true,
+    username: true,
+    passwordHash: true,
+    isBanned: true,
+    isTwoFactorEnabled: true,
+    twoFactorSecret: true
+  },
+  {
+    id: true,
+    name: true,
+    email: true,
+    username: true,
+    passwordHash: true,
+    isBanned: true
+  },
+  { id: true, name: true, email: true, passwordHash: true, isBanned: true }
+];
+
+async function findUserForLogin(where, orderBy = null) {
+  for (const select of USER_LOGIN_SELECT_TIERS) {
+    try {
+      const args = { where, select };
+      if (orderBy) args.orderBy = orderBy;
+      return await prisma.user.findFirst(args);
+    } catch (err) {
+      if (!isPrismaMissingColumnError(err)) throw err;
+    }
+  }
+  return null;
+}
+
+async function findUserByIdForLogin(id) {
+  const nid = Number(id);
+  if (!Number.isFinite(nid)) return null;
+  for (const select of USER_LOGIN_SELECT_TIERS) {
+    try {
+      return await prisma.user.findUnique({ where: { id: nid }, select });
+    } catch (err) {
+      if (!isPrismaMissingColumnError(err)) throw err;
+    }
+  }
+  return null;
+}
+
 /**
  * Finds users whose email/username/name in DB has accidental leading/trailing spaces
  * or differs only by Unicode normalization — Prisma `equals` won't match those.
@@ -129,7 +182,7 @@ async function findUserByDbTrimFallback(normalizedIdentifier) {
         LIMIT 1
       `;
       const id = rows?.[0]?.id;
-      if (id != null) return prisma.user.findUnique({ where: { id: Number(id) } });
+      if (id != null) return findUserByIdForLogin(id);
     } else {
       const rows = await prisma.$queryRaw`
         SELECT id FROM users
@@ -138,7 +191,7 @@ async function findUserByDbTrimFallback(normalizedIdentifier) {
         LIMIT 1
       `;
       const id = rows?.[0]?.id;
-      if (id != null) return prisma.user.findUnique({ where: { id: Number(id) } });
+      if (id != null) return findUserByIdForLogin(id);
     }
   } catch (err) {
     logger.warn("findUserByDbTrimFallback failed", { message: err?.message });
@@ -195,29 +248,27 @@ async function findUserByIdentifier(identifier) {
   const normalizedIdentifier = normalizeIdentifier(identifier);
   const normalizedEmail = normalizeEmail(identifier);
 
-  let user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: { equals: normalizedEmail, mode: "insensitive" } },
-        { username: { equals: normalizedIdentifier, mode: "insensitive" } },
-        { name: { equals: normalizedIdentifier, mode: "insensitive" } }
-      ]
-    }
+  let user = await findUserForLogin({
+    OR: [
+      { email: { equals: normalizedEmail, mode: "insensitive" } },
+      { username: { equals: normalizedIdentifier, mode: "insensitive" } },
+      { name: { equals: normalizedIdentifier, mode: "insensitive" } }
+    ]
   });
 
   if (user) return user;
 
   // Legacy fallback for historically concatenated/corrupted emails.
   if (normalizedIdentifier.includes("@")) {
-    user = await prisma.user.findFirst({
-      where: {
+    user = await findUserForLogin(
+      {
         OR: [
           { email: { endsWith: normalizedEmail, mode: "insensitive" } },
           { email: { contains: normalizedEmail, mode: "insensitive" } }
         ]
       },
-      orderBy: { id: "desc" }
-    });
+      { id: "desc" }
+    );
   }
 
   if (user) return user;
@@ -250,7 +301,8 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
           { username: { equals: normalizedUsername, mode: "insensitive" } },
           { name: { equals: normalizedUsername, mode: "insensitive" } }
         ]
-      }
+      },
+      select: { id: true }
     });
     if (existing) return res.status(409).json({ ok: false, code: "USER_ALREADY_EXISTS", message: "User already exists." });
 
@@ -259,7 +311,10 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
     let referrerId = null;
 
     if (refCodeInput) {
-      const referrer = await prisma.user.findUnique({ where: { refCode: refCodeInput } });
+      const referrer = await prisma.user.findUnique({
+        where: { refCode: refCodeInput },
+        select: { id: true, ip: true }
+      });
       if (referrer) {
         // 2. Anti-Self-Referral: Prevent referring if IP matches or last known IP matches
         if (referrer.ip === clientIp) {
@@ -424,7 +479,12 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
       }
     });
   } catch (error) {
-    logger.error("Login error", { error: error.message, stack: error.stack });
+    logger.error("Login error", {
+      error: error.message,
+      stack: error.stack,
+      prismaCode: error?.code,
+      prismaMeta: error?.meta
+    });
     res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Login failed." });
   }
 });
@@ -437,7 +497,7 @@ authRouter.get("/session", async (req, res) => {
     const payload = verifyAccessToken(token);
     if (!payload?.sub) return res.status(401).json({ ok: false });
 
-    const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
+    const user = await getUserById(Number(payload.sub));
     if (!user || user.isBanned) return res.status(401).json({ ok: false });
 
     res.json({
@@ -484,7 +544,10 @@ authRouter.post("/legacy-password-reset", async (req, res) => {
       return res.status(401).json({ ok: false, message: "Token de reset inválido ou expirado." });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: Number(payload.sub) } });
+    const user = await prisma.user.findUnique({
+      where: { id: Number(payload.sub) },
+      select: { id: true }
+    });
     if (!user) {
       return res.status(404).json({ ok: false, message: "Usuário não encontrado." });
     }
@@ -515,7 +578,7 @@ authRouter.post("/reset-password-manual", async (req, res) => {
       return res.status(403).json({ ok: false, message: "Unauthorized manual reset." });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (!user) return res.status(404).json({ ok: false, message: "User not found." });
 
     const newPasswordHash = await bcrypt.hash(newPassword, 10);
@@ -655,7 +718,10 @@ const changePasswordSchema = z.object({
 authRouter.post("/change-password", requireAuth, validateBody(changePasswordSchema), async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, passwordHash: true }
+    });
 
     if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
       return res.status(401).json({ ok: false, message: "Senha atual incorreta." });

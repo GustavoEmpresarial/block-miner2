@@ -1,18 +1,41 @@
 import prisma from '../src/db/prisma.js';
 
+function isPrismaMissingColumnError(err) {
+  return err?.code === "P2022" || /column.*does not exist/i.test(String(err?.message || ""));
+}
+
+/** Evita SELECT * — BDs antigas sem algumas colunas do schema não quebram o middleware. */
+const GET_USER_BY_ID_SELECT_TIERS = [
+  {
+    id: true,
+    name: true,
+    username: true,
+    email: true,
+    isBanned: true,
+    polBalance: true,
+    usdcBalance: true
+  },
+  {
+    id: true,
+    name: true,
+    username: true,
+    email: true,
+    isBanned: true
+  },
+  { id: true, name: true, email: true, isBanned: true }
+];
+
 export async function getUserById(userId) {
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      email: true,
-      isBanned: true,
-      polBalance: true,
-      usdcBalance: true
+  const id = Number(userId);
+  if (!Number.isFinite(id)) return null;
+  for (const select of GET_USER_BY_ID_SELECT_TIERS) {
+    try {
+      return await prisma.user.findUnique({ where: { id }, select });
+    } catch (err) {
+      if (!isPrismaMissingColumnError(err)) throw err;
     }
-  });
+  }
+  return null;
 }
 
 export async function updateUserLoginMeta(userId, { ip, userAgent }) {
