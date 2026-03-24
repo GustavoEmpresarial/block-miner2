@@ -11,6 +11,7 @@ export default function YouTubeWatch() {
     const [url, setUrl] = useState('');
     const [videoId, setVideoId] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
+    const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [countdown, setCountdown] = useState(60);
     const [status, setStatus] = useState(null);
     const [stats, setStats] = useState(null);
@@ -87,6 +88,47 @@ export default function YouTubeWatch() {
         fetchStatus();
         fetchUserStats();
     }, [fetchStatus, fetchUserStats]);
+
+    useEffect(() => {
+        if (!videoId) {
+            setIsVideoPlaying(false);
+            return;
+        }
+
+        const onMessage = (event) => {
+            try {
+                const host = new URL(event.origin).hostname.replace(/^www\./, '').toLowerCase();
+                if (!['youtube.com', 'youtube-nocookie.com'].includes(host)) return;
+            } catch {
+                return;
+            }
+
+            let payload = event.data;
+            if (typeof payload === 'string') {
+                try { payload = JSON.parse(payload); } catch { return; }
+            }
+            if (!payload || payload.event !== 'infoDelivery' || typeof payload.info !== 'object') return;
+            if (typeof payload.info.playerState !== 'number') return;
+
+            const playerState = Number(payload.info.playerState);
+            // 1=playing, 2=paused, 0=ended, 3=buffering
+            if (playerState === 1) {
+                setIsVideoPlaying(true);
+                return;
+            }
+
+            if (playerState === 0 || playerState === 2 || playerState === 3) {
+                setIsVideoPlaying(false);
+                if (playerState === 0) {
+                    setIsRunning(false);
+                    toast.info('Video encerrado. Carregue outro video para continuar.');
+                }
+            }
+        };
+
+        window.addEventListener('message', onMessage);
+        return () => window.removeEventListener('message', onMessage);
+    }, [videoId]);
 
     useEffect(() => {
         const onVis = () => setTabVisible(!document.hidden);
@@ -196,11 +238,11 @@ export default function YouTubeWatch() {
                 console.error("Heartbeat sync failed");
             }
         };
-        if (isRunning && isLeaderTab) {
+        if (isRunning && isLeaderTab && isVideoPlaying) {
             void sendYoutubeHeartbeat();
             heartbeatInterval = setInterval(sendYoutubeHeartbeat, YT_HEARTBEAT_MS);
             const onVisible = () => {
-                if (!document.hidden && isRunning && isLeaderTab) void sendYoutubeHeartbeat();
+                if (!document.hidden && isRunning && isLeaderTab && isVideoPlaying) void sendYoutubeHeartbeat();
             };
             document.addEventListener('visibilitychange', onVisible);
             return () => {
@@ -209,10 +251,10 @@ export default function YouTubeWatch() {
             };
         }
         return undefined;
-    }, [isRunning, isLeaderTab]);
+    }, [isRunning, isLeaderTab, isVideoPlaying]);
 
     useEffect(() => {
-        if (!isRunning || !tabVisible || !isLeaderTab) {
+        if (!isRunning || !tabVisible || !isLeaderTab || !isVideoPlaying) {
             clearInterval(timerRef.current);
             timerRef.current = null;
             return undefined;
@@ -231,7 +273,7 @@ export default function YouTubeWatch() {
             clearInterval(timerRef.current);
             timerRef.current = null;
         };
-    }, [isRunning, videoId, tabVisible, isLeaderTab, claimReward]);
+    }, [isRunning, videoId, tabVisible, isLeaderTab, isVideoPlaying, claimReward]);
 
     const handleToggleRunning = (e) => {
         if (!validateTrustedEvent(e)) return;
@@ -283,7 +325,7 @@ export default function YouTubeWatch() {
                             {videoId ? (
                                 <iframe
                                     className="w-full h-full"
-                                    src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+                                    src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
                                     title="YouTube video player"
                                     frameBorder="0"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
