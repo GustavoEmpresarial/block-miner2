@@ -117,7 +117,10 @@ function isPrismaMissingColumnError(err) {
   return err?.code === "P2022" || /column.*does not exist/i.test(String(err?.message || ""));
 }
 
-/** Só colunas necessárias ao login — não faz SELECT de todo o modelo User (evita erro se faltar coluna na BD). */
+/**
+ * Bcrypt e JWT estão corretos; o bug foi BD sem colunas que o schema Prisma lista.
+ * Isto evita SELECT * no login; o arranque sério do contentor exige `prisma db push` OK (docker-entrypoint).
+ */
 const USER_LOGIN_SELECT_TIERS = [
   {
     id: true,
@@ -284,12 +287,12 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
     const normalizedEmail = normalizeEmail(email);
     const clientIp = getClientIpForStorage(req);
 
-    // 1. IP-based Anti-Abuse: Limit accounts per IP (max 2 for families/roommates)
+    // 1. IP-based Anti-Abuse: Limit accounts per IP (max 5 for families/roommates)
     const accountsWithSameIp = await prisma.user.count({
       where: { ip: clientIp }
     });
 
-    if (accountsWithSameIp >= 2) {
+    if (accountsWithSameIp >= 5) {
       logger.warn(`Registration blocked: IP ${clientIp} already has ${accountsWithSameIp} accounts.`);
       return res.status(403).json({ ok: false, code: "REGISTRATION_LIMIT_REACHED", message: "Registration limit reached for this connection." });
     }
@@ -426,7 +429,7 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
 
     if (user.isTwoFactorEnabled) {
       if (!twoFactorToken) {
-        return res.json({ ok: false, code: "REQUIRE_2FA", require2FA: true, message: "2FA token required." });
+        return res.status(403).json({ ok: false, code: "REQUIRE_2FA", require2FA: true, message: "2FA token required." });
       }
 
       if (user.twoFactorSecret == null || user.twoFactorSecret === "") {
@@ -464,9 +467,21 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
       })
     ]);
 
-    const accessToken = signAccessToken(user);
-    const refreshToken = createRefreshToken();
-    await createRefreshTokenRecord({ userId: user.id, ...refreshToken, createdAt: Date.now() });
+    let accessToken, refreshToken;
+    try {
+      accessToken = signAccessToken(user);
+      if (!accessToken) {
+        throw new Error("signAccessToken returned empty token");
+      }
+      refreshToken = createRefreshToken();
+      if (!refreshToken || !refreshToken.token) {
+        throw new Error("createRefreshToken returned invalid token");
+      }
+      await createRefreshTokenRecord({ userId: user.id, ...refreshToken, createdAt: Date.now() });
+    } catch (tokenError) {
+      logger.error("Token generation failed", { userId: user.id, error: tokenError.message, stack: tokenError.stack });
+      return res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Falha na geração de token. Tente novamente." });
+    }
 
     res.setHeader("Set-Cookie", [buildAccessCookie(accessToken), buildRefreshCookie(refreshToken.token, refreshToken.expiresAt)]);
     res.json({
@@ -485,7 +500,7 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
       prismaCode: error?.code,
       prismaMeta: error?.meta
     });
-    res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Login failed." });
+    res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Erro ao fazer login. Tente novamente ou redefinir sua senha." });
   }
 });
 

@@ -22,6 +22,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # Só 1 em emergência se db push falhar e precisar de inspecionar logs (login pode estar partido).
+      ALLOW_START_WITHOUT_DB_PUSH: ${ALLOW_START_WITHOUT_DB_PUSH:-0}
       # Override the DATABASE_URL to point to the docker-compose 'db' service
       DATABASE_URL: "postgresql://blockminer:blockminer_password@db:5432/blockminer_db?schema=public"
       BACKUP_DIR: /app/backups

@@ -89,6 +89,8 @@ npm run migrate:hashrate
 
 O `docker-compose.yml` usa `env_file: .env` na pasta do projeto na VPS (ex.: `/root/block-miner/.env`). O ficheiro **não** vai no tarball/Git — crie-o no servidor.
 
+**Nota:** Falhas de login com erro Prisma “column does not exist” **não** vêm de bcrypt nem de JWT: vêm da **tabela `users` (ou outras) desatualizada face ao `schema.prisma`**. O contentor `app` agora **termina no arranque** se `prisma db push` falhar (defina `ALLOW_START_WITHOUT_DB_PUSH=1` só em emergência — ver `.env.example`).
+
 - **`JWT_SECRET`** — **obrigatório** em produção (string longa e aleatória). Sem isto, o login falha com mensagem genérica (“Login falhou”) porque a assinatura do token lança erro; a app agora **nem arranca** em `NODE_ENV=production` se faltar.
 - `DATABASE_URL` — Postgres (no compose já vem override para o serviço `db`).
 - Opcional: `MEMORY_GAME_REWARD_HS` — recompensa do minigame em **H/s** (ex.: `5000000000` = 5 GH/s).
