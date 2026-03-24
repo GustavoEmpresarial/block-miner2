@@ -8,14 +8,14 @@ const SOCKET_URL =
   import.meta.env.VITE_API_URL ||
   (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 const CRYPTO_ICONS = {
-  'bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.svg',
-  'ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.svg',
-  'solana': 'https://cryptologos.cc/logos/solana-sol-logo.svg',
-  'binance-coin': 'https://cryptologos.cc/logos/bnb-bnb-logo.svg',
-  'cardano': 'https://cryptologos.cc/logos/cardano-ada-logo.svg',
-  'polkadot': 'https://cryptologos.cc/logos/polkadot-new-dot-logo.svg',
-  'dogecoin': 'https://cryptologos.cc/logos/dogecoin-doge-logo.svg',
-  'polygon': 'https://cryptologos.cc/logos/polygon-matic-logo.svg'
+  'bitcoin': '/icons/bitcoin.png',
+  'ethereum': '/icons/ethereum.png',
+  'solana': '/icons/solana.png',
+  'binance-coin': '/icons/binance-coin.png',
+  'cardano': '/icons/cardano.png',
+  'polkadot': '/icons/polkadot.png',
+  'dogecoin': '/icons/dogecoin.png',
+  'polygon': '/icons/polygon.png'
 };
 const SYMBOL_FALLBACK = {
   'bitcoin': '₿',
