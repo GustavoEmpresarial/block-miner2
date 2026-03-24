@@ -29,7 +29,23 @@ const SYMBOL_FALLBACK = {
 };
 
 const ICON_IMAGES = {};
-Object.entries(CRYPTO_ICONS).forEach(([k, v]) => { const img = new Image(); img.src = v; ICON_IMAGES[k] = img; });
+Object.entries(CRYPTO_ICONS).forEach(([k, v]) => {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onerror = () => { img.__broken = true; };
+  img.src = v;
+  ICON_IMAGES[k] = img;
+});
+
+function canDrawImage(img) {
+  return Boolean(
+    img &&
+    !img.__broken &&
+    img.complete &&
+    img.naturalWidth > 0 &&
+    img.naturalHeight > 0
+  );
+}
 
 function drawRoundedRect(ctx, x, y, w, h, r = 12) {
   const radius = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -267,9 +283,14 @@ export default function Games() {
       drawRoundedRect(ctx, -size / 2, -size / 2, size, size, 16); ctx.fill();
       if (Math.abs(sX) > 0.1 && (card.isFlipped || card.isMatched)) {
         const img = ICON_IMAGES[card.symbol];
-        if (img && img.complete) {
+        if (canDrawImage(img)) {
           ctx.scale(-1, 1);
-          ctx.drawImage(img, -size / 3, -size / 3, size / 1.5, size / 1.5);
+          try {
+            ctx.drawImage(img, -size / 3, -size / 3, size / 1.5, size / 1.5);
+          } catch (_) {
+            img.__broken = true;
+            drawSymbolFallback(ctx, card.symbol, -size / 3, -size / 3, size / 1.5);
+          }
         } else {
           ctx.scale(-1, 1);
           drawSymbolFallback(ctx, card.symbol, -size / 3, -size / 3, size / 1.5);
@@ -290,9 +311,17 @@ export default function Games() {
         const px = sx + piece.visualX * (s + p), py = sy + piece.visualY * (s + p);
         ctx.fillStyle = 'rgba(30, 41, 59, 0.6)'; drawRoundedRect(ctx, sx + x * (s + p), sy + y * (s + p), s, s, 12); ctx.fill();
         const img = ICON_IMAGES[piece.symbol];
-        if (img && img.complete) {
+        if (canDrawImage(img)) {
           ctx.save(); ctx.translate(px + s / 2, py + s / 2);
-          ctx.scale(-1, 1); ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
+          ctx.scale(-1, 1);
+          try {
+            ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
+          } catch (_) {
+            img.__broken = true;
+            ctx.restore();
+            drawSymbolFallback(ctx, piece.symbol, px + 8, py + 8, s - 16);
+            return;
+          }
           ctx.restore();
         } else {
           drawSymbolFallback(ctx, piece.symbol, px + 8, py + 8, s - 16);
@@ -303,10 +332,17 @@ export default function Games() {
       const symbol = state.board[dragInfo.cy]?.[dragInfo.cx];
       if (symbol) {
         const img = ICON_IMAGES[symbol];
-        if (img && img.complete) {
+        if (canDrawImage(img)) {
           ctx.save(); ctx.shadowBlur = 30; ctx.shadowColor = '#3b82f6';
           ctx.translate(dragInfo.mX, dragInfo.mY); ctx.scale(-1.2, 1.2);
-          ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
+          try {
+            ctx.drawImage(img, -s / 2 + 10, -s / 2 + 10, s - 20, s - 20);
+          } catch (_) {
+            img.__broken = true;
+            ctx.restore();
+            drawSymbolFallback(ctx, symbol, dragInfo.mX - s / 2 + 10, dragInfo.mY - s / 2 + 10, s - 20);
+            return;
+          }
           ctx.restore();
         } else {
           drawSymbolFallback(ctx, symbol, dragInfo.mX - s / 2 + 10, dragInfo.mY - s / 2 + 10, s - 20);
