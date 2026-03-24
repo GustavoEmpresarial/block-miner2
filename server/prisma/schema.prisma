@@ -482,7 +482,8 @@ model AutoMiningGpu {
 model AutoMiningGpuLog {
   id          Int      @id @default(autoincrement())
   userId      Int      @map("user_id")
-  gpuId       Int      @map("gpu_id")
+  // Histórico: linhas antigas podem ter gpu_id NULL; novos claims continuam a gravar gpuId.
+  gpuId       Int?     @map("gpu_id")
   rewardId    Int?     @map("reward_id")
   gpuHashRate Float    @map("gpu_hash_rate")
   action      String
@@ -492,7 +493,7 @@ model AutoMiningGpuLog {
   notes       String?
 
   user   User              @relation(fields: [userId], references: [id])
-  gpu    AutoMiningGpu     @relation(fields: [gpuId], references: [id])
+  gpu    AutoMiningGpu?    @relation(fields: [gpuId], references: [id])
   reward AutoMiningReward? @relation(fields: [rewardId], references: [id])
 
   @@index([userId])
