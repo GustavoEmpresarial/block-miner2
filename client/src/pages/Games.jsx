@@ -164,6 +164,14 @@ export default function Games() {
       setIsProcessing(false);
     });
 
+    newSocket.on('game:cooldown', (payload) => {
+      const gameSlug = payload?.game;
+      const remaining = Math.max(0, Number(payload?.remaining || 0));
+      const gameKey = gameSlug === 'crypto-memory' ? 'memory' : gameSlug === 'crypto-match-3' ? 'match-3' : null;
+      if (!gameKey) return;
+      setCooldowns((prev) => ({ ...prev, [gameKey]: remaining }));
+    });
+
     newSocket.on('game:started', (data) => {
       setGameState(data); setIsGameOver(false); setRewardMessage(null); setIsProcessing(false);
       setSelectedCell(null);
@@ -216,9 +224,16 @@ export default function Games() {
     newSocket.on('game:score_update', (data) => { setGameState(prev => prev ? ({ ...prev, score: data.score }) : prev); });
     newSocket.on('game:finished', (data) => {
       setIsGameOver(true);
-      const currentGame = startedGameRef.current || activeGameRef.current;
+      const gameKey =
+        data?.game === 'crypto-memory'
+          ? 'memory'
+          : data?.game === 'crypto-match-3'
+            ? 'match-3'
+            : (startedGameRef.current || activeGameRef.current);
+      const cooldownSec = Math.max(0, Number(data?.cooldownSec || 60));
+      const currentGame = gameKey;
       if (currentGame) {
-        setCooldowns((prev) => ({ ...prev, [currentGame]: 60 }));
+        setCooldowns((prev) => ({ ...prev, [currentGame]: cooldownSec }));
       }
       setSelectedCell(null);
       if (data.success) {

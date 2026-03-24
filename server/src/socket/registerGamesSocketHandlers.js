@@ -14,6 +14,7 @@ const GAME_NAME_BY_SLUG = {
   "crypto-memory": "Memory Sync",
   "crypto-match-3": "Power Match"
 };
+const COOLDOWN_MS = 60_000;
 
 const SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano', 'polkadot', 'dogecoin', 'polygon'];
 const MATCH3_SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano'];
@@ -30,19 +31,20 @@ export function registerGamesSocketHandlers({ io, engine }) {
 
         if (!userId) return socket.emit("game:error", "Sessão inválida.");
 
+        if (!SUPPORTED_GAME_SLUGS.has(gameSlug)) {
+          return socket.emit("game:error", "Jogo indisponível.");
+        }
+
         // Cooldown check per game (1 minute)
         const cooldownKey = `${userId}:${gameSlug}`;
         const lastFinish = LAST_GAME_FINISH.get(cooldownKey);
         if (lastFinish) {
           const elapsed = Date.now() - lastFinish;
-          if (elapsed < 60000) {
-            const remaining = Math.ceil((60000 - elapsed) / 1000);
+          if (elapsed < COOLDOWN_MS) {
+            const remaining = Math.ceil((COOLDOWN_MS - elapsed) / 1000);
+            socket.emit("game:cooldown", { game: gameSlug, remaining });
             return socket.emit("game:error", `Aguarde ${remaining} segundos para iniciar este jogo novamente.`);
           }
-        }
-
-        if (!SUPPORTED_GAME_SLUGS.has(gameSlug)) {
-          return socket.emit("game:error", "Jogo indisponível.");
         }
         // Garante que jogos oficiais nunca fiquem desativados no banco.
         const game = await prisma.game.upsert({
@@ -244,12 +246,27 @@ async function finishGame(socket, state, success, engine) {
       const miner = engine.miners.get(state.userId.toString());
       if (miner) miner.baseHashRate = total;
 
-      socket.emit("game:finished", { success: true, reward: `BÔNUS DE ${MEMORY_GAME_REWARD_HS} H/S ATIVADO POR 24H!` });
+      socket.emit("game:finished", {
+        success: true,
+        reward: `BÔNUS DE ${MEMORY_GAME_REWARD_HS} H/S ATIVADO POR 24H!`,
+        game: state.slug,
+        cooldownSec: Math.ceil(COOLDOWN_MS / 1000)
+      });
       socket.emit("machines:update");
     } catch (e) { 
-      socket.emit("game:finished", { success: true, reward: "BÔNUS PROCESSADO COM SUCESSO!" });
+      socket.emit("game:finished", {
+        success: true,
+        reward: "BÔNUS PROCESSADO COM SUCESSO!",
+        game: state.slug,
+        cooldownSec: Math.ceil(COOLDOWN_MS / 1000)
+      });
     }
   } else {
-    socket.emit("game:finished", { success: false, message: "SESSÃO ENCERRADA!" });
+    socket.emit("game:finished", {
+      success: false,
+      message: "SESSÃO ENCERRADA!",
+      game: state.slug,
+      cooldownSec: Math.ceil(COOLDOWN_MS / 1000)
+    });
   }
 }
