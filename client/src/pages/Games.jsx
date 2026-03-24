@@ -316,9 +316,22 @@ export default function Games() {
     return () => cancelAnimationFrame(gameLoopRef.current);
   }, [activeGame, gameState, isGameOver, selectedCell, isMobileViewport]);
 
+  const getMemoryLayout = () => {
+    const size = isMobileViewport ? 128 : 100;
+    const padding = isMobileViewport ? 16 : 20;
+    return { size, padding };
+  };
+
+  const getMatch3Layout = () => {
+    const cell = isMobileViewport ? 58 : 50;
+    const gap = isMobileViewport ? 10 : 8;
+    return { cell, gap };
+  };
+
   const drawMemory = (ctx, state) => {
     if (!state.board) return;
-    const cols = 4, padding = 20, size = 100;
+    const { size, padding } = getMemoryLayout();
+    const cols = 4;
     const sx = (800 - (cols * (size + padding))) / 2, sy = (500 - (4 * (size + padding))) / 2;
     state.board.forEach((card, i) => {
       const x = sx + (i % cols) * (size + padding), y = sy + Math.floor(i / cols) * (size + padding);
@@ -356,7 +369,7 @@ export default function Games() {
 
   const drawMatch3 = (ctx, state) => {
     if (!visualBoard.current.length) return;
-    const s = 50, p = 8;
+    const { cell: s, gap: p } = getMatch3Layout();
     const sx = (800 - (8 * (s + p))) / 2, sy = (500 - (8 * (s + p))) / 2;
     const glowPulse = 0.65 + Math.sin(Date.now() / 170) * 0.2;
     visualBoard.current.forEach((row, y) => {
@@ -428,14 +441,18 @@ export default function Games() {
     pointer.current.isDown = true;
     const { x, y } = syncMouse(e);
     if (activeGame === 'memory') {
-      const p = 20, s = 100, sx = (800 - (4 * (s + p))) / 2, sy = (500 - (4 * (s + p))) / 2;
+      const { size: s, padding: p } = getMemoryLayout();
+      const sx = (800 - (4 * (s + p))) / 2;
+      const sy = (500 - (4 * (s + p))) / 2;
       const col = Math.floor((x - sx) / (s + p)), row = Math.floor((y - sy) / (s + p));
       if (col >= 0 && col < 4 && row >= 0 && row < 4) {
         const lx = (x - sx) % (s + p), ly = (y - sy) % (s + p);
         if (lx < s && ly < s) socket.emit('game:action', { type: 'flip', cardId: row * 4 + col });
       }
     } else if (activeGame === 'match-3') {
-      const s = 50, p = 8, sx = (800 - (8 * (s + p))) / 2, sy = (500 - (8 * (s + p))) / 2;
+      const { cell: s, gap: p } = getMatch3Layout();
+      const sx = (800 - (8 * (s + p))) / 2;
+      const sy = (500 - (8 * (s + p))) / 2;
       const cx = Math.floor((x - sx) / (s + p)), cy = Math.floor((y - sy) / (s + p));
       if (cx >= 0 && cx < 8 && cy >= 0 && cy < 8) {
         if (!selectedCell) {
@@ -472,7 +489,7 @@ export default function Games() {
 
   return (
     <div
-      className={mobileFullscreen ? "fixed inset-0 z-[120] bg-slate-950 p-2" : "space-y-8 animate-in fade-in duration-1000"}
+      className={mobileFullscreen ? "fixed inset-0 z-[120] bg-slate-950 p-1.5" : "space-y-8 animate-in fade-in duration-1000"}
       style={mobileFullscreen ? { direction: 'ltr', height: 'calc(var(--app-vh, 1vh) * 100)' } : { direction: 'ltr' }}
     >
       {!mobileFullscreen && (
@@ -544,7 +561,7 @@ export default function Games() {
             ) : !gameState ? (
               <div className={`flex flex-col items-center justify-center gap-6 py-8 ${mobileFullscreen ? 'h-full' : 'min-h-[min(550px,70dvh)] sm:h-[550px]'}`}><div className="w-16 h-16 sm:w-24 sm:h-24 border-4 sm:border-8 border-primary border-t-transparent rounded-full animate-spin shadow-glow" /><p className="text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.6em] animate-pulse text-xs sm:text-base text-center px-2">Sincronizando...</p></div>
             ) : (
-              <div className={`relative w-full overflow-hidden bg-black shadow-inner ${mobileFullscreen ? 'rounded-xl max-h-full aspect-[16/10]' : 'min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem]'}`}>
+              <div className={`relative w-full overflow-hidden bg-black shadow-inner ${mobileFullscreen ? 'rounded-xl flex-1 min-h-0 flex items-center justify-center' : 'min-h-[280px] h-[min(500px,65dvh)] sm:h-[500px] rounded-2xl sm:rounded-[2.5rem]'}`}>
                 <canvas ref={canvasRef} width={800} height={500} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp} className="w-full h-full object-fill" style={{ cursor: isMobileViewport ? 'default' : 'none' }} />
               </div>
             )}
