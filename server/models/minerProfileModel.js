@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { stripAccidentalBillionScaleHs } from '../utils/hashRateScale.js';
 
 export async function getOrCreateMinerProfile(user) {
+  if (!user?.id) return null;
+
   let dbUser = await prisma.user.findUnique({
     where: { id: user.id },
     select: {
@@ -15,6 +17,8 @@ export async function getOrCreateMinerProfile(user) {
       }
     }
   });
+
+  if (!dbUser) return null;
 
   // Ensure user has a refCode
   if (!dbUser.refCode) {

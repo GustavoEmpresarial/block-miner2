@@ -126,7 +126,7 @@ async function syncEngineMiners(engine) {
     
     for (const user of users) {
       const profile = await getOrCreateMinerProfile(user);
-      if (profile.base_hash_rate > 0) {
+      if (profile && profile.base_hash_rate > 0) {
         engine.createOrGetMiner({
           userId: user.id,
           username: profile.username || user.name,
