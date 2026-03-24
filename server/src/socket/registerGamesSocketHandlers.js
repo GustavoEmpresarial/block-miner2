@@ -7,7 +7,13 @@ import { getTokenFromRequest } from '../../utils/token.js';
 const logger = loggerLib.child("GamesSocket");
 const GAME_SESSIONS = new Map();
 const LAST_GAME_FINISH = new Map();
-const MEMORY_GAME_REWARD_HS = Number(process.env.MEMORY_GAME_REWARD_HS || 50);
+/** Regra fixa do produto: 50 H/s por jogo concluído com sucesso. */
+const MEMORY_GAME_REWARD_HS = 50;
+const SUPPORTED_GAME_SLUGS = new Set(["crypto-memory", "crypto-match-3"]);
+const GAME_NAME_BY_SLUG = {
+  "crypto-memory": "Memory Sync",
+  "crypto-match-3": "Power Match"
+};
 
 const SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano', 'polkadot', 'dogecoin', 'polygon'];
 const MATCH3_SYMBOLS = ['bitcoin', 'ethereum', 'solana', 'binance-coin', 'cardano'];
@@ -34,8 +40,15 @@ export function registerGamesSocketHandlers({ io, engine }) {
           }
         }
 
-        const game = await prisma.game.findUnique({ where: { slug: gameSlug } });
-        if (!game || !game.isActive) return socket.emit("game:error", "Jogo indisponível.");
+        if (!SUPPORTED_GAME_SLUGS.has(gameSlug)) {
+          return socket.emit("game:error", "Jogo indisponível.");
+        }
+        // Garante que jogos oficiais nunca fiquem desativados no banco.
+        const game = await prisma.game.upsert({
+          where: { slug: gameSlug },
+          update: { isActive: true },
+          create: { slug: gameSlug, name: GAME_NAME_BY_SLUG[gameSlug] || gameSlug, isActive: true }
+        });
 
         let initialState = {
           gameId: Number(game.id),
