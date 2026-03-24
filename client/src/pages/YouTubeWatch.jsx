@@ -16,11 +16,16 @@ export default function YouTubeWatch() {
     const [stats, setStats] = useState(null);
     /** Re-render ao mudar separador para alinhar countdown com heartbeats (só creditam com separador visível). */
     const [tabVisible, setTabVisible] = useState(() => (typeof document !== 'undefined' ? !document.hidden : true));
+    /** Uma aba líder por browser para impedir contagem dupla de heartbeats. */
+    const [isLeaderTab, setIsLeaderTab] = useState(true);
 
     const timerRef = useRef(null);
+    const tabIdRef = useRef(`yt-${Math.random().toString(36).slice(2)}-${Date.now()}`);
     const GH = 1000000000;
     /** Alinhar com throttle de 8s no servidor; 10s gerava "tempo insuficiente" por batimentos ignorados. */
     const YT_HEARTBEAT_MS = 8000;
+    const LEADER_KEY = 'bm:yt:leader';
+    const LEADER_TTL_MS = 15000;
 
     const extractVideoId = (input) => {
         const raw = String(input || "").trim();
@@ -89,6 +94,66 @@ export default function YouTubeWatch() {
         return () => document.removeEventListener('visibilitychange', onVis);
     }, []);
 
+    useEffect(() => {
+        const me = tabIdRef.current;
+
+        const readLeader = () => {
+            try {
+                const raw = localStorage.getItem(LEADER_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch {
+                return null;
+            }
+        };
+
+        const writeLeader = () => {
+            const payload = { tabId: me, ts: Date.now() };
+            localStorage.setItem(LEADER_KEY, JSON.stringify(payload));
+            setIsLeaderTab(true);
+        };
+
+        const tryBecomeLeader = () => {
+            const leader = readLeader();
+            const expired = !leader || Date.now() - Number(leader.ts || 0) > LEADER_TTL_MS;
+            if (expired || leader.tabId === me) {
+                writeLeader();
+            } else {
+                setIsLeaderTab(false);
+            }
+        };
+
+        const onStorage = (e) => {
+            if (e.key !== LEADER_KEY) return;
+            const leader = readLeader();
+            setIsLeaderTab(!leader || leader.tabId === me);
+        };
+
+        tryBecomeLeader();
+        const heartbeat = setInterval(() => {
+            if (!isRunning || !tabVisible || !videoId) return;
+            const leader = readLeader();
+            const age = Date.now() - Number(leader?.ts || 0);
+            if (!leader || age > LEADER_TTL_MS || leader.tabId === me) {
+                writeLeader();
+            } else {
+                setIsLeaderTab(false);
+            }
+        }, 3000);
+
+        const onBeforeUnload = () => {
+            const leader = readLeader();
+            if (leader?.tabId === me) localStorage.removeItem(LEADER_KEY);
+        };
+        window.addEventListener('storage', onStorage);
+        window.addEventListener('beforeunload', onBeforeUnload);
+
+        return () => {
+            clearInterval(heartbeat);
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener('beforeunload', onBeforeUnload);
+        };
+    }, [isRunning, tabVisible, videoId]);
+
     const handleLoadVideo = (e) => {
         if (!validateTrustedEvent(e)) return;
         const id = extractVideoId(url);
@@ -131,11 +196,11 @@ export default function YouTubeWatch() {
                 console.error("Heartbeat sync failed");
             }
         };
-        if (isRunning) {
+        if (isRunning && isLeaderTab) {
             void sendYoutubeHeartbeat();
             heartbeatInterval = setInterval(sendYoutubeHeartbeat, YT_HEARTBEAT_MS);
             const onVisible = () => {
-                if (!document.hidden && isRunning) void sendYoutubeHeartbeat();
+                if (!document.hidden && isRunning && isLeaderTab) void sendYoutubeHeartbeat();
             };
             document.addEventListener('visibilitychange', onVisible);
             return () => {
@@ -144,10 +209,10 @@ export default function YouTubeWatch() {
             };
         }
         return undefined;
-    }, [isRunning]);
+    }, [isRunning, isLeaderTab]);
 
     useEffect(() => {
-        if (!isRunning || !tabVisible) {
+        if (!isRunning || !tabVisible || !isLeaderTab) {
             clearInterval(timerRef.current);
             timerRef.current = null;
             return undefined;
@@ -166,7 +231,7 @@ export default function YouTubeWatch() {
             clearInterval(timerRef.current);
             timerRef.current = null;
         };
-    }, [isRunning, videoId, tabVisible, claimReward]);
+    }, [isRunning, videoId, tabVisible, isLeaderTab, claimReward]);
 
     const handleToggleRunning = (e) => {
         if (!validateTrustedEvent(e)) return;
