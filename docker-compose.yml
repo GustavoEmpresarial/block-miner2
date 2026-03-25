@@ -12,7 +12,10 @@ services:
     restart: unless-stopped
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_TELEGRAM_SUPPORT_URL: ${VITE_TELEGRAM_SUPPORT_URL:-https://t.me/+KPgyUFtKCZ00Y2Vh}
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -29,8 +32,21 @@ services:
       BACKUP_DIR: /app/backups
       BACKUP_RETENTION_DAYS: 7
       BACKUP_INTERVAL_HOURS: 24
+      # Backup (valores vêm do .env na raiz; ver também config/env.backup.vps.example)
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-false}
+      BACKUP_CRON: "${BACKUP_CRON:-0 3 * * *}"
+      BACKUP_RUN_ON_STARTUP: ${BACKUP_RUN_ON_STARTUP:-false}
+      BACKUP_STARTUP_DELAY_MS: ${BACKUP_STARTUP_DELAY_MS:-60000}
+      BACKUP_FILENAME_PREFIX: ${BACKUP_FILENAME_PREFIX:-blockminer-db-}
+      BACKUP_PG_GZIP: ${BACKUP_PG_GZIP:-true}
+      BACKUP_EXTERNAL_ENABLED: ${BACKUP_EXTERNAL_ENABLED:-false}
+      BACKUP_EXTERNAL_DIR: ${BACKUP_EXTERNAL_DIR:-}
+      BACKUP_EXTERNAL_RETENTION_DAYS: ${BACKUP_EXTERNAL_RETENTION_DAYS:-30}
       BACKUP_CLOUD_ENABLED: ${BACKUP_CLOUD_ENABLED:-false}
       BACKUP_CLOUD_REMOTE: ${BACKUP_CLOUD_REMOTE:-}
+      BACKUP_CLOUD_TIMEOUT_MS: ${BACKUP_CLOUD_TIMEOUT_MS:-120000}
+      BACKUP_FULL_SITE_ON_STARTUP: ${BACKUP_FULL_SITE_ON_STARTUP:-false}
+      BACKUP_FULL_SITE_STARTUP_DELAY_MS: ${BACKUP_FULL_SITE_STARTUP_DELAY_MS:-15000}
       # Check-in: valor padrão 0,01 POL se .env não definir (receiver usa CHECKIN_RECEIVER ou DEPOSIT_WALLET_ADDRESS no código)
       CHECKIN_AMOUNT_WEI: ${CHECKIN_AMOUNT_WEI:-10000000000000000}
       # Redefinição de senha: sobrepõe PASSWORD_RESET_TOKEN_TTL do .env (evita e-mail a dizer 20m por configs antigas).

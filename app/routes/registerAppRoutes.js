@@ -266,7 +266,12 @@ function registerAppRoutes({
       for (const entry of entries) {
         if (!entry.isFile()) continue;
         const name = String(entry.name || "");
-        if (!name.endsWith(".db") && !name.endsWith(".tar.gz")) continue;
+        const isBackupFile =
+          name.endsWith(".db") ||
+          name.endsWith(".sql") ||
+          name.endsWith(".sql.gz") ||
+          name.endsWith(".tar.gz");
+        if (!isBackupFile) continue;
 
         const fullPath = path.join(backupConfig.backupDir, name);
         const stat = await fs.stat(fullPath).catch(() => null);
@@ -430,7 +435,12 @@ function registerAppRoutes({
       const filename = String(req.body.filename || "").trim();
 
       const safeName = path.basename(filename);
-      if (safeName !== filename || (!safeName.endsWith(".db") && !safeName.endsWith(".tar.gz"))) {
+      const allowedBackupExt =
+        safeName.endsWith(".db") ||
+        safeName.endsWith(".sql") ||
+        safeName.endsWith(".sql.gz") ||
+        safeName.endsWith(".tar.gz");
+      if (safeName !== filename || !allowedBackupExt) {
         res.status(400).json({ ok: false, message: "Invalid backup filename." });
         return;
       }

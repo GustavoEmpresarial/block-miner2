@@ -1,6 +1,8 @@
 # Stage 1: Build React Frontend
 FROM node:20-bookworm-slim AS frontend-builder
 WORKDIR /app
+ARG VITE_TELEGRAM_SUPPORT_URL=https://t.me/+KPgyUFtKCZ00Y2Vh
+ENV VITE_TELEGRAM_SUPPORT_URL=$VITE_TELEGRAM_SUPPORT_URL
 COPY client/package*.json ./
 RUN npm ci
 COPY client/ ./
@@ -13,7 +15,7 @@ LABEL maintainer="blockminer"
 
 # OpenSSL is required by Prisma.
 RUN apt-get update && \
-    apt-get install -y openssl rclone ca-certificates netcat-openbsd && \
+    apt-get install -y openssl rclone postgresql-client ca-certificates netcat-openbsd && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 

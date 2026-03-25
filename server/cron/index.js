@@ -1,7 +1,7 @@
 import { startMiningLoop } from "./miningCron.js";
 import { startGamePowerCleanup } from "./gamePowerCleanup.js";
 import { startWithdrawalMonitoring } from "./withdrawalsCron.js";
-import { startBackupCron, runFullSiteBackupOnStartup } from "./backupCron.js";
+import { startBackupCron, runDatabaseBackupOnStartup, runFullSiteBackupOnStartup } from "./backupCron.js";
 import { startCallbackQueueProcessing } from "./callbackQueueCron.js";
 import { startShortlinkResetCron } from "./shortlinkResetCron.js";
 import { startDepositMonitoring } from "./depositsCron.js";
@@ -22,19 +22,19 @@ export function startCronTasks({
 
   const cleanupTimers = startGamePowerCleanup({ engine, io, run });
   const withdrawalTimers = startWithdrawalMonitoring();
-  // const backupTimers = startBackupCron({ run });
+  const backupTimers = startBackupCron();
   const callbackQueueTimers = startCallbackQueueProcessing();
   const shortlinkResetTimers = startShortlinkResetCron();
   const depositTimers = startDepositMonitoring();
 
-  // Run full site backup on startup (includes DB + all files)
-  // runFullSiteBackupOnStartup();
+  runDatabaseBackupOnStartup();
+  runFullSiteBackupOnStartup();
 
   return {
     ...miningTimers,
     ...cleanupTimers,
     ...withdrawalTimers,
-    // ...backupTimers,
+    ...backupTimers,
     ...callbackQueueTimers,
     ...shortlinkResetTimers,
     ...depositTimers

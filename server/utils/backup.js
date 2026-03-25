@@ -37,6 +37,80 @@ function getDefaultDbPath() {
   return path.resolve(process.env.DB_PATH || path.join(process.cwd(), "data", "blockminer.db"));
 }
 
+function isPostgresDatabaseUrl(url) {
+  const u = String(url || "").trim().toLowerCase();
+  return u.startsWith("postgresql://") || u.startsWith("postgres://");
+}
+
+/** Strip Prisma-style ?schema=… so libpq/pg_dump accept the URI. */
+function sanitizePostgresUrlForPgDump(databaseUrl) {
+  try {
+    const u = new URL(databaseUrl);
+    u.search = "";
+    return u.href;
+  } catch {
+    return databaseUrl;
+  }
+}
+
+function spawnCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+      ...options
+    });
+
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk || "");
+    });
+
+    child.on("error", (error) => {
+      reject(new Error(`${command} failed to start: ${error.message}`));
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve({ stderr });
+      } else {
+        reject(new Error(`${command} exited ${code}: ${stderr.slice(-800)}`));
+      }
+    });
+  });
+}
+
+async function createPostgresBackup({ backupDir, filenamePrefix, logger }) {
+  const databaseUrl = String(process.env.DATABASE_URL || "").trim();
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  const startedAt = Date.now();
+  await ensureDir(backupDir);
+  const stamp = formatTimestamp(new Date());
+  const sqlFile = path.join(backupDir, `${filenamePrefix}${stamp}.sql`);
+  const safeUrl = sanitizePostgresUrlForPgDump(databaseUrl);
+
+  await spawnCommand("pg_dump", [safeUrl, "-f", sqlFile, "--no-owner", "--no-acl"]);
+
+  const gzipEnabled = parseBoolean(process.env.BACKUP_PG_GZIP, true);
+  let backupFile = sqlFile;
+  if (gzipEnabled) {
+    await spawnCommand("gzip", ["-f", sqlFile]);
+    backupFile = `${sqlFile}.gz`;
+  }
+
+  if (logger && logger.info) {
+    logger.info("PostgreSQL backup created", {
+      backupFile: path.basename(backupFile),
+      durationMs: Date.now() - startedAt
+    });
+  }
+
+  return { backupFile, method: gzipEnabled ? "pg_dump+gzip" : "pg_dump", durationMs: Date.now() - startedAt };
+}
+
 function getBackupConfig() {
   const backupDir = path.resolve(process.env.BACKUP_DIR || path.join(process.cwd(), "backups"));
   const retentionDays = parseNumber(process.env.BACKUP_RETENTION_DAYS, 7);
@@ -71,11 +145,19 @@ async function ensureDir(dir) {
 }
 
 async function createDatabaseBackup({ run, backupDir, filenamePrefix, logger }) {
+  if (isPostgresDatabaseUrl(process.env.DATABASE_URL)) {
+    return createPostgresBackup({ backupDir, filenamePrefix, logger });
+  }
+
   const startedAt = Date.now();
   await ensureDir(backupDir);
 
   const stamp = formatTimestamp(new Date());
   const backupFile = path.join(backupDir, `${filenamePrefix}${stamp}.db`);
+
+  if (typeof run !== "function") {
+    throw new Error("SQLite backup requires a run() callback; set DATABASE_URL to postgres:// for pg_dump backups.");
+  }
 
   // Preferred: consistent SQLite backup without racing a live WAL file.
   try {
@@ -107,7 +189,9 @@ async function pruneBackups({ backupDir, retentionDays, filenamePrefix, logger }
   }
 
   const entries = await fsp.readdir(backupDir, { withFileTypes: true });
-  const backupRegex = new RegExp(`^${escapeRegExp(filenamePrefix)}\\d{8}-\\d{6}\\.db$`);
+  const backupRegex = new RegExp(
+    `^${escapeRegExp(filenamePrefix)}\\d{8}-\\d{6}\\.(db|sql|sql\\.gz|tar\\.gz)$`
+  );
   let deleted = 0;
 
   for (const entry of entries) {
