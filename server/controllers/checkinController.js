@@ -52,6 +52,37 @@ async function rpcCall(method, params) {
   return payload.result;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Consulta via PolygonScan/Etherscan (método "proxy") para reduzir falhas intermitentes do RPC.
+ * Docs: /api?module=proxy&action=eth_getTransactionByHash|eth_getTransactionReceipt&txhash=...&apikey=...
+ */
+async function etherscanProxyCall(action, txHash) {
+  const polygonKey = String(process.env.POLYGONSCAN_API_KEY || "").trim();
+  const etherscanKey = String(process.env.ETHERSCAN_API_KEY || "").trim();
+  const apiKey = polygonKey || etherscanKey;
+  if (!apiKey) return null;
+
+  // Preferimos o endpoint do PolygonScan se a chave de PolygonScan existir.
+  const baseUrl = polygonKey ? "https://api.polygonscan.com/api" : "https://api.etherscan.io/api";
+  const url = `${baseUrl}?module=proxy&action=${encodeURIComponent(action)}&txhash=${encodeURIComponent(
+    txHash
+  )}&apikey=${encodeURIComponent(apiKey)}`;
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Explorer HTTP ${response.status}`);
+
+  const payload = await response.json();
+  // Etherscan/Polygonscan usa "status=1" quando deu certo e "message=OK" em geral.
+  // Quando não encontrou ainda, costuma vir "status=0" e "result" pode vir vazio.
+  if (String(payload?.status) !== "1") return null;
+
+  return payload?.result ?? null;
+}
+
 async function getTodayCheckin(userId) {
   const today = getBrazilCheckinDateKey();
   return prisma.dailyCheckin.findUnique({
@@ -123,7 +154,21 @@ export async function confirmCheckin(req, res) {
       });
     }
 
-    const tx = await rpcCall("eth_getTransactionByHash", [incomingTxHash]);
+    // Preferência: API do Explorer para reduzir inconsistências do RPC.
+    // Fallback: RPC local se o explorer não retornar o tx ainda.
+    let tx = null;
+    try {
+      for (let i = 0; i < 3; i++) {
+        tx = await etherscanProxyCall("eth_getTransactionByHash", incomingTxHash);
+        if (tx) break;
+        await sleep(900);
+      }
+    } catch {
+      tx = null;
+    }
+    if (!tx) {
+      tx = await rpcCall("eth_getTransactionByHash", [incomingTxHash]);
+    }
     if (!tx) {
       return res.status(400).json({ ok: false, message: "Transaction not found on-chain." });
     }
@@ -150,7 +195,23 @@ export async function confirmCheckin(req, res) {
       return res.status(400).json({ ok: false, message: "Payment amount is below the required check-in fee." });
     }
 
-    const receipt = await rpcCall("eth_getTransactionReceipt", [incomingTxHash]);
+    // Preferência: API do Explorer (PolygonScan/Etherscan) para reduzir inconsistências do RPC.
+    // Fallback: RPC local se o explorer não retornar receipt.
+    let receipt = null;
+    try {
+      for (let i = 0; i < 4; i++) {
+        receipt = await etherscanProxyCall("eth_getTransactionReceipt", incomingTxHash);
+        const status = String(receipt?.status || "").toLowerCase();
+        if (receipt && status) break;
+        await sleep(1200);
+      }
+    } catch {
+      receipt = null;
+    }
+
+    if (!receipt) {
+      receipt = await rpcCall("eth_getTransactionReceipt", [incomingTxHash]);
+    }
     if (!receipt || String(receipt.status || "").toLowerCase() !== "0x1") {
       return res.status(400).json({ ok: false, message: "Transaction is not confirmed or failed on-chain." });
     }

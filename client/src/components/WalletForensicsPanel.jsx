@@ -1,3 +1,5 @@
+import { useState, useMemo, useCallback } from 'react';
+import { toast } from 'sonner';
 import {
   Loader2,
   ExternalLink,
@@ -8,8 +10,18 @@ import {
   RefreshCw,
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  CircleDollarSign
 } from 'lucide-react';
+
+function normTxKey(hash) {
+  let s = String(hash || '')
+    .trim()
+    .toLowerCase();
+  if (!s) return '';
+  if (/^[a-f0-9]{64}$/.test(s)) s = `0x${s}`;
+  return /^0x[a-f0-9]{64}$/.test(s) ? s : '';
+}
 
 function TxLink({ base, hash, className = '' }) {
   if (!hash) return <span className="text-zinc-500">—</span>;
@@ -27,9 +39,119 @@ function TxLink({ base, hash, className = '' }) {
   );
 }
 
-export default function WalletForensicsPanel({ loading, data, onRefresh }) {
+export default function WalletForensicsPanel({
+  loading,
+  data,
+  onRefresh,
+  creditDeposit,
+  canApproveDeposits = false
+}) {
   const base = data?.polygonscanBase || 'https://polygonscan.com/tx/';
   const days = data?.walletComparison?.chainDays ?? 365;
+  const [approvingHash, setApprovingHash] = useState(null);
+  const [amountDrafts, setAmountDrafts] = useState({});
+
+  const pendingApproveRows = useMemo(() => {
+    if (!data) return [];
+    const onChain = data.onChainDepositsToGame || [];
+    const ticketHashes = data.ticketHashesAnalysis || [];
+    const rows = [];
+    const seen = new Set();
+
+    for (const c of onChain) {
+      if (c.inLedger) continue;
+      const k = normTxKey(c.hash);
+      if (!k) continue;
+      rows.push({
+        key: k,
+        hash: c.hash,
+        amountPol: Number(c.valuePol),
+        needsAmount: false,
+        subtitle: 'Transferência on-chain para a carteira de depósito do jogo (sem registo no ledger).',
+        from: c.from,
+        dateIso: c.dateIso
+      });
+      seen.add(k);
+    }
+
+    for (const t of ticketHashes) {
+      if (t.inLedger) continue;
+      const k = normTxKey(t.hash);
+      if (!k || seen.has(k)) continue;
+      const amt =
+        t.chainValuePol != null && Number(t.chainValuePol) > 0 ? Number(t.chainValuePol) : null;
+      rows.push({
+        key: k,
+        hash: t.hash,
+        amountPol: amt,
+        needsAmount: amt == null,
+        subtitle: t.chainLooksLikeDepositToGame
+          ? 'Hash colado no chamado — cadeia indica envio para o endereço de depósito.'
+          : 'Hash colado no chamado — valor lido da cadeia quando disponível; caso contrário preencha o POL.',
+        from: t.chainFrom,
+        dateIso: null
+      });
+      seen.add(k);
+    }
+
+    return rows;
+  }, [data]);
+
+  const runCredit = useCallback(
+    async (hashDisplay, amountPol, adminNoteExtra, opts = {}) => {
+      if (!creditDeposit || !canApproveDeposits) return;
+      const k = normTxKey(hashDisplay);
+      if (!k) {
+        toast.error('TxHash inválido.');
+        return;
+      }
+      const amt = Number(amountPol);
+      if (!Number.isFinite(amt) || amt <= 0) {
+        toast.error('Indique um valor POL válido.');
+        return;
+      }
+      const replenish = Boolean(opts.replenishIfDepositExistsForUser);
+      setApprovingHash(k);
+      try {
+        const res = await creditDeposit({
+          amountPol: amt,
+          txHash: k,
+          adminNote: `Crédito individual painel · ${adminNoteExtra || k}`,
+          skipTicketReply: true,
+          replenishIfDepositExistsForUser: replenish
+        });
+        if (res?.mode === 'replenish') {
+          toast.success(
+            `${amt.toFixed(6)} POL repostos no saldo (ledger já tinha este depósito; sem linha duplicada).`
+          );
+        } else {
+          toast.success(`${amt.toFixed(6)} POL creditados · registo com este TxHash no ledger.`);
+        }
+        setAmountDrafts((prev) => {
+          const next = { ...prev };
+          delete next[k];
+          return next;
+        });
+      } catch (e) {
+        toast.error(e?.response?.data?.message || e?.message || 'Falha ao creditar.');
+      } finally {
+        setApprovingHash(null);
+      }
+    },
+    [creditDeposit, canApproveDeposits]
+  );
+
+  const handleApproveRow = useCallback(
+    async (row) => {
+      let amt = row.amountPol;
+      if (row.needsAmount) {
+        const draft = amountDrafts[row.key] ?? '';
+        amt = Number(String(draft).replace(',', '.'));
+      }
+      await runCredit(row.hash, amt, row.subtitle?.slice(0, 80));
+    },
+    [amountDrafts, runCredit]
+  );
 
   if (loading) {
     return (
@@ -95,6 +217,94 @@ export default function WalletForensicsPanel({ loading, data, onRefresh }) {
         </div>
       ) : null}
 
+      {pendingApproveRows.length > 0 ? (
+        <div className="rounded-xl border-2 border-amber-500/55 bg-gradient-to-b from-amber-950/50 to-zinc-950 p-4 space-y-3 shadow-lg shadow-amber-950/20">
+          <div className="flex items-start gap-2">
+            <CircleDollarSign className="w-6 h-6 text-amber-400 shrink-0" />
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-black uppercase tracking-wide text-amber-200">
+                Aprovar depósitos um a um ({pendingApproveRows.length})
+              </p>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                Cada <span className="text-amber-100 font-semibold">Aprovar crédito</span> cria um depósito{' '}
+                <span className="font-mono text-zinc-200">completed</span> no ledger. Na tabela abaixo, linhas já «Sim (completed)»
+                têm <span className="text-cyan-200/90 font-semibold">Repor POL</span> para somar saldo quando o registo existe mas o
+                POL sumiu após migração (não duplica o depósito).
+              </p>
+              {!canApproveDeposits ? (
+                <p className="text-[11px] text-rose-400 font-bold">
+                  Sem utilizador vinculado ao ticket — não é possível aprovar até haver conta associada.
+                </p>
+              ) : !creditDeposit ? (
+                <p className="text-[11px] text-zinc-500">Função de crédito indisponível.</p>
+              ) : null}
+            </div>
+          </div>
+          <ul className="space-y-3 max-h-[min(360px,45vh)] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-zinc-700">
+            {pendingApproveRows.map((row) => (
+              <li
+                key={row.key}
+                className="rounded-xl border border-zinc-700 bg-zinc-900/90 p-3 space-y-2 text-[11px] text-zinc-200"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold tabular-nums text-white text-sm">
+                    {row.needsAmount ? (
+                      <span className="text-amber-300/90 mr-2">POL:</span>
+                    ) : (
+                      <>{Number(row.amountPol).toFixed(6)} POL</>
+                    )}
+                  </span>
+                  <TxLink base={base} hash={row.hash} className="text-[10px]" />
+                </div>
+                {row.needsAmount ? (
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Quantia POL (obrigatório)"
+                    value={amountDrafts[row.key] ?? ''}
+                    onChange={(e) =>
+                      setAmountDrafts((prev) => ({ ...prev, [row.key]: e.target.value }))
+                    }
+                    className="w-full bg-zinc-950 border border-zinc-600 rounded-lg px-2 py-1.5 font-mono text-xs text-white"
+                  />
+                ) : null}
+                <p className="text-zinc-500 leading-snug">{row.subtitle}</p>
+                {row.dateIso ? (
+                  <p className="text-[10px] font-mono text-zinc-600">
+                    {row.dateIso.replace('T', ' ').slice(0, 19)} UTC
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={
+                    !canApproveDeposits ||
+                    !creditDeposit ||
+                    approvingHash === row.key ||
+                    (row.needsAmount && !String(amountDrafts[row.key] || '').trim())
+                  }
+                  onClick={() => void handleApproveRow(row)}
+                  className="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-40 disabled:pointer-events-none text-[10px] font-black uppercase tracking-widest text-white border border-amber-400/30"
+                >
+                  {approvingHash === row.key ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> A creditar…
+                    </span>
+                  ) : (
+                    'Aprovar crédito (ledger + saldo)'
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-[11px] text-zinc-500">
+          Nenhuma linha só «sem ledger» para a caixa âmbar. Na tabela de depósitos on-chain, use{' '}
+          <span className="text-zinc-300 font-semibold">Repor POL</span> se o ledger já marca o depósito mas o saldo precisa ser
+          reposto. Créditos avulsos: bloco cyan no ticket.
+        </div>
+      )}
+
       <div className="rounded-xl bg-zinc-900 border border-emerald-600/40 p-4 space-y-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
           <ArrowDownCircle className="w-4 h-4" />
@@ -118,6 +328,7 @@ export default function WalletForensicsPanel({ loading, data, onRefresh }) {
                   <th className="py-2.5 px-2 font-bold">TxHash</th>
                   <th className="py-2.5 px-2 font-bold">De</th>
                   <th className="py-2.5 px-2 font-bold">No ledger?</th>
+                  <th className="py-2.5 px-2 font-bold">Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -144,6 +355,46 @@ export default function WalletForensicsPanel({ loading, data, onRefresh }) {
                         </span>
                       )}
                     </td>
+                    <td className="py-2.5 px-2 align-top">
+                      {!row.inLedger && creditDeposit && canApproveDeposits ? (
+                        <button
+                          type="button"
+                          disabled={approvingHash === normTxKey(row.hash)}
+                          onClick={() =>
+                            void runCredit(row.hash, Number(row.valuePol), 'tabela on-chain → jogo')
+                          }
+                          className="whitespace-nowrap px-2 py-1.5 rounded-lg bg-amber-700/90 hover:bg-amber-600 text-[9px] font-black uppercase tracking-tight text-white disabled:opacity-40"
+                        >
+                          {approvingHash === normTxKey(row.hash) ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                          ) : (
+                            'Aprovar'
+                          )}
+                        </button>
+                      ) : row.inLedger && creditDeposit && canApproveDeposits ? (
+                        <button
+                          type="button"
+                          disabled={approvingHash === normTxKey(row.hash)}
+                          onClick={() =>
+                            void runCredit(row.hash, Number(row.valuePol), 'repor saldo · on-chain já no ledger', {
+                              replenishIfDepositExistsForUser: true
+                            })
+                          }
+                          title="Incrementa saldo sem criar segundo depósito (mesmo TxHash)"
+                          className="whitespace-nowrap px-2 py-1.5 rounded-lg bg-cyan-800/90 hover:bg-cyan-700 text-[9px] font-black uppercase tracking-tight text-white disabled:opacity-40 border border-cyan-600/40"
+                        >
+                          {approvingHash === normTxKey(row.hash) ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                          ) : (
+                            'Repor POL'
+                          )}
+                        </button>
+                      ) : row.inLedger ? (
+                        <span className="text-zinc-600">—</span>
+                      ) : (
+                        <span className="text-[9px] text-zinc-500">Sem conta</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -161,6 +412,8 @@ export default function WalletForensicsPanel({ loading, data, onRefresh }) {
                 <tr className="text-zinc-400 uppercase">
                   <th className="py-2 px-2 font-bold">TxHash</th>
                   <th className="py-2 px-2 font-bold">Estado no jogo</th>
+                  <th className="py-2 px-2 font-bold">POL (cadeia)</th>
+                  <th className="py-2 px-2 font-bold">Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -176,6 +429,78 @@ export default function WalletForensicsPanel({ loading, data, onRefresh }) {
                         </span>
                       ) : (
                         <span className="text-rose-400 font-semibold">Sem registo de depósito com este hash</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-2 font-mono tabular-nums text-zinc-200">
+                      {row.chainValuePol != null && row.chainValuePol > 0
+                        ? `${Number(row.chainValuePol).toFixed(6)}`
+                        : '—'}
+                    </td>
+                    <td className="py-2 px-2 align-top">
+                      {!row.inLedger && creditDeposit && canApproveDeposits ? (
+                        row.chainValuePol != null && row.chainValuePol > 0 ? (
+                          <button
+                            type="button"
+                            disabled={approvingHash === normTxKey(row.hash)}
+                            onClick={() =>
+                              void runCredit(
+                                row.hash,
+                                Number(row.chainValuePol),
+                                'hash do chamado + valor cadeia'
+                              )
+                            }
+                            className="px-2 py-1.5 rounded-lg bg-amber-700/90 hover:bg-amber-600 text-[9px] font-black uppercase text-white disabled:opacity-40"
+                          >
+                            {approvingHash === normTxKey(row.hash) ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                            ) : (
+                              'Aprovar'
+                            )}
+                          </button>
+                        ) : (
+                          <span className="text-[9px] text-zinc-500 leading-tight block max-w-[100px]">
+                            Use a caixa âmbar em cima (valor manual)
+                          </span>
+                        )
+                      ) : row.inLedger && creditDeposit && canApproveDeposits ? (
+                        (() => {
+                          const amtPol =
+                            row.chainValuePol != null && Number(row.chainValuePol) > 0
+                              ? Number(row.chainValuePol)
+                              : row.ledgerAmount != null && Number(row.ledgerAmount) > 0
+                                ? Number(row.ledgerAmount)
+                                : null;
+                          if (amtPol == null) {
+                            return (
+                              <span className="text-[9px] text-zinc-500 leading-tight block max-w-[120px]">
+                                Sem valor na cadeia — use crédito manual com TxHash + «Repor saldo»
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              type="button"
+                              disabled={approvingHash === normTxKey(row.hash)}
+                              onClick={() =>
+                                void runCredit(row.hash, amtPol, 'repor saldo · hash chamado já no ledger', {
+                                  replenishIfDepositExistsForUser: true
+                                })
+                              }
+                              title="Incrementa saldo sem criar segundo depósito"
+                              className="px-2 py-1.5 rounded-lg bg-cyan-800/90 hover:bg-cyan-700 text-[9px] font-black uppercase text-white disabled:opacity-40 border border-cyan-600/40"
+                            >
+                              {approvingHash === normTxKey(row.hash) ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                              ) : (
+                                'Repor POL'
+                              )}
+                            </button>
+                          );
+                        })()
+                      ) : row.inLedger ? (
+                        <span className="text-zinc-600">—</span>
+                      ) : (
+                        <span className="text-[9px] text-zinc-500">Sem conta</span>
                       )}
                     </td>
                   </tr>
@@ -259,10 +584,10 @@ export default function WalletForensicsPanel({ loading, data, onRefresh }) {
 
       <div className="rounded-xl border border-zinc-700 overflow-hidden">
         <p className="text-[9px] font-black uppercase text-zinc-500 px-3 py-2 bg-zinc-950 border-b border-zinc-800">
-          Lista — depósitos internos (últimos 20)
+          Lista — depósitos internos (até 80)
         </p>
         <div className="max-h-44 overflow-y-auto bg-zinc-900/60">
-          {(data.ledger?.deposits || []).slice(0, 20).map((row) => (
+          {(data.ledger?.deposits || []).slice(0, 80).map((row) => (
             <div
               key={row.id}
               className="px-3 py-2 border-t border-zinc-800 flex flex-wrap items-center gap-2 text-[11px] text-zinc-200"
@@ -279,8 +604,14 @@ export default function WalletForensicsPanel({ loading, data, onRefresh }) {
       </div>
 
       <div className="rounded-xl border border-zinc-700 overflow-hidden">
-        <p className="text-[9px] font-black uppercase text-zinc-500 px-3 py-2 bg-zinc-950">Outras movimentações (amostra)</p>
-        <div className="max-h-40 overflow-y-auto bg-zinc-900/50">
+        <p className="text-[9px] font-black uppercase text-zinc-500 px-3 py-2 bg-zinc-950">
+          Outras movimentações (amostra até {data.chainSampleCap ?? 250}) · on-chain:{' '}
+          <span className="text-zinc-300">{data.chainOnChainMergedCount ?? '—'}</span> txs · explorer:{' '}
+          <span className="text-zinc-400 font-mono">
+            {data.chainExplorerPagesUsed ?? '—'}×{data.chainExplorerOffset ?? '—'}
+          </span>
+        </p>
+        <div className="max-h-56 overflow-y-auto bg-zinc-900/50">
           {(data.chainSample || []).map((tx) => (
             <div key={tx.hash} className="px-3 py-2 border-t border-zinc-800 text-[10px] text-zinc-300">
               <TxLink base={base} hash={tx.hash} className="text-[10px]" /> · {Number(tx.valuePol).toFixed(4)} POL ·{' '}

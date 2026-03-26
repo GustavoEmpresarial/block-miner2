@@ -14,7 +14,8 @@ import {
     Wallet,
     Activity,
     Cpu,
-    X
+    X,
+    Coins
 } from 'lucide-react';
 import { api } from '../store/auth';
 import { formatHashrate } from '../utils/machine';
@@ -27,6 +28,11 @@ export default function AdminUsers() {
     const [isLoading, setIsLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
     const [isDetailsLoading, setIsDetailsLoading] = useState(false);
+    const [creditPolAmount, setCreditPolAmount] = useState('');
+    const [creditPolNote, setCreditPolNote] = useState('');
+    const [creditPolTxHash, setCreditPolTxHash] = useState('');
+    const [creditPolReplenish, setCreditPolReplenish] = useState(false);
+    const [creditPolSubmitting, setCreditPolSubmitting] = useState(false);
 
     const fetchUsers = useCallback(async () => {
         try {
@@ -73,14 +79,50 @@ export default function AdminUsers() {
         }
     };
 
+    const handleCreditPol = async () => {
+        if (!selectedUser?.user?.id) return;
+        const amt = Number(String(creditPolAmount).replace(',', '.'));
+        if (!Number.isFinite(amt) || amt <= 0) {
+            toast.error('Indique um valor POL maior que zero.');
+            return;
+        }
+        const uid = selectedUser.user.id;
+        try {
+            setCreditPolSubmitting(true);
+            const body = {
+                amountPol: amt,
+                adminNote: creditPolNote.trim() || undefined,
+                replenishIfDepositExistsForUser: creditPolReplenish
+            };
+            const th = creditPolTxHash.trim();
+            if (th) body.txHash = th;
+            const res = await api.post(`/admin/users/${uid}/credit-pol`, body);
+            if (res.data?.ok) {
+                toast.success(res.data.message || 'POL creditado na conta.');
+                setCreditPolAmount('');
+                setCreditPolNote('');
+                setCreditPolTxHash('');
+                setCreditPolReplenish(false);
+                await loadUserDetails(uid);
+                fetchUsers();
+            }
+        } catch (err) {
+            const msg = err.response?.data?.message || err.message || 'Erro ao creditar POL.';
+            toast.error(msg);
+        } finally {
+            setCreditPolSubmitting(false);
+        }
+    };
+
     const handleBanToggle = async (user) => {
-        const action = user.is_banned ? 'desbanir' : 'banir';
+        const banned = Boolean(user.isBanned ?? user.is_banned);
+        const action = banned ? 'desbanir' : 'banir';
         if (!confirm(`Deseja realmente ${action} este usuário?`)) return;
 
         try {
-            const res = await api.put(`/admin/users/${user.id}/ban`, { isBanned: !user.is_banned });
+            const res = await api.put(`/admin/users/${user.id}/ban`, { isBanned: !banned });
             if (res.data.ok) {
-                toast.success(user.is_banned ? 'Usuário desbanido!' : 'Usuário banido!');
+                toast.success(banned ? 'Usuário desbanido!' : 'Usuário banido!');
                 fetchUsers();
                 if (selectedUser?.user?.id === user.id) {
                     loadUserDetails(user.id);
@@ -98,7 +140,12 @@ export default function AdminUsers() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-black text-white">Gestão de Usuários</h2>
-                    <p className="text-slate-500 text-sm font-medium">Controle de acesso e monitoramento de atividades.</p>
+                    <p className="text-slate-500 text-sm font-medium">
+                        Pesquisa por <span className="text-slate-400">ID</span> (ex.: 42 ou #42),{' '}
+                        <span className="text-slate-400">nome</span>, <span className="text-slate-400">username</span>,{' '}
+                        <span className="text-slate-400">e-mail</span>, <span className="text-slate-400">carteira</span> ou{' '}
+                        <span className="text-slate-400">código de referência</span>.
+                    </p>
                 </div>
                 <form onSubmit={handleSearch} className="relative group w-full md:w-96">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-amber-500 transition-colors" />
@@ -106,10 +153,24 @@ export default function AdminUsers() {
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Buscar por ID, E-mail ou Username..."
+                        placeholder="ID, nome, email, username, carteira, ref…"
                         className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-3 pl-12 pr-4 text-sm text-slate-200 focus:outline-none focus:ring-4 focus:ring-amber-500/5 focus:border-amber-500/50 transition-all"
                     />
                 </form>
+            </div>
+
+            <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-500 shrink-0 self-start">
+                    <Coins className="w-6 h-6" />
+                </div>
+                <div className="min-w-0 space-y-1">
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest">Creditar POL (saldo interno)</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                        1) Use a pesquisa acima para achar o jogador. 2) Clique em <strong className="text-slate-300">Ver perfil</strong> (olho){' '}
+                        ou no atalho <strong className="text-slate-300">POL</strong> na linha. 3) No painel à direita, preencha{' '}
+                        <strong className="text-amber-500/90">Crédito manual POL</strong> e confirme. Isto credita na conta (ledger), não envia on-chain.
+                    </p>
+                </div>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
@@ -160,9 +221,17 @@ export default function AdminUsers() {
                                             <button
                                                 onClick={() => loadUserDetails(u.id)}
                                                 className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-all"
-                                                title="Ver Detalhes"
+                                                title="Perfil, transações e crédito POL"
                                             >
                                                 <Eye className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => loadUserDetails(u.id)}
+                                                className="p-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-500 rounded-lg transition-all font-black text-[9px] uppercase tracking-tighter min-w-[2.25rem]"
+                                                title="Abrir perfil para creditar POL"
+                                                type="button"
+                                            >
+                                                POL
                                             </button>
                                             <button
                                                 onClick={() => handleBanToggle(u)}
@@ -230,6 +299,65 @@ export default function AdminUsers() {
                                 <DetailCard label="Saldo Pool" value={`${Number(selectedUser.user.polBalance).toFixed(6)} POL`} icon={Wallet} color="amber" />
                                 <DetailCard label="Hash Base" value={formatHashrate(Number(selectedUser.user.baseHashRate || 0))} icon={Cpu} color="blue" />
                                 <DetailCard label="Máquinas" value={selectedUser.metrics?.activeMachines} icon={Activity} color="emerald" />
+                            </div>
+
+                            <div className="space-y-4 rounded-[2rem] border border-amber-500/20 bg-amber-500/[0.03] p-6">
+                                <h4 className="text-xs font-black text-amber-500 uppercase tracking-widest flex items-center gap-2">
+                                    <Coins className="w-4 h-4" /> Crédito manual POL (admin)
+                                </h4>
+                                <p className="text-[10px] text-slate-500 leading-relaxed">
+                                    Credita saldo interno na conta (ledger). Não envia POL on-chain. Use hash on-chain só se for o depósito real já registado; marque &quot;repor saldo&quot; apenas nesse caso.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <label className="flex flex-col gap-1">
+                                        <span className="text-[9px] font-black uppercase text-slate-500">Quantidade POL</span>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={creditPolAmount}
+                                            onChange={(e) => setCreditPolAmount(e.target.value)}
+                                            placeholder="ex: 10.5"
+                                            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                                        />
+                                    </label>
+                                    <label className="flex flex-col gap-1 sm:col-span-2">
+                                        <span className="text-[9px] font-black uppercase text-slate-500">Tx hash (opcional)</span>
+                                        <input
+                                            type="text"
+                                            value={creditPolTxHash}
+                                            onChange={(e) => setCreditPolTxHash(e.target.value)}
+                                            placeholder="0x… (deixe vazio para referência interna)"
+                                            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                                        />
+                                    </label>
+                                    <label className="flex flex-col gap-1 sm:col-span-2">
+                                        <span className="text-[9px] font-black uppercase text-slate-500">Nota interna (opcional)</span>
+                                        <textarea
+                                            value={creditPolNote}
+                                            onChange={(e) => setCreditPolNote(e.target.value)}
+                                            rows={2}
+                                            placeholder="Motivo do crédito…"
+                                            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 resize-none focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                                        />
+                                    </label>
+                                </div>
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={creditPolReplenish}
+                                        onChange={(e) => setCreditPolReplenish(e.target.checked)}
+                                        className="rounded border-slate-600 text-amber-500 focus:ring-amber-500/40"
+                                    />
+                                    <span className="text-[10px] text-slate-400">Repor saldo se já existir depósito com este tx hash (mesmo utilizador)</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    disabled={creditPolSubmitting}
+                                    onClick={handleCreditPol}
+                                    className="w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 transition-all"
+                                >
+                                    {creditPolSubmitting ? 'A processar…' : 'Creditar POL'}
+                                </button>
                             </div>
 
                             <div className="space-y-4">

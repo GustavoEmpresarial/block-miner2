@@ -9,7 +9,7 @@
     "db:generate": "prisma generate --schema=server/prisma/schema.prisma",
     "db:push": "prisma db push --schema=server/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema=server/prisma/schema.prisma",
-    "test": "JWT_SECRET=testsecret node --test --experimental-test-coverage",
+    "test": "node --import ./scripts/load-jwt-test-secret.mjs --test --experimental-test-coverage",
     "lint": "eslint . --ext .js",
     "format": "prettier --check .",
     "format:write": "prettier --write .",

@@ -43,14 +43,37 @@ export const useAuthStore = create((set) => ({
     isLoading: true,
     error: null,
 
-    checkSession: async () => {
-        try {
-            set({ isLoading: true, error: null });
-            const response = await api.get('/auth/session');
-            set({ user: response.data.user, isAuthenticated: true, isLoading: false });
-        } catch (error) {
-            set({ user: null, isAuthenticated: false, isLoading: false });
+    /**
+     * @param {{ retries?: number, retryDelayMs?: number, silent?: boolean }} options
+     * silent=true: não altera isLoading (evita desmontar o BrowserRouter em App.jsx durante login/registo).
+     */
+    checkSession: async (options = {}) => {
+        const { retries = 0, retryDelayMs = 200, silent = false } = options;
+
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                if (!silent) {
+                    set({ isLoading: true, error: null });
+                } else {
+                    set({ error: null });
+                }
+                const response = await api.get('/auth/session');
+                set({ user: response.data.user, isAuthenticated: true, isLoading: false });
+                return true;
+            } catch (error) {
+                if (attempt < retries) {
+                    await new Promise((r) => setTimeout(r, retryDelayMs));
+                    continue;
+                }
+                if (silent) {
+                    set({ user: null, isAuthenticated: false });
+                } else {
+                    set({ user: null, isAuthenticated: false, isLoading: false });
+                }
+            }
         }
+
+        return false;
     },
 
     login: async (identifier, password) => {

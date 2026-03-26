@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setMiningEngine, getMiningEngine } from "../server/src/miningEngineInstance.js";
-import { applyUserBalanceDelta } from "../server/src/runtime/miningRuntime.js";
+import { setMiningEngine, getMiningEngine, applyUserBalanceDelta } from "../server/src/runtime/miningRuntime.js";
 
 test("MiningEngineInstance getter/setter", () => {
   const mockEngine = { id: "mock" };

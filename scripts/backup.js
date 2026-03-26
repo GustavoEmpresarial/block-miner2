@@ -6,7 +6,7 @@ const {
   getBackupConfig,
   replicateBackupToExternal,
   runCloudBackupCommand
-} = require("../utils/backup");
+} = require("../server/utils/backup.cjs");
 
 function closeDatabase() {
   return new Promise((resolve) => {

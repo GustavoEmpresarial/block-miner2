@@ -68,7 +68,7 @@ test("createNotification creates and emits", async () => {
       io: mockIo
     });
 
-    assert.equal(createdData.user.connect.id, 1);
+    assert.equal(createdData.userId, 1);
     assert.equal(emitCalled, true);
     assert.equal(result.id, 1);
 

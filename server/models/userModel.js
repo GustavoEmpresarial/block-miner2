@@ -54,12 +54,25 @@ export async function listUsers({ page, pageSize, query, fromDate, toDate }) {
   const where = {};
 
   if (query) {
-    const q = query.toLowerCase();
-    where.OR = [
-      { email: { contains: q, mode: 'insensitive' } },
-      { username: { contains: q, mode: 'insensitive' } },
-      { name: { contains: q, mode: 'insensitive' } }
-    ];
+    const raw = String(query).trim();
+    if (raw) {
+      const orConditions = [
+        { email: { contains: raw, mode: "insensitive" } },
+        { username: { contains: raw, mode: "insensitive" } },
+        { name: { contains: raw, mode: "insensitive" } },
+        { walletAddress: { contains: raw, mode: "insensitive" } },
+        { refCode: { contains: raw, mode: "insensitive" } }
+      ];
+      const idStr = raw.replace(/^#/, "").trim();
+      if (/^\d+$/.test(idStr)) {
+        const idNum = parseInt(idStr, 10);
+        if (idNum > 0) {
+          orConditions.push({ id: idNum });
+          orConditions.push({ oldId: idNum });
+        }
+      }
+      where.OR = orConditions;
+    }
   }
 
   if (fromDate || toDate) {
@@ -80,6 +93,9 @@ export async function listUsers({ page, pageSize, query, fromDate, toDate }) {
         name: true,
         email: true,
         ip: true,
+        walletAddress: true,
+        refCode: true,
+        polBalance: true,
         isBanned: true,
         createdAt: true,
         lastLoginAt: true

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { api, useAuthStore } from '../store/auth';
 import { BrowserProvider, parseEther, formatEther, isAddress } from 'ethers';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet, POLYGON_RPC_URLS } from '../hooks/useWallet';
 import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORT_WALLET_RECOVERY_MARKER, SUPPORT_WALLET_MSG } from '../constants/supportWalletTicket';
 
@@ -60,7 +60,8 @@ export default function Wallet() {
     const [showManualForm, setShowManualForm] = useState(false);
     const [polPrice, setPolPrice] = useState(0);
     const [lastResyncResult, setLastResyncResult] = useState(null);
-    const [balanceTicketOpen, setBalanceTicketOpen] = useState(false);
+    // Keep this visible so users can quickly open a deposit analysis ticket.
+    const [balanceTicketOpen, setBalanceTicketOpen] = useState(true);
     const [balanceTicketNotes, setBalanceTicketNotes] = useState('');
     const [balanceTicketWallets, setBalanceTicketWallets] = useState('');
     const [balanceTicketTxHashes, setBalanceTicketTxHashes] = useState('');
@@ -213,11 +214,26 @@ export default function Wallet() {
             }
         } catch (error) {
             console.error("Deposit error", error);
+            const msg = `${error?.shortMessage || ''} ${error?.message || ''} ${error?.info?.error?.message || ''}`.toLowerCase();
+            const looksLikeBadRpc =
+                msg.includes('invalid rpc') ||
+                msg.includes('twnodes') ||
+                msg.includes('coalesce') ||
+                msg.includes('eth_blocknumber') ||
+                String(error?.code) === '-32603';
             // Handle common MetaMask errors
             if (error.code === 4001) {
                 toast.error('Transaction rejected by user');
             } else if (error.code === 'INSUFFICIENT_FUNDS' || (error.message && error.message.includes('insufficient funds'))) {
                 toast.error('Insufficient funds: You need more POL to cover the amount + network gas fees.');
+            } else if (looksLikeBadRpc) {
+                toast.error(
+                    `${t(
+                        'wallet.deposit_rpc_wallet_misconfig',
+                        'A MetaMask (ou wallet) está com um RPC Polygon inválido ou expirado (ex.: TWNodes com sessão). Em Definições → Redes → Polygon, edite o URL do RPC. Exemplo público:'
+                    )} ${POLYGON_RPC_URLS[0]}`,
+                    { duration: 20000 }
+                );
             } else {
                 toast.error(error.reason || error.message || 'Transaction failed');
             }
@@ -616,6 +632,38 @@ ${notes || '(nenhuma)'}`;
                         </div>
                     </div>
 
+                    {/* Deposit analysis CTA (between balance and deposit/withdraw tabs) */}
+                    <div className="rounded-2xl border-2 border-amber-500/35 bg-amber-500/10 px-4 py-3">
+                        <div className="flex items-start gap-3">
+                            <MessageSquare className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-slate-200">
+                                    {t('wallet.no_credits_open_ticket_banner', 'Still no credits? Open a deposit analysis ticket')}
+                                </p>
+                                <p className="text-[10px] text-amber-100/90 font-bold leading-relaxed mt-1">
+                                    {t(
+                                        'wallet.no_credits_open_ticket_hint',
+                                        'Provide wallet addresses and (if you have them) tx hashes so the team can cross-check on-chain.'
+                                    )}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setActiveTab('deposit');
+                                    setBalanceTicketOpen(true);
+                                    setBalanceTicketSent(false);
+                                    window.setTimeout(() => {
+                                        balanceTicketAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }, 150);
+                                }}
+                                className="shrink-0 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 border border-white/10 transition-all"
+                            >
+                                {t('wallet.open_ticket_btn', 'Open ticket')}
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Operations Card */}
                     <div className="bg-slate-950/80 border border-slate-800/50 rounded-2xl sm:rounded-[2.5rem] p-1 shadow-2xl backdrop-blur-2xl min-w-0">
                         <div className="flex bg-slate-900/50 p-1.5 sm:p-2 rounded-[1.5rem] sm:rounded-[2.2rem] gap-1.5 sm:gap-2">
@@ -783,17 +831,17 @@ ${notes || '(nenhuma)'}`;
                                     </button>
 
                                     {lastResyncResult && lastResyncResult.credited === 0 && (
-                                        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-[10px] text-amber-100/90 font-bold leading-relaxed">
+                                        <div className="rounded-2xl border-2 border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[10px] text-amber-100/90 font-bold leading-relaxed">
                                             {t(
                                                 'wallet.resync_zero_banner',
-                                                'O re-sync não creditou novos depósitos. Se você já enviou POL para o endereço do jogo, abra um chamado — vamos cruzar sua carteira com o endereço da plataforma na blockchain.'
+                                                'No new deposits were credited after re-sync. If you already sent POL to the game address, open a ticket below so we can cross-check your wallet on-chain.'
                                             )}
                                         </div>
                                     )}
 
                                     <div
                                         ref={balanceTicketAnchorRef}
-                                        className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden scroll-mt-24"
+                                        className="rounded-2xl border-2 border-amber-500/40 bg-amber-500/10 overflow-hidden scroll-mt-24"
                                     >
                                         <button
                                             type="button"
@@ -801,26 +849,26 @@ ${notes || '(nenhuma)'}`;
                                                 setBalanceTicketOpen((o) => !o);
                                                 if (balanceTicketSent) setBalanceTicketSent(false);
                                             }}
-                                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-800/50 transition-colors"
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-amber-500/15 transition-colors"
                                         >
-                                            <MessageSquare className="w-4 h-4 text-indigo-400 shrink-0" />
+                                            <MessageSquare className="w-4 h-4 text-amber-300 shrink-0" />
                                             <span className="flex-1 text-[10px] font-black uppercase tracking-widest text-slate-200">
                                                 {t(
                                                     'wallet.open_balance_ticket',
-                                                    'Não resolveu? Abrir chamado de análise de depósito'
+                                                    'Still no credits? Open a deposit analysis ticket'
                                                 )}
                                             </span>
                                             <ChevronDown
-                                                className={`w-4 h-4 text-slate-500 shrink-0 transition-transform ${balanceTicketOpen ? 'rotate-180' : ''}`}
+                                                className={`w-4 h-4 text-amber-200/70 shrink-0 transition-transform ${balanceTicketOpen ? 'rotate-180' : ''}`}
                                             />
                                         </button>
                                         {balanceTicketOpen ? (
-                                            <div className="px-4 pb-4 pt-0 space-y-3 border-t border-slate-800/80">
+                                            <div className="px-4 pb-4 pt-0 space-y-3 border-t border-amber-500/25">
                                                 {balanceTicketSent ? (
                                                     <p className="text-[11px] text-emerald-400/90 font-bold py-2 leading-relaxed">
                                                         {t(
                                                             'wallet.ticket_sent_detail',
-                                                            'Protocolo registrado. A moderação trata no painel de suporte interno; não depende de e-mail. Volte aqui se precisar abrir outro chamado.'
+                                                            'Ticket created. Moderation is handled inside the support panel (it does not rely on email). You can come back here to open another ticket if needed.'
                                                         )}
                                                     </p>
                                                 ) : (
@@ -828,7 +876,7 @@ ${notes || '(nenhuma)'}`;
                                                         <p className="text-[10px] text-slate-500 leading-relaxed font-bold">
                                                             {t(
                                                                 'wallet.ticket_explain',
-                                                                'Os dados vão direto para a fila no painel admin. Carteiras são obrigatórias; hashes aceleram a conferência na blockchain.'
+                                                                'Your details go directly to the admin support queue. Wallet addresses are required; transaction hashes speed up on-chain verification.'
                                                             )}
                                                         </p>
                                                         <div className="space-y-1.5">
@@ -836,7 +884,7 @@ ${notes || '(nenhuma)'}`;
                                                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                                                     {t(
                                                                         'wallet.ticket_wallets_label',
-                                                                        'Carteiras usadas para depositar (obrigatório)'
+                                                                        'Wallets used to deposit (required)'
                                                                     )}
                                                                 </label>
                                                                 {isConnected && account ? (
@@ -853,7 +901,7 @@ ${notes || '(nenhuma)'}`;
                                                                         }}
                                                                         className="text-[9px] font-black uppercase text-indigo-400 hover:text-indigo-300"
                                                                     >
-                                                                        {t('wallet.ticket_use_connected', '+ usar conectada')}
+                                                                    {t('wallet.ticket_use_connected', '+ use connected wallet')}
                                                                     </button>
                                                                 ) : null}
                                                             </div>
@@ -862,7 +910,7 @@ ${notes || '(nenhuma)'}`;
                                                                 onChange={(e) => setBalanceTicketWallets(e.target.value)}
                                                                 placeholder={t(
                                                                     'wallet.ticket_wallets_placeholder',
-                                                                    'Uma ou mais carteiras 0x… (uma por linha)'
+                                                                    'One or more wallet addresses (0x…), one per line'
                                                                 )}
                                                                 rows={3}
                                                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 font-mono outline-none focus:border-indigo-500/50 resize-none"
@@ -872,7 +920,7 @@ ${notes || '(nenhuma)'}`;
                                                             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">
                                                                 {t(
                                                                     'wallet.ticket_hashes_label',
-                                                                    'Hashes de transação (opcional — agiliza a análise)'
+                                                                    'Transaction hashes (optional — speeds up analysis)'
                                                                 )}
                                                             </label>
                                                             <textarea
@@ -880,7 +928,7 @@ ${notes || '(nenhuma)'}`;
                                                                 onChange={(e) => setBalanceTicketTxHashes(e.target.value)}
                                                                 placeholder={t(
                                                                     'wallet.ticket_hashes_placeholder',
-                                                                    '0x… um hash por linha, se tiver vários envios'
+                                                                    '0x… one hash per line (if you sent multiple transfers)'
                                                                 )}
                                                                 rows={2}
                                                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 font-mono outline-none focus:border-indigo-500/50 resize-none"
@@ -888,14 +936,14 @@ ${notes || '(nenhuma)'}`;
                                                         </div>
                                                         <div className="space-y-1.5">
                                                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">
-                                                                {t('wallet.ticket_notes_label', 'Observações extras (opcional)')}
+                                                                {t('wallet.ticket_notes_label', 'Extra notes (optional)')}
                                                             </label>
                                                             <textarea
                                                                 value={balanceTicketNotes}
                                                                 onChange={(e) => setBalanceTicketNotes(e.target.value)}
                                                                 placeholder={t(
                                                                     'wallet.ticket_placeholder',
-                                                                    'Data aproximada, valor, rede, prints…'
+                                                                    'Approx. date, amount, network, screenshots…'
                                                                 )}
                                                                 rows={2}
                                                                 className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-3 text-xs text-slate-200 outline-none focus:border-indigo-500/50 resize-none"
@@ -908,8 +956,8 @@ ${notes || '(nenhuma)'}`;
                                                             className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-colors"
                                                         >
                                                             {balanceTicketSending
-                                                                ? t('common.loading', 'Enviando…')
-                                                                : t('wallet.send_ticket', 'Enviar chamado ao suporte')}
+                                                                ? t('common.loading', 'Sending…')
+                                                                : t('wallet.send_ticket', 'Send ticket to support')}
                                                         </button>
                                                     </>
                                                 )}

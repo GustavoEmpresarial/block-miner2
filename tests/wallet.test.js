@@ -73,43 +73,17 @@ test("requestDeposit returns 400 on missing data", async () => {
   assert.equal(statusSet, 400);
 });
 
-test("requestWithdrawal requires 2FA if enabled", async () => {
-  const original = prisma.user.findUnique;
-  prisma.user.findUnique = async () => ({ id: 1, isTwoFactorEnabled: true, twoFactorSecret: "abc" });
+test("requestWithdrawal validates address format", async () => {
+  const req = { user: { id: 1 }, body: { amount: 10, address: "0x123" }, headers: {}, method: "POST" };
+  let statusSet, jsonResult;
+  const res = {
+    status: (s) => { statusSet = s; return res; },
+    json: (j) => { jsonResult = j; }
+  };
   
-  try {
-    const req = { user: { id: 1 }, body: { amount: 10, address: "0x123" }, headers: {}, method: "POST" };
-    let statusSet, jsonResult;
-    const res = {
-      status: (s) => { statusSet = s; return res; },
-      json: (j) => { jsonResult = j; }
-    };
-    
-    await walletController.requestWithdrawal(req, res);
-    assert.equal(statusSet, 400);
-    assert.equal(jsonResult.require2FA, true);
-  } finally {
-    prisma.user.findUnique = original;
-  }
-});
-
-test("getROIMetrics returns metrics", async () => {
-  const original = walletModel.getROIMetrics;
-  walletModel.getROIMetrics = async () => ({ totalMined: 100 });
-  
-  try {
-    const req = { user: { id: 1 }, headers: {}, method: "GET" };
-    let jsonResult;
-    const res = {
-      status: (s) => { return res; },
-      json: (j) => { jsonResult = j; }
-    };
-    await walletController.getROIMetrics(req, res);
-    assert.equal(jsonResult.ok, true);
-    assert.equal(jsonResult.metrics.totalMined, 100);
-  } finally {
-    walletModel.getROIMetrics = original;
-  }
+  await walletController.requestWithdrawal(req, res);
+  assert.equal(statusSet, 400);
+  assert.ok(jsonResult.message.includes("Invalid Polygon wallet address"));
 });
 
 test("getBalance returns 500 on error", async () => {

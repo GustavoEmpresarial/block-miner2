@@ -10,7 +10,7 @@ const {
   pruneBackups,
   replicateBackupToExternal,
   runCloudBackupCommand
-} = require("../utils/backup.js");
+} = require("../utils/backup.cjs");
 
 const logger = loggerLib.child("BackupCron");
 
@@ -133,7 +133,18 @@ export function startBackupCron() {
     return [];
   }
 
-  logger.info("Database backup cron scheduled", { expr, cloud: parseBoolean(process.env.BACKUP_CLOUD_ENABLED, false) });
+  const cfg = getBackupConfig();
+  if (cfg.cloudBackupEnabled && !cfg.cloudCommandTemplate) {
+    logger.warn(
+      "BACKUP_CLOUD_ENABLED sem comando: define BACKUP_CLOUD_COMMAND ou BACKUP_CLOUD_FOLDER_ID (+ BACKUP_CLOUD_REMOTE)"
+    );
+  }
+
+  logger.info("Database backup cron scheduled", {
+    expr,
+    cloud: cfg.cloudBackupEnabled,
+    cloudCommand: Boolean(cfg.cloudCommandTemplate)
+  });
   const task = cron.schedule(expr, () => {
     runDatabaseBackupPipeline().catch((error) => {
       logger.error("Scheduled database backup failed", { error: error.message });

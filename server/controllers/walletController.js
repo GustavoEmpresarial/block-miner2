@@ -23,28 +23,63 @@ function normalizeExplorerTx(tx) {
   };
 }
 
-export async function fetchRecentWalletTxs(address) {
+/**
+ * Lista txs normais na Polygon via Etherscan API v2.
+ * Sem `page`/`offset` o explorer muitas vezes devolve só ~10 linhas — depósitos antigos não aparecem para aprovar no admin.
+ *
+ * @param {string} address
+ * @param {{ offset?: number, maxPages?: number }} [options] offset máx. 10000 por página na API; maxPages limita chamadas.
+ */
+export async function fetchRecentWalletTxs(address, options = {}) {
   const apiKey = String(process.env.POLYGONSCAN_API_KEY || process.env.ETHERSCAN_API_KEY || "").trim();
   if (!apiKey) {
     throw new Error(EXPLORER_API_KEY_REQUIRED_MSG);
   }
 
-  const url = `${POLYGONSCAN_API_BASE}?chainid=137&module=account&action=txlist&address=${encodeURIComponent(address)}&startblock=0&endblock=99999999&sort=desc&apikey=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Explorer HTTP ${response.status} ao listar transações.`);
+  const offset = Math.min(Math.max(Number(options.offset) || 10000, 1), 10000);
+  const maxPages = Math.min(Math.max(Number(options.maxPages) || 5, 1), 40);
+
+  const byHash = new Map();
+
+  for (let page = 1; page <= maxPages; page++) {
+    const url = `${POLYGONSCAN_API_BASE}?chainid=137&module=account&action=txlist&address=${encodeURIComponent(
+      address
+    )}&startblock=0&endblock=99999999&sort=desc&page=${page}&offset=${offset}&apikey=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Explorer HTTP ${response.status} ao listar transações.`);
+    }
+    const data = await response.json();
+    const messageText = String(data?.result || data?.message || "");
+    if (messageText.toLowerCase().includes("missing/invalid api key") || messageText.toLowerCase().includes("invalid api key")) {
+      throw new Error("Chave de API inválida ou não ativada para API v2. Verifique POLYGONSCAN_API_KEY / ETHERSCAN_API_KEY.");
+    }
+    if (String(data?.status) !== "1" && String(data?.message || "").toUpperCase() !== "NO TRANSACTIONS FOUND") {
+      throw new Error(String(data?.result || data?.message || "Resposta inválida do explorer."));
+    }
+
+    const batch = (Array.isArray(data?.result) ? data.result : [])
+      .map(normalizeExplorerTx)
+      .filter(Boolean);
+
+    for (const tx of batch) {
+      const h = String(tx.hash || "")
+        .trim()
+        .toLowerCase();
+      if (h) {
+        byHash.set(h, tx);
+      }
+    }
+
+    if (batch.length === 0) {
+      break;
+    }
+    if (batch.length < offset) {
+      break;
+    }
   }
-  const data = await response.json();
-  const messageText = String(data?.result || data?.message || "");
-  if (messageText.toLowerCase().includes("missing/invalid api key") || messageText.toLowerCase().includes("invalid api key")) {
-    throw new Error("Chave de API inválida ou não ativada para API v2. Verifique POLYGONSCAN_API_KEY / ETHERSCAN_API_KEY.");
-  }
-  if (String(data?.status) !== "1" && String(data?.message || "").toUpperCase() !== "NO TRANSACTIONS FOUND") {
-    throw new Error(String(data?.result || data?.message || "Resposta inválida do explorer."));
-  }
-  return (Array.isArray(data?.result) ? data.result : [])
-    .map(normalizeExplorerTx)
-    .filter(Boolean);
+
+  return [...byHash.values()].sort((a, b) => Number(b.timeStamp || 0) - Number(a.timeStamp || 0));
 }
 
 export async function getBalance(req, res) {

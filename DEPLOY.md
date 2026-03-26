@@ -49,18 +49,54 @@ chmod +x scripts/vps-update.sh
 
 ## 4. Backup da base de dados no Google Drive (rclone)
 
-O serviço `app` no Docker já inclui **rclone** e **pg_dump** (pacote `postgresql-client`). O `docker-compose.yml` monta a configuração do rclone do host em `/root/.config/rclone` (só leitura) para o contentor usar a mesma conta.
+O serviço `app` inclui **rclone** e **pg_dump** (`postgresql-client`). O `docker-compose.yml` monta **`/root/.config/rclone` do host → container em modo leitura-escrita** para o rclone poder **renovar o token OAuth** do Google (com `:ro` o upload falha ao expirar o token).
 
-### Configurar na VPS (uma vez)
+### 4.1 Instalar e configurar rclone no host da VPS (uma vez)
 
-1. No host: `rclone config` e cria um remote do Google Drive (ex.: nome `gdrive`).
-2. No `.env` do projeto (na VPS), define pelo menos (podes copiar o bloco pronto de `config/env.backup.vps.example`):
-   - `BACKUP_ENABLED=true`
-   - `BACKUP_CLOUD_ENABLED=true`
-   - `BACKUP_CLOUD_COMMAND=rclone copy "{backupFile}" "gdrive:blockminer-backups" --transfers 1 --checkers 1 --drive-chunk-size 32M --fast-list`  
-   Ajusta `gdrive` e `blockminer-backups` ao remote e à pasta que criaste no Drive.
-3. A app agenda cópias com `BACKUP_CRON` (por defeito 03:00) e pode correr um dump ao arranque com `BACKUP_RUN_ON_STARTUP=true`.
+```bash
+# Debian/Ubuntu
+apt-get update && apt-get install -y rclone
 
-Depois de alterar o `.env`, sobe de novo o contentor da app: `docker compose up -d --build app`.
+mkdir -p /root/.config/rclone
+rclone config
+```
 
-Os dumps PostgreSQL ficam em `./backups` no host como `blockminer-db-YYYYMMDD-HHMMSS.sql.gz` e são copiados para o Drive quando a cloud está ativa.
+No assistente: **New remote** → tipo **Google Drive** → nome por exemplo **`gdrive`**. Para servidor sem browser, usa **headless / config token** conforme o rclone indicar, ou uma **conta de serviço** (Google Cloud Console → IAM → conta de serviço + JSON; no rclone escolhe “Service Account” e aponta para o ficheiro).
+
+Cria no Drive uma pasta só para backups e copia o **ID** do URL:  
+`https://drive.google.com/drive/folders/ESTE_E_O_ID`
+
+### 4.2 Variáveis no `.env` (na VPS, `/root/block-miner/.env`)
+
+Bloco mínimo (podes copiar `config/env.backup.vps.example`):
+
+- `BACKUP_ENABLED=true`
+- `BACKUP_CLOUD_ENABLED=true`
+- **Opção A:** `BACKUP_CLOUD_COMMAND=rclone copy "{backupFile}" "gdrive:ID_DA_PASTA" --transfers 1 --checkers 1 --drive-chunk-size 32M --fast-list`
+- **Opção B:** deixa `BACKUP_CLOUD_COMMAND` vazio e define `BACKUP_CLOUD_FOLDER_ID=ID_DA_PASTA` e, se precisares, `BACKUP_CLOUD_REMOTE=gdrive` (o servidor monta o mesmo comando).
+
+O nome **`gdrive`** tem de coincidir com o remote do `rclone config`.
+
+### 4.3 Testar antes de confiar no cron
+
+Com a stack no ar:
+
+```bash
+cd /root/block-miner
+docker compose exec app rclone listremotes
+docker compose exec app rclone lsd gdrive:
+# Script incluído no repo (remote + ID da pasta):
+docker compose exec app sh /app/scripts/rclone-backup-smoke.sh gdrive ID_DA_PASTA
+```
+
+Se isto funcionar, o job Node que corre no arranque (`BACKUP_RUN_ON_STARTUP=true`) e o `BACKUP_CRON` (por defeito **03:00 no fuso horário do container**, em geral **UTC**) conseguem enviar os `.sql.gz` para o Drive.
+
+### 4.4 Depois de editar `.env`
+
+```bash
+docker compose up -d app
+```
+
+(rebuild só se mudaste código: `docker compose up -d --build app`)
+
+Os dumps PostgreSQL ficam em `./backups` no host (`blockminer-db-YYYYMMDD-HHMMSS.sql.gz`) e são copiados para o Drive quando a cloud está ativa. Nos logs da app procura `BackupCron` / `Cloud backup OK` ou `Cloud backup failed`.

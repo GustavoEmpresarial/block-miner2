@@ -4,6 +4,13 @@ import { api } from '../store/auth';
 
 const POLYGON_CHAIN_ID = '0x89'; // 137
 
+/** RPCs públicos estáveis; a wallet tenta por ordem (evita TWNodes/session expirada). */
+export const POLYGON_RPC_URLS = [
+    'https://polygon-bor-rpc.publicnode.com',
+    'https://polygon-rpc.com',
+    'https://1rpc.io/matic'
+];
+
 export function useWallet() {
     const [account, setAccount] = useState(null);
     const [chainId, setChainId] = useState(null);
@@ -52,7 +59,7 @@ export function useWallet() {
                             chainId: POLYGON_CHAIN_ID,
                             chainName: 'Polygon Mainnet',
                             nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-                            rpcUrls: ['https://polygon-rpc.com'],
+                            rpcUrls: [...POLYGON_RPC_URLS],
                             blockExplorerUrls: ['https://polygonscan.com/'],
                         }],
                     });

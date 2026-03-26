@@ -26,13 +26,17 @@ adminRouter.get("/support/:id/password-recovery-context", adminSupportController
 adminRouter.get("/support/:id", adminSupportController.getMessage);
 adminRouter.post("/support/:id/reply", adminSupportController.replyToMessage);
 adminRouter.post("/support/:id/send-reset-link", adminSupportController.sendPasswordResetLink);
+adminRouter.post("/support/:id/credit-pol-migration", adminSupportController.creditSupportTicketPol);
 
 // Dashboard Stats
 adminRouter.get("/stats", adminController.getStats);
 
 // Users
 adminRouter.get("/users", adminController.listRecentUsers);
+adminRouter.get("/users/:id/details", adminController.getAdminUserDetails);
 adminRouter.put("/users/:id/ban", adminController.setUserBan);
+const adminPolCreditLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
+adminRouter.post("/users/:id/credit-pol", adminPolCreditLimiter, adminController.creditUserPolManual);
 
 // Miners
 adminRouter.get("/miners", adminController.listMiners);

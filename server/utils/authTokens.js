@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import { createRefreshTokenRecord } from "../models/refreshTokenModel.js";
 
 const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "12h";
 const REFRESH_TOKEN_TTL_DAYS = Number(process.env.REFRESH_TOKEN_TTL_DAYS || 30);
@@ -14,11 +15,24 @@ function requireJwtSecret() {
   return secret;
 }
 
+/** Evita que `null`, objectos ou caracteres de controlo no perfil partam o `jwt.sign` (erro genérico no login). */
+function safeClaimString(value, maxLen) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .slice(0, maxLen);
+}
+
 export function signAccessToken(user) {
+  const id = Number(user?.id);
+  if (!Number.isFinite(id) || id < 1 || id > 2147483647) {
+    throw new Error("Invalid user id for JWT");
+  }
+
   const payload = {
-    sub: String(user.id),
-    name: user.name,
-    email: user.email
+    sub: String(id),
+    name: safeClaimString(user?.name, 200),
+    email: safeClaimString(user?.email, 320)
   };
 
   return jwt.sign(payload, requireJwtSecret(), {
@@ -26,6 +40,51 @@ export function signAccessToken(user) {
     issuer: JWT_ISSUER,
     audience: JWT_AUDIENCE
   });
+}
+
+/**
+ * Gera access JWT + refresh e persiste o refresh (com retentativas — falhas transitórias da BD / colisão de UUID).
+ */
+export async function issueAccessAndRefreshTokens(user, { maxAttempts = 5 } = {}) {
+  const numericId = Number(user?.id);
+  if (!Number.isFinite(numericId) || numericId < 1) {
+    throw new Error("INVALID_USER_ID_FOR_SESSION");
+  }
+
+  const safeUser = {
+    id: numericId,
+    name: user?.name,
+    email: user?.email
+  };
+
+  const accessToken = signAccessToken(safeUser);
+  if (!accessToken) {
+    throw new Error("signAccessToken returned empty token");
+  }
+
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const refreshToken = createRefreshToken();
+      if (!refreshToken?.token) {
+        throw new Error("createRefreshToken returned invalid token");
+      }
+      await createRefreshTokenRecord({
+        userId: numericId,
+        tokenId: refreshToken.tokenId,
+        tokenHash: refreshToken.tokenHash,
+        createdAt: Date.now(),
+        expiresAt: refreshToken.expiresAt
+      });
+      return { accessToken, refreshToken };
+    } catch (e) {
+      lastErr = e;
+      if (attempt < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, 45 + attempt * 35));
+      }
+    }
+  }
+  throw lastErr;
 }
 
 export function verifyAccessToken(token) {

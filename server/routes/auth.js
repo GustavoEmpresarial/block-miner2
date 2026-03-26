@@ -5,8 +5,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import prisma from "../src/db/prisma.js";
 import { getTokenFromRequest, getRefreshTokenFromRequest, ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME } from "../utils/token.js";
-import { signAccessToken, createRefreshToken, parseRefreshToken, verifyAccessToken } from "../utils/authTokens.js";
-import { createRefreshTokenRecord, getRefreshTokenById, revokeRefreshToken } from "../models/refreshTokenModel.js";
+import { issueAccessAndRefreshTokens, verifyAccessToken } from "../utils/authTokens.js";
 import { updateUserLoginMeta, getUserById } from "../models/userModel.js";
 import { createAuditLog } from "../models/auditLogModel.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
@@ -334,9 +333,7 @@ authRouter.post("/register", authLimiter, validateBody(registerSchema), async (r
       return user;
     });
 
-    const accessToken = signAccessToken(result);
-    const refreshToken = createRefreshToken();
-    await createRefreshTokenRecord({ userId: result.id, ...refreshToken, createdAt: Date.now() });
+    const { accessToken, refreshToken } = await issueAccessAndRefreshTokens(result);
 
     // Reload referrer profile if online
     if (referrerId) {
@@ -427,19 +424,21 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
       })
     ]);
 
-    let accessToken, refreshToken;
+    let accessToken;
+    let refreshToken;
     try {
-      accessToken = signAccessToken(user);
-      if (!accessToken) {
-        throw new Error("signAccessToken returned empty token");
-      }
-      refreshToken = createRefreshToken();
-      if (!refreshToken || !refreshToken.token) {
-        throw new Error("createRefreshToken returned invalid token");
-      }
-      await createRefreshTokenRecord({ userId: user.id, ...refreshToken, createdAt: Date.now() });
+      ({ accessToken, refreshToken } = await issueAccessAndRefreshTokens(user));
     } catch (tokenError) {
-      logger.error("Token generation failed", { userId: user.id, error: tokenError.message, stack: tokenError.stack });
+      logger.error("Token generation failed", {
+        userId: user.id,
+        error: tokenError.message,
+        prismaCode: tokenError?.code,
+        stack: tokenError.stack,
+        clientIp,
+        userAgent: userAgentStored,
+        twoFactorProvided: Boolean(twoFactorToken),
+        identifierPreview: String(identifier || "").slice(0, 60)
+      });
       return res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Falha na geração de token. Tente novamente." });
     }
 
@@ -458,7 +457,11 @@ authRouter.post("/login", authLimiter, validateBody(loginSchema), async (req, re
       error: error.message,
       stack: error.stack,
       prismaCode: error?.code,
-      prismaMeta: error?.meta
+      prismaMeta: error?.meta,
+      clientIp: getClientIpForStorage(req),
+      userAgent: getUserAgentForStorage(req),
+      twoFactorProvided: Boolean(req.body?.twoFactorToken),
+      identifierPreview: String(req.body?.identifier || "").slice(0, 60)
     });
     res.status(500).json({ ok: false, code: "LOGIN_FAILED", message: "Erro ao fazer login. Tente novamente ou redefinir sua senha." });
   }

@@ -2,8 +2,32 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore, api } from '../store/auth';
-import { Cpu, Mail, Lock, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Cpu, Mail, Lock, AlertCircle, Loader2, ChevronRight, Eye, EyeOff, ShieldCheck, KeyRound, CheckCircle2, LifeBuoy } from 'lucide-react';
 import { toast } from 'sonner';
+import { SUPPORT_PASSWORD_RESET_TICKET_MARKER } from '../constants/supportWalletTicket';
+import { COMMUNITY_DISCORD_URL, COMMUNITY_TELEGRAM_URL } from '../constants/communityLinks';
+
+function IconTelegram({ className }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M21.945 2.765a1.11 1.11 0 0 0-1.131-.095l-19 7.5a1.1 1.1 0 0 0 .095 2.071l4.9 1.53 2.25 7.11a.95.95 0 0 0 1.78.035l3.05-6.27 6.37 4.7a1.1 1.1 0 0 0 1.69-.615l4.75-18.5a1.1 1.1 0 0 0-.05-.927zM17.1 5.4L7.55 14.55l-1.35-4.28 10.9-4.87zm-1.05 12.15l-5.1-3.78 8.55-7.65-3.45 11.43z" />
+        </svg>
+    );
+}
+
+function IconDiscord({ className }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+        </svg>
+    );
+}
+
+const PASSWORD_RESET_TICKET_SUBJECT = `${SUPPORT_PASSWORD_RESET_TICKET_MARKER} Não consigo acessar a conta`;
+
+function isLikelyEmail(s) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
+}
 
 export default function Login() {
     const { t } = useTranslation();
@@ -15,13 +39,20 @@ export default function Login() {
     const [requires2FA, setRequires2FA] = useState(false);
     const [twoFactorToken, setTwoFactorToken] = useState('');
     const [localError, setLocalError] = useState('');
-    const [showResetHint, setShowResetHint] = useState(false);
     
     // Legacy Reset States
     const [showLegacyReset, setShowLegacyReset] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isResetting, setIsResetting] = useState(false);
+
+    // Support ticket (same flow as ForgotPassword manual reset)
+    const [ticketOpen, setTicketOpen] = useState(false);
+    const [ticketName, setTicketName] = useState('');
+    const [ticketEmail, setTicketEmail] = useState('');
+    const [ticketMessage, setTicketMessage] = useState('');
+    const [ticketSending, setTicketSending] = useState(false);
+    const [ticketSent, setTicketSent] = useState(false);
 
     const navigate = useNavigate();
     const { login, error, isLoading, isAuthenticated, checkSession } = useAuthStore();
@@ -35,7 +66,7 @@ export default function Login() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLocalError('');
-        setShowResetHint(false);
+        setTicketSent(false);
         
         try {
             const res = await api.post('/auth/login', {
@@ -55,8 +86,19 @@ export default function Login() {
             }
 
             if (res.data.ok) {
-                await checkSession();
-                navigate('/dashboard');
+                // Cookies do login podem demorar um instante no PC; silent evita isLoading global
+                // (senão App.jsx desmonta o Router e a página de login some a meio do fluxo).
+                await new Promise((r) => setTimeout(r, 80));
+                const sessionOk = await checkSession({
+                    retries: 10,
+                    retryDelayMs: 200,
+                    silent: true
+                });
+                if (sessionOk) {
+                    navigate('/dashboard');
+                } else {
+                    setLocalError(t('auth.login.errors.login_failed'));
+                }
             }
         } catch (err) {
             if (err.response?.data?.require2FA) {
@@ -73,12 +115,53 @@ export default function Login() {
                     INVALID_2FA: t('auth.login.errors.invalid_2fa'),
                     LOGIN_FAILED: t('auth.login.errors.login_failed')
                 };
-
-                if (code === 'IDENTIFIER_NOT_FOUND' || code === 'INVALID_CREDENTIALS') {
-                    setShowResetHint(true);
-                }
-                setLocalError(fieldError || errorByCode[code] || err.response?.data?.message || t('auth.login.errors.login_failed'));
+                // Mostra a mensagem real do backend quando disponível.
+                setLocalError(
+                    fieldError ||
+                    err.response?.data?.message ||
+                    errorByCode[code] ||
+                    t('auth.login.errors.login_failed')
+                );
             }
+        }
+    };
+
+    const handlePasswordHelpTicket = async (e) => {
+        e.preventDefault();
+
+        setLocalError('');
+        const name = ticketName.trim() || (ticketEmail.trim().split('@')[0] || 'Usuário');
+        const em = ticketEmail.trim();
+
+        const body =
+            ticketMessage.trim() ||
+            'Não consigo acessar minha conta (login não funciona). Preciso de ajuda para recuperar o acesso e receber o link de redefinição de senha.';
+
+        if (!isLikelyEmail(em)) {
+            const message = 'Informe um e-mail válido para contato.';
+            setLocalError(message);
+            toast.error(message);
+            return;
+        }
+
+        try {
+            setTicketSending(true);
+            await api.post('/support', {
+                name,
+                email: em,
+                subject: PASSWORD_RESET_TICKET_SUBJECT,
+                message: body
+            });
+            // Garante que a área do ticket permaneça visível após o submit
+            setTicketOpen(true);
+            setTicketSent(true);
+            toast.success('Chamado aberto. Nossa equipe vai analisar e enviar o link se a conta for localizada.');
+        } catch (err) {
+            const message = err.response?.data?.message || 'Não foi possível abrir o chamado agora.';
+            setLocalError(message);
+            toast.error(message);
+        } finally {
+            setTicketSending(false);
         }
     };
 
@@ -185,14 +268,6 @@ export default function Login() {
                             <p className="text-red-400 text-xs font-bold leading-relaxed">{localError || error}</p>
                         </div>
                     )}
-                    {showResetHint && !requires2FA && (
-                        <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-xs font-semibold text-blue-300 leading-relaxed">
-                            We could not find your account details or password. Try resetting your password{" "}
-                            <Link to="/forgot-password" className="underline hover:text-white transition-colors">
-                                here
-                            </Link>.
-                        </div>
-                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {!requires2FA ? (
@@ -291,6 +366,100 @@ export default function Login() {
                         </button>
                     </form>
 
+                    {!requires2FA && (ticketOpen || ticketSent || error || localError) && (
+                        <div className="mt-6 mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-xs font-semibold text-blue-300 leading-relaxed">
+                            Não conseguiu acessar? Tente redefinir sua senha ou abra um chamado com o suporte.
+                            <div className="mt-2">
+                                <Link
+                                    to="/forgot-password"
+                                    className="underline hover:text-white transition-colors"
+                                >
+                                    Redefinir senha
+                                </Link>
+                            </div>
+
+                            <div className="mt-3 flex flex-col gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setTicketOpen((o) => !o);
+                                        setTicketSent(false);
+                                        setTicketEmail((prev) => prev || identifier);
+                                    }}
+                                    className="w-full text-left text-[11px] text-blue-200 hover:text-white transition-colors font-bold underline-offset-4 hover:underline"
+                                >
+                                    Não consegui acessar mesmo assim? Abrir chamado com o suporte
+                                </button>
+
+                                {ticketOpen && !ticketSent && (
+                                    <form onSubmit={handlePasswordHelpTicket} className="mt-2 space-y-3 border-t border-blue-500/20 pt-3">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="ticket-name">
+                                                Como podemos te chamar
+                                            </label>
+                                            <input
+                                                id="ticket-name"
+                                                type="text"
+                                                value={ticketName}
+                                                onChange={(e) => setTicketName(e.target.value)}
+                                                className="w-full bg-background border border-gray-800 rounded-2xl py-3 px-4 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all"
+                                                placeholder="Seu nome ou apelido"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="ticket-email">
+                                                E-mail para contato
+                                            </label>
+                                            <input
+                                                id="ticket-email"
+                                                type="text"
+                                                required
+                                                value={ticketEmail}
+                                                onChange={(e) => setTicketEmail(e.target.value)}
+                                                className="w-full bg-background border border-gray-800 rounded-2xl py-3 px-4 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all"
+                                                placeholder="voce@email.com"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1" htmlFor="ticket-msg">
+                                                Mensagem (opcional)
+                                            </label>
+                                            <textarea
+                                                id="ticket-msg"
+                                                rows={3}
+                                                value={ticketMessage}
+                                                onChange={(e) => setTicketMessage(e.target.value)}
+                                                className="w-full bg-background border border-gray-800 rounded-2xl py-3 px-4 text-sm font-bold text-white focus:outline-none focus:border-primary/50 transition-all resize-none"
+                                                placeholder="Ex.: não consigo logar desde ontem, preciso de ajuda..."
+                                            />
+                                        </div>
+
+                                        <button
+                                            type="submit"
+                                            disabled={ticketSending}
+                                            className="w-full flex justify-center items-center gap-2 py-3 px-6 bg-primary text-slate-950 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-primary/20 active:scale-95 disabled:opacity-50"
+                                        >
+                                            {ticketSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <LifeBuoy className="w-4 h-4" />}
+                                            Enviar chamado
+                                        </button>
+                                    </form>
+                                )}
+
+                                {ticketOpen && ticketSent && (
+                                    <div className="mt-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 flex items-start gap-3">
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                                        <p className="text-slate-200 text-xs font-bold leading-relaxed">
+                                            Recebemos seu pedido. Se a conta existir (ou for criada temporariamente com esse e-mail),
+                                            enviamos o link de redefinição de senha.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {!requires2FA && (
                         <div className="mt-10 text-center">
                             <p className="text-gray-500 text-xs font-medium">
@@ -301,6 +470,36 @@ export default function Login() {
                             </p>
                         </div>
                     )}
+
+                    <div
+                        className="mt-8 pt-6 border-t border-gray-800/60 flex flex-col items-center gap-3"
+                        role="navigation"
+                        aria-label="Comunidade e suporte"
+                    >
+                        <p className="text-[10px] font-bold text-gray-600 uppercase tracking-[0.2em]">Suporte & comunidade</p>
+                        <div className="flex items-center justify-center gap-3">
+                            <a
+                                href={COMMUNITY_TELEGRAM_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-800/80 bg-background/40 text-gray-400 transition-all hover:border-[#26A5E4]/50 hover:text-[#26A5E4] hover:shadow-lg hover:shadow-[#26A5E4]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                aria-label="Suporte no Telegram"
+                                title="Telegram — suporte"
+                            >
+                                <IconTelegram className="h-6 w-6" />
+                            </a>
+                            <a
+                                href={COMMUNITY_DISCORD_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-800/80 bg-background/40 text-gray-400 transition-all hover:border-[#5865F2]/50 hover:text-[#5865F2] hover:shadow-lg hover:shadow-[#5865F2]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                aria-label="Comunidade no Discord"
+                                title="Discord — Block Miner"
+                            >
+                                <IconDiscord className="h-6 w-6" />
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="mt-8 text-center animate-in fade-in duration-1000 delay-500">

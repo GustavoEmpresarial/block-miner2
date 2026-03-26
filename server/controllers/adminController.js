@@ -21,6 +21,17 @@ const execFileAsync = promisify(execFile);
 
 const DEFAULT_MINER_IMAGE_URL = "/assets/machines/reward1.png";
 
+/** Accepts "0,75" / "1.234,56" (PT) e notação normal (0.75, 5e-8). */
+function parseAdminNumber(value) {
+  if (value === null || value === undefined) return NaN;
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  let s = String(value).trim().replace(/\s/g, "");
+  if (!s) return NaN;
+  if (s.includes(",") && !s.includes(".")) return Number(s.replace(",", "."));
+  if (s.includes(",") && s.includes(".")) return Number(s.replace(/\./g, "").replace(",", "."));
+  return Number(s);
+}
+
 /** Normalize admin JSON (camelCase or legacy snake_case) into a miner patch */
 function minerPatchFromBody(body) {
   if (!body || typeof body !== "object") return {};
@@ -29,8 +40,8 @@ function minerPatchFromBody(body) {
   if (b.name !== undefined) patch.name = String(b.name);
   if (b.slug !== undefined) patch.slug = String(b.slug);
   const bh = b.baseHashRate ?? b.base_hash_rate;
-  if (bh !== undefined) patch.baseHashRate = Number(bh);
-  if (b.price !== undefined) patch.price = Number(b.price);
+  if (bh !== undefined) patch.baseHashRate = parseAdminNumber(bh);
+  if (b.price !== undefined) patch.price = parseAdminNumber(b.price);
   const ss = b.slotSize ?? b.slot_size;
   if (ss !== undefined) patch.slotSize = Number(ss);
   const iu = b.imageUrl ?? b.image_url;
@@ -141,6 +152,98 @@ export async function listRecentUsers(req, res) {
   }
 }
 
+/**
+ * GET /api/admin/users/:id/details
+ * Perfil + métricas + transações (painel admin: crédito POL, ban, etc.).
+ */
+export async function getAdminUserDetails(req, res) {
+  try {
+    const userId = Number(req.params?.id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ ok: false, message: "ID de utilizador inválido." });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        walletAddress: true,
+        polBalance: true,
+        isBanned: true,
+        createdAt: true
+      }
+    });
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "Utilizador não encontrado." });
+    }
+
+    const [
+      totalHs,
+      activeMachines,
+      faucet,
+      shortlink,
+      autoGpuClaims,
+      youtubeWatchClaims,
+      recentTransactions
+    ] = await Promise.all([
+      syncUserBaseHashRate(userId).catch(() => 0),
+      prisma.userMiner.count({ where: { userId, isActive: true } }),
+      prisma.faucetClaim.findUnique({ where: { userId } }),
+      prisma.shortlinkCompletion.findUnique({ where: { userId } }),
+      prisma.autoMiningGpuLog.count({ where: { userId, action: "claim" } }).catch(() =>
+        prisma.autoMiningGpuLog.count({ where: { userId } }).catch(() => 0)
+      ),
+      prisma.youtubeWatchHistory.count({ where: { userId } }).catch(() => 0),
+      prisma.transaction.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 25,
+        select: {
+          id: true,
+          type: true,
+          amount: true,
+          status: true,
+          createdAt: true
+        }
+      })
+    ]);
+
+    res.json({
+      ok: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        walletAddress: user.walletAddress,
+        polBalance: Number(user.polBalance),
+        baseHashRate: Number(totalHs) || 0,
+        isBanned: user.isBanned
+      },
+      metrics: {
+        faucetClaims: faucet?.totalClaims ?? 0,
+        shortlinkDailyRuns: shortlink?.dailyRuns ?? 0,
+        autoGpuClaims,
+        youtubeWatchClaims,
+        activeMachines
+      },
+      recentTransactions: recentTransactions.map((tx) => ({
+        id: tx.id,
+        type: tx.type,
+        amount: Number(tx.amount),
+        status: tx.status,
+        createdAt: tx.createdAt
+      }))
+    });
+  } catch (error) {
+    logger.error("getAdminUserDetails", { error: error?.message, userId: req.params?.id });
+    res.status(500).json({ ok: false, message: "Não foi possível carregar o perfil." });
+  }
+}
+
 export async function setUserBan(req, res) {
   try {
     const userId = Number(req.params?.id);
@@ -246,13 +349,17 @@ export async function propagateMinerCatalogToInstances(req, res) {
       return res.status(404).json({ ok: false, message: "Miner not found." });
     }
     logger.error("propagateMinerCatalogToInstances", { error: error?.message });
-    res.status(500).json({ ok: false, message: "Propagation failed" });
+    const hint = error?.message ? String(error.message).slice(0, 240) : "";
+    res.status(500).json({
+      ok: false,
+      message: hint ? `Propagation failed: ${hint}` : "Propagation failed"
+    });
   }
 }
 
 /**
- * Adiciona uma unidade da mineradora ao inventário de todos os usuários (ou subset com filtros).
- * Body: { minerId, skipBanned?: true, skipIfHasMiner?: false }
+ * Adiciona N unidades da mineradora ao inventário de todos os usuários (ou subset com filtros).
+ * Body: { minerId, quantity?: 1, skipBanned?: true, skipIfHasMiner?: false }
  */
 export async function grantMinerInventoryToAllUsers(req, res) {
   try {
@@ -264,53 +371,132 @@ export async function grantMinerInventoryToAllUsers(req, res) {
     const skipBanned = req.body?.skipBanned !== false && req.body?.skip_banned !== false;
     const skipIfHasMiner = Boolean(req.body?.skipIfHasMiner || req.body?.skip_if_has_miner);
 
+    const quantity = Number(req.body?.quantity ?? req.body?.count ?? req.body?.units ?? 1);
+    const MAX_QUANTITY = 100;
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return res.status(400).json({ ok: false, message: "Envie quantity (inteiro >= 1)." });
+    }
+    if (quantity > MAX_QUANTITY) {
+      return res.status(400).json({ ok: false, message: `quantity muito alta. Limite: ${MAX_QUANTITY}.` });
+    }
+
     const miner = await prisma.miner.findUnique({ where: { id: minerId } });
     if (!miner) {
       return res.status(404).json({ ok: false, message: "Mineradora não encontrada." });
     }
 
     const userWhere = skipBanned ? { isBanned: false } : {};
-    let users = await prisma.user.findMany({
+    const users = await prisma.user.findMany({
       where: userWhere,
       select: { id: true }
     });
 
+    // IMPORTANT:
+    // This endpoint grants "quantity" NEW units per eligible user.
+    // It must NOT calculate "remaining to reach quantity" based on what's already in inventory.
+    // So every eligible user receives exactly `quantity` rows.
     let skippedAlreadyHad = 0;
-    if (skipIfHasMiner) {
-      const existing = await prisma.userInventory.findMany({
-        where: { minerId },
-        select: { userId: true },
-        distinct: ["userId"]
-      });
-      const has = new Set(existing.map((e) => e.userId));
-      const before = users.length;
-      users = users.filter((u) => !has.has(u.id));
-      skippedAlreadyHad = before - users.length;
-    }
+    let eligibleUsers = users.length;
 
     const now = new Date();
     const hashRate = Number(miner.baseHashRate || 0);
     const slotSize = Math.max(1, Number(miner.slotSize || 1));
     const imageUrl = miner.imageUrl || DEFAULT_MINER_IMAGE_URL;
+    const userIds = users.map((u) => u.id);
 
-    const rows = users.map((u) => ({
-      userId: u.id,
-      minerId: miner.id,
-      minerName: miner.name,
-      level: 1,
-      hashRate,
-      slotSize,
-      imageUrl,
-      acquiredAt: now,
-      updatedAt: now
-    }));
+    // Robust insert: single SQL statement (avoids FK race/loop issues with createMany).
+    // Inserts `quantity` copies per eligible user using generate_series().
+    if (!userIds.length) {
+      return res.json({
+        ok: true,
+        granted: 0,
+        miner: { id: miner.id, name: miner.name, slug: miner.slug },
+        eligibleUsers: 0,
+        skippedAlreadyHad: 0
+      });
+    }
 
-    const CHUNK = 500;
+    const sql = `
+      INSERT INTO user_inventory
+        (user_id, miner_id, miner_name, level, hash_rate, slot_size, image_url, acquired_at, updated_at)
+      SELECT
+        v.user_id,
+        $1::int,
+        $2::text,
+        1::int,
+        $3::double precision,
+        $4::int,
+        $5::text,
+        now(),
+        now()
+      FROM unnest($6::int[]) AS v(user_id)
+      JOIN users u
+        ON u.id = v.user_id
+       ${skipBanned ? "AND u.is_banned = false" : ""}
+      CROSS JOIN generate_series(1, $7::int) g
+    `;
+
     let inserted = 0;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const r = await prisma.userInventory.createMany({ data: chunk });
-      inserted += r.count;
+    let skippedInvalidUserIds = 0;
+    try {
+      const changes = await prisma.$executeRawUnsafe(
+        sql,
+        miner.id,
+        String(miner.name),
+        hashRate,
+        slotSize,
+        imageUrl,
+        userIds,
+        quantity
+      );
+      inserted = Number(changes) || 0;
+    } catch (error) {
+      // If some user_ids are "ghosts" (FK fails), still grant to the users that exist.
+      const msg = String(error?.message || "");
+      const isFkUserInventory = error?.code === "23503" || msg.includes("user_inventory_user_id_fkey");
+      if (!isFkUserInventory) throw error;
+
+      logger.warn("grantMinerInventoryToAllUsers | bulk insert FK failed, fallback per-user", {
+        minerId: miner.id,
+        quantity,
+        skippedInvalidUserIds: 0,
+        eligibleUsers: userIds.length,
+        fkMessage: msg.slice(0, 220)
+      });
+
+      const singleSql = `
+        INSERT INTO public.user_inventory
+          (user_id, miner_id, miner_name, level, hash_rate, slot_size, image_url, acquired_at, updated_at)
+        SELECT
+          $1::int,
+          $2::int,
+          $3::text,
+          1::int,
+          $4::double precision,
+          $5::int,
+          $6::text,
+          now(),
+          now()
+        FROM generate_series(1, $7::int) g
+      `;
+
+      for (const userId of userIds) {
+        try {
+          const changes = await prisma.$executeRawUnsafe(
+            singleSql,
+            userId,
+            miner.id,
+            String(miner.name),
+            hashRate,
+            slotSize,
+            imageUrl,
+            quantity
+          );
+          inserted += Number(changes) || 0;
+        } catch (e) {
+          skippedInvalidUserIds += 1;
+        }
+      }
     }
 
     try {
@@ -324,6 +510,7 @@ export async function grantMinerInventoryToAllUsers(req, res) {
             minerId: miner.id,
             minerName: miner.name,
             grantedCount: inserted,
+            quantity,
             skipBanned,
             skipIfHasMiner,
             skippedAlreadyHad
@@ -337,17 +524,21 @@ export async function grantMinerInventoryToAllUsers(req, res) {
     logger.info("grantMinerInventoryToAllUsers", {
       minerId,
       inserted,
+      quantity,
       skipBanned,
       skipIfHasMiner,
-      skippedAlreadyHad
+      skippedAlreadyHad,
+      eligibleUsers,
+      skippedInvalidUserIds
     });
 
     res.json({
       ok: true,
       granted: inserted,
       miner: { id: miner.id, name: miner.name, slug: miner.slug },
-      eligibleUsers: users.length,
-      skippedAlreadyHad
+      eligibleUsers,
+      skippedAlreadyHad,
+      skippedInvalidUserIds
     });
   } catch (error) {
     logger.error("grantMinerInventoryToAllUsers", { error: error?.message });
@@ -503,5 +694,58 @@ export async function completeWithdrawal(req, res) {
     res.json({ ok: true, message: "Withdrawal marked as completed" });
   } catch (error) {
     res.status(500).json({ ok: false, message: "Marking as completed failed" });
+  }
+}
+
+/**
+ * POST /api/admin/users/:id/credit-pol
+ * Credita POL na conta (ledger + saldo), sem ticket de suporte. Audit + notificação ao jogador.
+ */
+export async function creditUserPolManual(req, res) {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(400).json({ ok: false, message: "ID de utilizador inválido." });
+    }
+
+    const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!u) {
+      return res.status(404).json({ ok: false, message: "Utilizador não encontrado." });
+    }
+
+    const { amountPol, amount, adminNote, txHash, replenishIfDepositExistsForUser } = req.body || {};
+    const amt = Number(amountPol ?? amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return res.status(400).json({ ok: false, message: "Indique amountPol (número > 0)." });
+    }
+
+    let txOpt;
+    if (txHash != null && String(txHash).trim() !== "") {
+      try {
+        txOpt = normalizeTxHash(txHash);
+      } catch (e) {
+        return res.status(400).json({ ok: false, message: e.message });
+      }
+    }
+
+    const ip = req.headers["x-real-ip"] || req.socket?.remoteAddress || req.ip;
+    const result = await walletModel.creditPolManualToUser({
+      userId,
+      amountPol: amt,
+      adminNote: String(adminNote || "").trim() || undefined,
+      reqIp: ip,
+      txHashOptional: txOpt || undefined,
+      replenishIfDepositExistsForUser: Boolean(replenishIfDepositExistsForUser)
+    });
+
+    logger.info("Admin manual POL credit", { userId, amountPol: amt, mode: result.mode });
+    res.json({
+      ok: true,
+      message: "POL creditado na conta.",
+      ...result
+    });
+  } catch (error) {
+    logger.error("creditUserPolManual failed", { error: error.message });
+    res.status(400).json({ ok: false, message: error.message || "Não foi possível creditar." });
   }
 }

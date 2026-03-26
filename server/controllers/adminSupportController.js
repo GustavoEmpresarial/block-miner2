@@ -6,14 +6,22 @@ import loggerLib from "../utils/logger.js";
 import { getValidatedDepositAddress } from "../utils/depositAddress.js";
 import { fetchRecentWalletTxs } from "./walletController.js";
 import {
-  SUPPORT_WALLET_RECOVERY_MARKER,
-  SUPPORT_PASSWORD_RESET_TICKET_MARKER
+  isWalletRecoverySupportSubject,
+  isPasswordRecoverySupportTicket
 } from "../constants/supportTicketSubjects.js";
+import walletModel from "../models/walletModel.js";
 
 const logger = loggerLib.child("AdminSupport");
 
 const ETH_ADDR_RE = /0x[a-fA-F0-9]{40}/g;
 const ETH_TX_HASH_RE = /0x[a-fA-F0-9]{64}/g;
+
+function normalizeSupportEmail(raw) {
+  return String(raw || "")
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase();
+}
 
 function normTxHash(h) {
   let s = String(h || "")
@@ -57,6 +65,25 @@ function extractWalletAddressesFromText(text) {
   return out;
 }
 
+/** ID numérico no bloco automático do ticket (ex.: "User ID: 66") — prioridade sobre e-mail ambíguo. */
+function extractUserIdFromTicketText(text) {
+  const s = String(text || "");
+  const patterns = [
+    /\bUser ID:\s*(\d{1,12})\b/i,
+    /\bID do utilizador:\s*(\d{1,12})\b/i,
+    /\bID da conta:\s*(\d{1,12})\b/i,
+    /\buser_id:\s*(\d{1,12})\b/i
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (Number.isFinite(n) && n > 0 && n <= 2147483647) return n;
+    }
+  }
+  return null;
+}
+
 async function resolveUserFromTicket(ticket) {
   if (ticket.userId) {
     const u = await prisma.user.findUnique({
@@ -65,18 +92,68 @@ async function resolveUserFromTicket(ticket) {
     });
     if (u) return u;
   }
-  const ident = String(ticket.email || "").trim();
-  if (!ident) return null;
-  return prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: { equals: ident, mode: "insensitive" } },
-        { username: { equals: ident, mode: "insensitive" } },
-        { name: { equals: ident, mode: "insensitive" } }
-      ]
-    },
+
+  const blob = `${ticket.message || ""}\n${ticket.subject || ""}`.trim();
+  const idFromBody = extractUserIdFromTicketText(blob);
+  if (idFromBody != null) {
+    const u = await prisma.user.findUnique({
+      where: { id: idFromBody },
+      select: { id: true, email: true, name: true }
+    });
+    if (u) return u;
+  }
+
+  const ident = normalizeSupportEmail(ticket.email);
+  if (!ident) {
+    const walletsOnly = extractWalletAddressesFromText(blob);
+    if (!walletsOnly.length) return null;
+    const uniqueWallets = [...new Set(walletsOnly)].slice(0, 6);
+    return prisma.user.findFirst({
+      where: {
+        OR: uniqueWallets.map((w) => ({
+          walletAddress: { equals: w, mode: "insensitive" }
+        }))
+      },
+      select: { id: true, email: true, name: true }
+    });
+  }
+
+  const emailLike = ident.includes("@");
+  const orClause = [
+    { email: { equals: ident, mode: "insensitive" } },
+    { username: { equals: ident, mode: "insensitive" } }
+  ];
+  if (!emailLike) {
+    orClause.push({ name: { equals: ident, mode: "insensitive" } });
+  }
+
+  const byIdentity = await prisma.user.findFirst({
+    where: { OR: orClause },
     select: { id: true, email: true, name: true }
   });
+  if (byIdentity) return byIdentity;
+
+  const wallets = extractWalletAddressesFromText(blob);
+  if (!wallets.length) return null;
+
+  const uniqueWallets = [...new Set(wallets)].slice(0, 6);
+  const byWallet = await prisma.user.findMany({
+    where: {
+      OR: uniqueWallets.map((w) => ({
+        walletAddress: { equals: w, mode: "insensitive" }
+      }))
+    },
+    select: { id: true, email: true, name: true },
+    take: 8,
+    orderBy: { id: "asc" }
+  });
+  if (!byWallet.length) return null;
+  if (byWallet.length === 1) return byWallet[0];
+  const identNorm = normalizeSupportEmail(ident);
+  const emailMatch = byWallet.find(
+    (row) => normalizeSupportEmail(row.email) === identNorm
+  );
+  return emailMatch || byWallet[0];
 }
 
 /**
@@ -89,6 +166,7 @@ export const listMessages = async (req, res) => {
       include: {
         user: {
           select: {
+            id: true,
             username: true,
             email: true,
           }
@@ -114,6 +192,7 @@ export const getMessage = async (req, res) => {
       include: {
         user: {
           select: {
+            id: true,
             username: true,
             email: true,
           }
@@ -204,10 +283,10 @@ export const sendPasswordResetLink = async (req, res) => {
       return res.status(404).json({ ok: false, message: "Ticket não encontrado." });
     }
 
-    if (!String(ticket.subject || "").includes(SUPPORT_PASSWORD_RESET_TICKET_MARKER)) {
+    if (!isPasswordRecoverySupportTicket(ticket.subject, ticket.message)) {
       return res.status(400).json({
         ok: false,
-        message: "Só é possível liberar recuperação em tickets com assunto [Senha]."
+        message: "Este ticket não foi identificado como pedido de recuperação de senha."
       });
     }
 
@@ -258,6 +337,112 @@ export const sendPasswordResetLink = async (req, res) => {
 };
 
 /**
+ * Admin: creditar POL na conta do jogador (depósito não recuperado pelo re-sync / migração). Só tickets [Saldo/POL].
+ */
+export const creditSupportTicketPol = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, message: "ID inválido." });
+    }
+
+    const ticket = await prisma.supportMessage.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ ok: false, message: "Ticket não encontrado." });
+    }
+
+    if (!isWalletRecoverySupportSubject(ticket.subject)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Crédito manual só está disponível em tickets de análise de depósito [Saldo/POL]."
+      });
+    }
+
+    const user = await resolveUserFromTicket(ticket);
+    if (!user) {
+      return res.status(404).json({
+        ok: false,
+        message: "Nenhuma conta associada a este ticket. Confira o e-mail ou o utilizador."
+      });
+    }
+
+  const resolvedUserId = Number(user?.id);
+  if (!Number.isFinite(resolvedUserId) || resolvedUserId <= 0) {
+    return res.status(404).json({
+      ok: false,
+      message: "Utilizador associado ao ticket inválido."
+    });
+  }
+
+    const userStillThere = await prisma.user.findUnique({
+      where: { id: resolvedUserId },
+      select: { id: true }
+    });
+    if (!userStillThere) {
+      logger.warn("creditSupportTicketPol utilizador não existe na BD", {
+        ticketId: id,
+        resolvedUserId
+      });
+      return res.status(404).json({
+        ok: false,
+        message:
+          "Esta conta já não existe na base de dados (ou o ID do ticket está desatualizado). Atualize a análise ou corrija o utilizador vinculado."
+      });
+    }
+
+    const amountPol = req.body?.amountPol ?? req.body?.amount;
+    const txHash = req.body?.txHash;
+    const adminNote = req.body?.adminNote;
+    const skipTicketReply = Boolean(req.body?.skipTicketReply);
+
+    const ip = req.headers["x-real-ip"] || req.socket?.remoteAddress || req.ip;
+
+    const result = await walletModel.creditPolManualSupportMigration({
+      userId: resolvedUserId,
+      amountPol,
+      supportTicketId: id,
+      txHashOptional: txHash,
+      adminNote,
+      reqIp: ip,
+      replenishIfDepositExistsForUser: Boolean(req.body?.replenishIfDepositExistsForUser)
+    });
+
+    if (!skipTicketReply) {
+      const amtStr = Number(amountPol).toFixed(6);
+      await prisma.$transaction([
+        prisma.supportReply.create({
+          data: {
+            supportMessageId: id,
+            message: `Crédito de ${amtStr} POL aplicado à sua conta após análise deste chamado. Se o saldo não atualizar de imediato, faça logout e login.`,
+            isAdmin: true
+          }
+        }),
+        prisma.supportMessage.update({
+          where: { id },
+          data: { isReplied: true, repliedAt: new Date(), isRead: true }
+        })
+      ]);
+    }
+
+    logger.info("Admin manual POL credit from support ticket", {
+      ticketId: id,
+      userId: user.id,
+      amountPol: Number(amountPol),
+      txHash: result.txHash
+    });
+
+    res.json({
+      ok: true,
+      message: "POL creditado com sucesso.",
+      ...result
+    });
+  } catch (error) {
+    logger.error("creditSupportTicketPol failed", { error: error.message });
+    res.status(400).json({ ok: false, message: error.message || "Erro ao creditar." });
+  }
+};
+
+/**
  * Admin: histórico de chamados [Senha] e envios de link pela equipe (para o mesmo e-mail/conta).
  */
 export const getPasswordRecoveryContext = async (req, res) => {
@@ -272,10 +457,10 @@ export const getPasswordRecoveryContext = async (req, res) => {
       return res.status(404).json({ ok: false, message: "Ticket não encontrado." });
     }
 
-    if (!String(ticket.subject || "").includes(SUPPORT_PASSWORD_RESET_TICKET_MARKER)) {
+    if (!isPasswordRecoverySupportTicket(ticket.subject, ticket.message)) {
       return res.status(400).json({
         ok: false,
-        message: "Este protocolo não é de recuperação de senha ([Senha])."
+        message: "Este protocolo não foi classificado como recuperação de senha."
       });
     }
 
@@ -287,14 +472,26 @@ export const getPasswordRecoveryContext = async (req, res) => {
       orMatch.push({ userId: user.id });
     }
 
-    const senhaTickets = await prisma.supportMessage.findMany({
+    const recoveryCandidates = await prisma.supportMessage.findMany({
       where: {
         AND: [
-          { subject: { contains: SUPPORT_PASSWORD_RESET_TICKET_MARKER, mode: "insensitive" } },
+          {
+            OR: [
+              { subject: { contains: "[Senha]", mode: "insensitive" } },
+              { subject: { contains: "senha", mode: "insensitive" } },
+              { message: { contains: "redefinição", mode: "insensitive" } },
+              { message: { contains: "redefinicao", mode: "insensitive" } },
+              { message: { contains: "não recebi o e-mail", mode: "insensitive" } },
+              { message: { contains: "nao recebi o e-mail", mode: "insensitive" } },
+              { message: { contains: "concluir a recuperação", mode: "insensitive" } },
+              { message: { contains: "concluir a recuperacao", mode: "insensitive" } }
+            ]
+          },
           { OR: orMatch }
         ]
       },
       orderBy: { createdAt: "desc" },
+      take: 200,
       select: {
         id: true,
         createdAt: true,
@@ -302,9 +499,14 @@ export const getPasswordRecoveryContext = async (req, res) => {
         isRead: true,
         email: true,
         userId: true,
-        subject: true
+        subject: true,
+        message: true
       }
     });
+
+    const senhaTickets = recoveryCandidates.filter((t) =>
+      isPasswordRecoverySupportTicket(t.subject, t.message)
+    );
 
     const ticketIds = senhaTickets.map((t) => t.id);
     let adminResetReplies = [];
@@ -392,7 +594,7 @@ export const getWalletRecoveryForensics = async (req, res) => {
       return res.status(404).json({ ok: false, message: "Ticket não encontrado." });
     }
 
-    if (!String(ticket.subject || "").includes(SUPPORT_WALLET_RECOVERY_MARKER)) {
+    if (!isWalletRecoverySupportSubject(ticket.subject)) {
       return res.status(400).json({
         ok: false,
         message: "Este protocolo não é de análise de saldo/carteira."
@@ -419,7 +621,12 @@ export const getWalletRecoveryForensics = async (req, res) => {
           polBalance: true
         }
       });
-      if (full) {
+      if (!full) {
+        logger.warn("wallet-forensics resolveUser id sem linha em users (evita aprovar conta fantasma)", {
+          ticketId: id,
+          staleUserId: userRow.id
+        });
+      } else {
         linkedUser = {
           id: full.id,
           email: full.email,
@@ -427,41 +634,41 @@ export const getWalletRecoveryForensics = async (req, res) => {
           walletAddress: full.walletAddress,
           polBalance: Number(full.polBalance || 0)
         };
-      }
 
-      const txs = await prisma.transaction.findMany({
-        where: { userId: userRow.id },
-        orderBy: { createdAt: "desc" },
-        take: 80,
-        select: {
-          id: true,
-          type: true,
-          amount: true,
-          status: true,
-          txHash: true,
-          address: true,
-          fromAddress: true,
-          createdAt: true,
-          completedAt: true
-        }
-      });
+        const txs = await prisma.transaction.findMany({
+          where: { userId: full.id },
+          orderBy: { createdAt: "desc" },
+          take: 80,
+          select: {
+            id: true,
+            type: true,
+            amount: true,
+            status: true,
+            txHash: true,
+            address: true,
+            fromAddress: true,
+            createdAt: true,
+            completedAt: true
+          }
+        });
 
-      for (const t of txs) {
-        const row = {
-          id: t.id,
-          type: t.type,
-          amount: Number(t.amount),
-          status: t.status,
-          txHash: t.txHash,
-          address: t.address,
-          fromAddress: t.fromAddress,
-          createdAt: t.createdAt,
-          completedAt: t.completedAt
-        };
-        if (t.type === "deposit") {
-          deposits.push(row);
-        } else if (t.type === "withdrawal") {
-          withdrawals.push(row);
+        for (const t of txs) {
+          const row = {
+            id: t.id,
+            type: t.type,
+            amount: Number(t.amount),
+            status: t.status,
+            txHash: t.txHash,
+            address: t.address,
+            fromAddress: t.fromAddress,
+            createdAt: t.createdAt,
+            completedAt: t.completedAt
+          };
+          if (t.type === "deposit") {
+            deposits.push(row);
+          } else if (t.type === "withdrawal") {
+            withdrawals.push(row);
+          }
         }
       }
     }
@@ -496,13 +703,17 @@ export const getWalletRecoveryForensics = async (req, res) => {
 
     const scanWallets = [...new Set([linkedLower, ...ticketWallets].filter(Boolean))].slice(0, 8);
 
+    const explorerPages = Math.min(Math.max(Number(req.query?.explorerPages) || 6, 1), 40);
+    const explorerOffset = Math.min(Math.max(Number(req.query?.explorerOffset) || 10000, 1), 10000);
+
     const mergedTxByHash = new Map();
     const chainFetchErrors = [];
     for (const w of scanWallets) {
       try {
-        const raw = await fetchRecentWalletTxs(w);
+        const raw = await fetchRecentWalletTxs(w, { maxPages: explorerPages, offset: explorerOffset });
         for (const tx of raw) {
-          const h = String(tx.hash || "").toLowerCase();
+          const hRaw = String(tx.hash || "").trim();
+          const h = normTxHash(hRaw) || hRaw.toLowerCase();
           if (!h) continue;
           if (!mergedTxByHash.has(h)) {
             mergedTxByHash.set(h, { ...tx, scannedFromWallets: [w] });
@@ -556,12 +767,30 @@ export const getWalletRecoveryForensics = async (req, res) => {
     const ticketHashesAnalysis = ticketHashesRaw.map((th) => {
       const k = normTxHash(th);
       const led = k ? depositHashMap.get(k) : null;
+      let merged = k ? mergedTxByHash.get(k) : null;
+      if (!merged && th) {
+        const alt = String(th).trim().toLowerCase();
+        merged = mergedTxByHash.get(alt) || null;
+      }
+      let chainValuePol = null;
+      let chainFrom = null;
+      let chainTo = null;
+      if (merged) {
+        chainValuePol = Number(merged.value || 0) / 1e18;
+        chainFrom = String(merged.from || "").toLowerCase() || null;
+        chainTo = String(merged.to || "").toLowerCase() || null;
+      }
       return {
         hash: th,
         inLedger: Boolean(led),
         ledgerId: led?.id ?? null,
         ledgerStatus: led?.status ?? null,
-        ledgerAmount: led != null ? led.amount : null
+        ledgerAmount: led != null ? led.amount : null,
+        chainValuePol: Number.isFinite(chainValuePol) && chainValuePol > 0 ? chainValuePol : null,
+        chainFrom,
+        chainTo,
+        chainLooksLikeDepositToGame:
+          Boolean(gameDeposit && chainTo && chainFrom && chainTo === gameDeposit && scanWallets.includes(chainFrom))
       };
     });
 
@@ -575,7 +804,7 @@ export const getWalletRecoveryForensics = async (req, res) => {
         if (gameDeposit && from && scanWallets.includes(from) && to === gameDeposit) return false;
         return scanWallets.includes(from) || scanWallets.includes(to);
       })
-      .slice(0, 35)
+      .slice(0, 250)
       .map((tx) => {
         const valuePol = Number(tx.value || 0) / 1e18;
         const to = String(tx.to || "").toLowerCase();
@@ -647,6 +876,10 @@ export const getWalletRecoveryForensics = async (req, res) => {
         orphansError,
         orphanDepositsAuxTablePresent,
         chainSample,
+        chainSampleCap: 250,
+        chainOnChainMergedCount: allMerged.length,
+        chainExplorerPagesUsed: explorerPages,
+        chainExplorerOffset: explorerOffset,
         chainError,
         polygonscanBase: "https://polygonscan.com/tx/"
       }

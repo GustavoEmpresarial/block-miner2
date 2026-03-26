@@ -183,7 +183,10 @@
     "tip_deposit": "Depósitos são processados instantaneamente após 1 confirmação na rede Polygon.",
     "min_withdraw_pol": "O saque mínimo é {{min}} POL",
     "max_withdraw_pol": "O saque máximo é {{max}} POL",
-    "min_withdraw_hint": "Saque mínimo: {{min}} POL"
+    "min_withdraw_hint": "Saque mínimo: {{min}} POL",
+    "no_credits_open_ticket_banner": "Ainda sem créditos? Abra um chamado de análise de depósito",
+    "no_credits_open_ticket_hint": "Forneça endereços de carteira e, se tiver, hashes de transação para a equipe cruzar na blockchain.",
+    "open_ticket_btn": "Abrir chamado"
   },
   "faucet": {
     "title": "Faucet de Equipamentos",

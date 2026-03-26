@@ -1,14 +1,14 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
+import { test } from "node:test";
+import assert from "node:assert/strict";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "12345678901234567890123456789012";
 
-const {
+import {
   signAccessToken,
   verifyAccessToken,
   createRefreshToken,
   parseRefreshToken
-} = require("../utils/authTokens");
+} from "../server/utils/authTokens.js";
 
 test("signAccessToken and verifyAccessToken roundtrip", () => {
   const token = signAccessToken({ id: 101, name: "alice", email: "alice@example.com" });

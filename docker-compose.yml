@@ -43,7 +43,10 @@ services:
       BACKUP_EXTERNAL_DIR: ${BACKUP_EXTERNAL_DIR:-}
       BACKUP_EXTERNAL_RETENTION_DAYS: ${BACKUP_EXTERNAL_RETENTION_DAYS:-30}
       BACKUP_CLOUD_ENABLED: ${BACKUP_CLOUD_ENABLED:-false}
-      BACKUP_CLOUD_REMOTE: ${BACKUP_CLOUD_REMOTE:-}
+      # Comando completo (recomendado) ou só REMOTE + FOLDER_ID (backup.js monta o rclone copy)
+      BACKUP_CLOUD_COMMAND: ${BACKUP_CLOUD_COMMAND:-}
+      BACKUP_CLOUD_REMOTE: ${BACKUP_CLOUD_REMOTE:-gdrive}
+      BACKUP_CLOUD_FOLDER_ID: ${BACKUP_CLOUD_FOLDER_ID:-}
       BACKUP_CLOUD_TIMEOUT_MS: ${BACKUP_CLOUD_TIMEOUT_MS:-120000}
       BACKUP_FULL_SITE_ON_STARTUP: ${BACKUP_FULL_SITE_ON_STARTUP:-false}
       BACKUP_FULL_SITE_STARTUP_DELAY_MS: ${BACKUP_FULL_SITE_STARTUP_DELAY_MS:-15000}
@@ -55,7 +58,8 @@ services:
       - ./data:/app/data
       - ./backups:/app/backups
       - ./uploads:/app/uploads
-      - /root/.config/rclone:/root/.config/rclone:ro
+      # rw: o Google OAuth do rclone precisa de gravar token renovado em rclone.conf
+      - /root/.config/rclone:/root/.config/rclone
     restart: unless-stopped
 
   nginx:

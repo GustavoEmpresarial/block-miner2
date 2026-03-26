@@ -117,15 +117,17 @@ test("syncUserBaseHashRate handles various power sources", async () => {
   }
 });
 
-test("persistMinerProfile updates balance", async () => {
-  const original = prisma.user.update;
-  let updatedData;
-  prisma.user.update = async (args) => { updatedData = args.data; return { id: 1 }; };
+test("persistMinerProfile syncs miner balance from DB", async () => {
+  const originalFindUnique = prisma.user.findUnique;
 
+  // Simula DB com polBalance 50, miner.balance 30 (DB > RAM → atualiza RAM)
+  prisma.user.findUnique = async () => ({ polBalance: 50 });
+
+  const miner = { userId: 1, balance: 30 };
   try {
-    await minerProfileModel.persistMinerProfile({ userId: 1, balance: 100 });
-    assert.equal(updatedData.polBalance, 100);
+    await minerProfileModel.persistMinerProfile(miner);
+    assert.equal(miner.balance, 50);
   } finally {
-    prisma.user.update = original;
+    prisma.user.findUnique = originalFindUnique;
   }
 });

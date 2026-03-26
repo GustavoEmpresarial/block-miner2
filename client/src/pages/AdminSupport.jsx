@@ -16,13 +16,14 @@ import {
   X,
   RefreshCw,
   Loader2,
-  KeyRound
+  KeyRound,
+  Coins
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../store/auth';
 import {
-  SUPPORT_WALLET_RECOVERY_MARKER,
-  SUPPORT_PASSWORD_RESET_TICKET_MARKER,
+  isWalletRecoverySupportSubject,
+  isPasswordRecoverySupportTicket,
   parseWalletDepositTicketBody
 } from '../constants/supportWalletTicket';
 import WalletForensicsPanel from '../components/WalletForensicsPanel';
@@ -41,15 +42,14 @@ export default function AdminSupport() {
   const [walletForensicsLoading, setWalletForensicsLoading] = useState(false);
   const [passwordRecoveryCtx, setPasswordRecoveryCtx] = useState(null);
   const [passwordRecoveryLoading, setPasswordRecoveryLoading] = useState(false);
-
-  const isPasswordResetTicket = (subject) =>
-    String(subject || '').includes(SUPPORT_PASSWORD_RESET_TICKET_MARKER);
-
-  const isWalletRecoveryTicket = (subject) =>
-    String(subject || '').includes(SUPPORT_WALLET_RECOVERY_MARKER);
+  const [polCreditAmount, setPolCreditAmount] = useState('');
+  const [polCreditTxHash, setPolCreditTxHash] = useState('');
+  const [polCreditNote, setPolCreditNote] = useState('');
+  const [polCreditReplenish, setPolCreditReplenish] = useState(false);
+  const [polCreditSending, setPolCreditSending] = useState(false);
 
   const walletTicketParsed =
-    selectedMessage && isWalletRecoveryTicket(selectedMessage.subject)
+    selectedMessage && isWalletRecoverySupportSubject(selectedMessage.subject)
       ? parseWalletDepositTicketBody(selectedMessage.message)
       : null;
 
@@ -60,10 +60,12 @@ export default function AdminSupport() {
   const refreshWalletForensics = useCallback(async () => {
     const id = selectedMessage?.id;
     const subj = selectedMessage?.subject;
-    if (!id || !isWalletRecoveryTicket(subj)) return;
+    if (!id || !isWalletRecoverySupportSubject(subj)) return;
     setWalletForensicsLoading(true);
     try {
-      const res = await api.get(`/admin/support/${id}/wallet-forensics`, { params: { days: 365 } });
+      const res = await api.get(`/admin/support/${id}/wallet-forensics`, {
+        params: { days: 365, explorerPages: 8, explorerOffset: 10000 }
+      });
       if (res.data?.ok) setWalletForensics(res.data.forensics);
       else setWalletForensics(null);
     } catch (e) {
@@ -75,7 +77,7 @@ export default function AdminSupport() {
   }, [selectedMessage?.id, selectedMessage?.subject]);
 
   useEffect(() => {
-    if (!selectedMessage?.id || !isWalletRecoveryTicket(selectedMessage.subject)) {
+    if (!selectedMessage?.id || !isWalletRecoverySupportSubject(selectedMessage.subject)) {
       setWalletForensics(null);
       setWalletForensicsLoading(false);
       return;
@@ -86,7 +88,8 @@ export default function AdminSupport() {
   const refreshPasswordRecoveryContext = useCallback(async () => {
     const id = selectedMessage?.id;
     const subj = selectedMessage?.subject;
-    if (!id || !isPasswordResetTicket(subj)) return;
+    const body = selectedMessage?.message;
+    if (!id || !isPasswordRecoverySupportTicket(subj, body)) return;
     setPasswordRecoveryLoading(true);
     try {
       const res = await api.get(`/admin/support/${id}/password-recovery-context`);
@@ -98,17 +101,58 @@ export default function AdminSupport() {
     } finally {
       setPasswordRecoveryLoading(false);
     }
-  }, [selectedMessage?.id, selectedMessage?.subject]);
+  }, [selectedMessage?.id, selectedMessage?.subject, selectedMessage?.message]);
 
   useEffect(() => {
-    if (!selectedMessage?.id || !isPasswordResetTicket(selectedMessage.subject)) {
+    if (
+      !selectedMessage?.id ||
+      !isPasswordRecoverySupportTicket(selectedMessage.subject, selectedMessage.message)
+    ) {
       setPasswordRecoveryCtx(null);
       setPasswordRecoveryLoading(false);
       return;
     }
     setPasswordRecoveryCtx(null);
     refreshPasswordRecoveryContext();
-  }, [selectedMessage?.id, selectedMessage?.subject, refreshPasswordRecoveryContext]);
+  }, [
+    selectedMessage?.id,
+    selectedMessage?.subject,
+    selectedMessage?.message,
+    refreshPasswordRecoveryContext
+  ]);
+
+  const postCreditPolMigration = useCallback(
+    async ({
+      amountPol,
+      txHash,
+      adminNote,
+      skipTicketReply = false,
+      replenishIfDepositExistsForUser = false
+    }) => {
+      const id = selectedMessage?.id;
+      if (!id) throw new Error('Sem ticket selecionado.');
+      const res = await api.post(`/admin/support/${id}/credit-pol-migration`, {
+        amountPol,
+        txHash,
+        adminNote,
+        skipTicketReply,
+        replenishIfDepositExistsForUser
+      });
+      if (!res.data?.ok) throw new Error(res.data?.message || 'Falha ao creditar.');
+      await refreshWalletForensics();
+      const detailsRes = await api.get(`/admin/support/${id}`);
+      if (detailsRes.data.ok) {
+        setSelectedMessage(detailsRes.data.message);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === id ? { ...m, isReplied: skipTicketReply ? m.isReplied : true } : m
+          )
+        );
+      }
+      return res.data;
+    },
+    [selectedMessage?.id, refreshWalletForensics]
+  );
 
   const fetchMessages = async () => {
     try {
@@ -127,6 +171,10 @@ export default function AdminSupport() {
   const selectMessage = async (msg) => {
     setLoadingDetails(true);
     setReply('');
+    setPolCreditAmount('');
+    setPolCreditTxHash('');
+    setPolCreditNote('');
+    setPolCreditReplenish(false);
     try {
       const res = await api.get(`/admin/support/${msg.id}`);
       if (res.data.ok) {
@@ -139,6 +187,49 @@ export default function AdminSupport() {
       toast.error('Erro ao carregar detalhes');
     } finally {
       setLoadingDetails(false);
+    }
+  };
+
+  const handleCreditPolMigration = async () => {
+    if (!selectedMessage?.id) return;
+    const amt = Number(String(polCreditAmount).replace(',', '.'));
+    if (!Number.isFinite(amt) || amt <= 0) {
+      toast.error('Indique uma quantia POL válida.');
+      return;
+    }
+    const txTrim = polCreditTxHash.trim();
+    if (polCreditReplenish && !txTrim) {
+      toast.error('Para repor saldo com depósito já no ledger, indique o TxHash on-chain.');
+      return;
+    }
+    setPolCreditSending(true);
+    try {
+      const data = await postCreditPolMigration({
+        amountPol: amt,
+        txHash: txTrim || undefined,
+        adminNote: polCreditNote.trim() || undefined,
+        skipTicketReply: false,
+        replenishIfDepositExistsForUser: polCreditReplenish
+      });
+      const after = Number(data?.polBalanceAfter);
+      const balStr = Number.isFinite(after) ? after.toFixed(6) : '—';
+      if (data?.mode === 'replenish') {
+        toast.success(`Saldo reposto (+${amt.toFixed(6)} POL). Depósito já existia no ledger. Saldo: ${balStr} POL`);
+      } else {
+        toast.success(
+          data?.message
+            ? `${data.message} Saldo após crédito: ${balStr} POL`
+            : 'POL creditado.'
+        );
+      }
+      setPolCreditAmount('');
+      setPolCreditTxHash('');
+      setPolCreditNote('');
+      setPolCreditReplenish(false);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Falha ao creditar POL.');
+    } finally {
+      setPolCreditSending(false);
     }
   };
 
@@ -283,14 +374,20 @@ export default function AdminSupport() {
         </div>
 
         {/* Content: Selected Message */}
-        <div className="lg:col-span-8 bg-slate-950/50 border border-slate-800 rounded-3xl flex flex-col min-w-0">
+        <div
+          className={`lg:col-span-8 bg-slate-950/50 border border-slate-800 rounded-3xl flex flex-col min-w-0 overflow-hidden ${
+            selectedMessage && !loadingDetails
+              ? 'h-[calc(100dvh-6.5rem)] sm:h-[calc(100dvh-5.75rem)] lg:h-[calc(100dvh-5.25rem)]'
+              : 'min-h-[280px] max-h-[calc(100dvh-4rem)]'
+          }`}
+        >
           {loadingDetails ? (
             <div className="flex items-center justify-center py-24">
               <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
             </div>
           ) : selectedMessage ? (
-            <div className="flex flex-col p-6 sm:p-8 min-w-0">
-              <div className="flex justify-between items-start border-b border-slate-800 pb-6 mb-6">
+            <div className="flex flex-col min-h-0 flex-1 min-w-0 h-full overflow-hidden">
+              <div className="shrink-0 flex justify-between items-start border-b border-slate-800 px-6 sm:px-8 pt-6 sm:pt-8 pb-4">
                 <div className="space-y-1">
                   <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase">{selectedMessage.subject}</h2>
                   <div className="flex items-center gap-4 text-slate-400 text-sm">
@@ -311,17 +408,23 @@ export default function AdminSupport() {
                 </div>
               </div>
 
-              <div className="space-y-6 pb-4">
-                {isWalletRecoveryTicket(selectedMessage.subject) ? (
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 sm:px-8 py-4 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
+                {isWalletRecoverySupportSubject(selectedMessage.subject) ? (
                   <WalletForensicsPanel
                     loading={walletForensicsLoading}
                     data={walletForensics}
                     onRefresh={refreshWalletForensics}
+                    creditDeposit={postCreditPolMigration}
+                    canApproveDeposits={Boolean(
+                      selectedMessage.userId ||
+                        selectedMessage.user?.id ||
+                        walletForensics?.linkedUser?.id
+                    )}
                   />
                 ) : null}
 
                 {/* Initial Message */}
-                {isWalletRecoveryTicket(selectedMessage.subject) ? (
+                {isWalletRecoverySupportSubject(selectedMessage.subject) ? (
                   <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] pt-2 border-t border-zinc-800">
                     Texto enviado no chamado
                   </p>
@@ -407,10 +510,112 @@ export default function AdminSupport() {
                     </p>
                   </div>
                 ))}
-              </div>
 
-              <div className="space-y-4 border-t border-slate-800 pt-6 mt-8 shrink-0">
-                {isPasswordResetTicket(selectedMessage.subject) ? (
+                {isWalletRecoverySupportSubject(selectedMessage.subject) ? (
+                  <div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/[0.07] p-4 space-y-3 scroll-mt-4">
+                    <div className="flex items-start gap-2">
+                      <Coins className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-cyan-400">
+                          Crédito manual (migração / caso avulso)
+                        </p>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          Use depois de rever a análise em cima. Com{' '}
+                          <span className="text-slate-200 font-semibold">TxHash</span> o servidor evita duplicar o mesmo
+                          depósito. Se o ledger já mostra o depósito mas o saldo sumiu na migração, marque «Repor saldo» e
+                          preencha o mesmo TxHash.
+                        </p>
+                        {selectedMessage.userId || selectedMessage.user?.id || walletForensics?.linkedUser ? (
+                          <p className="text-[10px] text-slate-500 font-mono">
+                            Conta: id{' '}
+                            {walletForensics?.linkedUser?.id ||
+                              selectedMessage.userId ||
+                              selectedMessage.user?.id}
+                            {walletForensics?.linkedUser != null
+                              ? ` · saldo ~ ${Number(walletForensics.linkedUser.polBalance || 0).toFixed(6)} POL`
+                              : ' — saldo: use “Atualizar dados” na análise ou confira no painel de utilizadores.'}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-amber-400/90 font-bold">
+                            Sem utilizador vinculado ao ticket — não é possível creditar até haver conta associada.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">
+                          Quantia (POL)
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={polCreditAmount}
+                          onChange={(e) => setPolCreditAmount(e.target.value)}
+                          placeholder="ex: 12.5"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-cyan-500/50"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">
+                          TxHash on-chain (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={polCreditTxHash}
+                          onChange={(e) => setPolCreditTxHash(e.target.value)}
+                          placeholder="0x… ou vazio = ref. interna"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">
+                        Nota interna (auditoria, opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={polCreditNote}
+                        onChange={(e) => setPolCreditNote(e.target.value)}
+                        placeholder="ex: Migração 2025 — depósito confirmado na chain"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50"
+                      />
+                    </div>
+                    <label className="flex items-start gap-2 cursor-pointer text-[11px] text-slate-400 leading-snug">
+                      <input
+                        type="checkbox"
+                        checked={polCreditReplenish}
+                        onChange={(e) => setPolCreditReplenish(e.target.checked)}
+                        className="mt-0.5 rounded border-slate-600"
+                      />
+                      <span>
+                        <span className="text-amber-200/90 font-semibold">Repor saldo</span> — o depósito com este TxHash já
+                        existe no ledger; só incrementar <span className="text-slate-200">polBalance</span> (migração /
+                        perda de saldo). Obrigatório: TxHash on-chain válido.
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleCreditPolMigration}
+                      disabled={
+                        polCreditSending ||
+                        !(selectedMessage.userId || selectedMessage.user?.id || walletForensics?.linkedUser?.id)
+                      }
+                      className="w-full h-11 flex items-center justify-center gap-2 bg-cyan-600/90 hover:bg-cyan-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all disabled:opacity-50"
+                    >
+                      {polCreditSending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Coins className="w-4 h-4" />
+                          Creditar POL na conta do jogador
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : null}
+
+                {isPasswordRecoverySupportTicket(selectedMessage.subject, selectedMessage.message) ? (
                   <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-4">
                     <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/90">
@@ -427,7 +632,7 @@ export default function AdminSupport() {
                             <span className="text-slate-200 font-bold">
                               {passwordRecoveryCtx.senhaTicketTotal}
                             </span>{' '}
-                            chamado(s) com {SUPPORT_PASSWORD_RESET_TICKET_MARKER} para este e-mail ou conta
+                            chamado(s) de recuperação de senha para este e-mail ou conta
                             {passwordRecoveryCtx.hadPriorSenhaTickets ? (
                               <span className="text-amber-400 font-bold"> — já pediu recuperação antes</span>
                             ) : (
@@ -480,7 +685,7 @@ export default function AdminSupport() {
                     {passwordRecoveryCtx?.senhaTickets?.length ? (
                       <div className="rounded-xl border border-slate-800/80 bg-slate-950/40 p-3 max-h-36 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
                         <p className="text-[9px] font-black uppercase text-slate-500 mb-2 tracking-wider">
-                          Chamados [Senha] (mais recentes primeiro)
+                          Chamados de recuperação (mais recentes primeiro)
                         </p>
                         <ul className="space-y-1.5 text-[10px] text-slate-400 font-mono">
                           {passwordRecoveryCtx.senhaTickets.slice(0, 12).map((t) => (
@@ -530,7 +735,12 @@ export default function AdminSupport() {
                     </button>
                   </div>
                 ) : null}
+              </div>
 
+              <div className="shrink-0 space-y-3 border-t border-slate-800 px-6 sm:px-8 pt-4 pb-6 sm:pb-8 bg-slate-950/95 backdrop-blur-md">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Resposta ao jogador
+                </p>
                 <textarea
                   placeholder="Escreva sua resposta aqui..."
                   value={reply}

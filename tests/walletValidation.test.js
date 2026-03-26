@@ -1,28 +1,31 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { isAddress, getAddress } from "ethers";
 
-process.env.NODE_ENV = process.env.NODE_ENV || "development";
-process.env.DB_PATH = process.env.DB_PATH || "./data/blockminer.db";
-process.env.CHECKIN_RECEIVER = "0x0000000000000000000000000000000000000000";
+// Testes de validação de endereço de carteira Polygon (lógica usada no walletController)
 
-const { __test } = require("../controllers/walletController");
-const { close } = require("../src/db/sqlite");
-
-test.after(async () => {
-  await close();
+test("isAddress aceita endereço Polygon válido", () => {
+  assert.equal(isAddress("0x742D35CC6634C0532925a3B844Bc9E7595F2bD18"), true);
 });
 
-test("normalizeAmountInput accepts up to 6 decimal places", () => {
-  const value = __test.normalizeAmountInput("10.123456");
-  assert.equal(value, 10.123456);
+test("isAddress rejeita endereço curto", () => {
+  assert.equal(isAddress("0x123"), false);
 });
 
-test("normalizeAmountInput rejects invalid amount formats", () => {
-  assert.throws(() => __test.normalizeAmountInput("10.1234567"), /Invalid amount format/);
-  assert.throws(() => __test.normalizeAmountInput("abc"), /Invalid amount format/);
+test("isAddress rejeita string vazia", () => {
+  assert.equal(isAddress(""), false);
 });
 
-test("validateWithdrawalInput validates amount and address", () => {
-  const amount = __test.validateWithdrawalInput("10.5", "0x000000000000000000000000000000000000dead");
-  assert.equal(amount, 10.5);
+test("isAddress rejeita texto aleatório", () => {
+  assert.equal(isAddress("not-an-address"), false);
+});
+
+test("getAddress retorna checksum correto", () => {
+  const addr = "0x742d35cc6634c0532925a3b844bc9e7595f2bd18";
+  const checksummed = getAddress(addr);
+  assert.equal(checksummed, "0x742D35CC6634C0532925a3B844Bc9E7595F2bD18");
+});
+
+test("getAddress lança para endereço inválido", () => {
+  assert.throws(() => getAddress("0x123"));
 });

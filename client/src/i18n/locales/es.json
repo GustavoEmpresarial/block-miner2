@@ -178,7 +178,10 @@
     "tip_deposit": "Los depósitos se procesan instantáneamente después de 1 confirmación en la red Polygon.",
     "min_withdraw_pol": "El retiro mínimo es {{min}} POL",
     "max_withdraw_pol": "El retiro máximo es {{max}} POL",
-    "min_withdraw_hint": "Retiro mínimo: {{min}} POL"
+    "min_withdraw_hint": "Retiro mínimo: {{min}} POL",
+    "no_credits_open_ticket_banner": "¿Aún sin créditos? Abre un ticket de análisis de depósito",
+    "no_credits_open_ticket_hint": "Proporciona direcciones de billetera y, si los tienes, hashes de transacción para que el equipo verifique en cadena.",
+    "open_ticket_btn": "Abrir ticket"
   },
   "faucet": {
     "title": "Grifo de Equipos",

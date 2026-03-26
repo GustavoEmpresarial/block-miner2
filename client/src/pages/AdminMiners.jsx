@@ -18,6 +18,16 @@ import { formatHashrate } from '../utils/machine';
 
 const GH = 1000000000;
 
+function parseAdminNumber(value) {
+    if (value === null || value === undefined) return NaN;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
+    let s = String(value).trim().replace(/\s/g, '');
+    if (!s) return NaN;
+    if (s.includes(',') && !s.includes('.')) return Number(s.replace(',', '.'));
+    if (s.includes(',') && s.includes('.')) return Number(s.replace(/\./g, '').replace(',', '.'));
+    return Number(s);
+}
+
 /** API may return Prisma camelCase or legacy snake_case (values in H/s). */
 function normalizeMiner(m) {
     if (!m) return m;
@@ -58,6 +68,7 @@ export default function AdminMiners() {
     const [grantMinerId, setGrantMinerId] = useState('');
     const [grantSkipBanned, setGrantSkipBanned] = useState(true);
     const [grantSkipIfHas, setGrantSkipIfHas] = useState(false);
+    const [grantQuantity, setGrantQuantity] = useState(1);
     const [grantLoading, setGrantLoading] = useState(false);
     const [propagateMinerId, setPropagateMinerId] = useState(null);
 
@@ -84,10 +95,16 @@ export default function AdminMiners() {
         e.preventDefault();
         try {
             setIsSaving(true);
+            const ghNew = parseAdminNumber(newMiner.baseHashRate);
+            const priceNew = parseAdminNumber(newMiner.price);
+            if (!Number.isFinite(ghNew) || ghNew < 0 || !Number.isFinite(priceNew)) {
+                toast.error('Poder (GH/s) e preço devem ser números válidos (use ponto ou vírgula decimal).');
+                return;
+            }
             const payload = {
                 ...newMiner,
-                baseHashRate: Number(newMiner.baseHashRate) * GH,
-                price: Number(newMiner.price),
+                baseHashRate: ghNew * GH,
+                price: priceNew,
                 slotSize: Number(newMiner.slotSize)
             };
             const res = await api.post('/admin/miners', payload);
@@ -107,16 +124,17 @@ export default function AdminMiners() {
     };
 
     const buildUpdatePayload = (miner) => {
-        const gh = Number(miner.baseHashRate);
+        const gh = parseAdminNumber(miner.baseHashRate);
         const baseHs =
             Number.isFinite(gh) && gh >= 0
                 ? gh * GH
                 : Number(miner.baseHashRateHs ?? 0);
+        const priceNum = parseAdminNumber(miner.price);
         return {
             name: miner.name,
             slug: miner.slug,
             baseHashRate: baseHs,
-            price: Number(miner.price),
+            price: priceNum,
             slotSize: Number(miner.slotSize),
             imageUrl: miner.imageUrl || null,
             isActive: Boolean(miner.isActive),
@@ -125,8 +143,13 @@ export default function AdminMiners() {
     };
 
     const handleUpdateMiner = async (miner) => {
+        const payload = buildUpdatePayload(miner);
+        if (!Number.isFinite(payload.price)) {
+            toast.error('Preço inválido. Use número com ponto ou vírgula decimal (ex.: 0,75).');
+            return false;
+        }
         try {
-            const res = await api.put(`/admin/miners/${miner.id}`, buildUpdatePayload(miner));
+            const res = await api.put(`/admin/miners/${miner.id}`, payload);
             if (res.data.ok) {
                 const p = res.data.propagation;
                 if (p) {
@@ -181,8 +204,6 @@ export default function AdminMiners() {
             setIsSaving(true);
             const ok = await handleUpdateMiner({
                 ...editingMiner,
-                baseHashRate: Number(editingMiner.baseHashRate),
-                price: Number(editingMiner.price),
                 slotSize: Number(editingMiner.slotSize)
             });
             if (ok) setEditingMiner(null);
@@ -261,10 +282,20 @@ export default function AdminMiners() {
             toast.error('Selecione uma mineradora no catálogo.');
             return;
         }
+        const quantity = Number(grantQuantity);
+        if (!Number.isFinite(quantity) || !Number.isInteger(quantity) || quantity < 1) {
+            toast.error('Informe uma quantidade válida (mínimo 1).');
+            return;
+        }
+        // Guard-rail para evitar operações acidentais gigantescas no inventário.
+        if (quantity > 100) {
+            toast.error('Quantidade muito alta. Limite: 100 por operação.');
+            return;
+        }
         const m = miners.find((x) => x.id === id);
         const label = m ? `"${m.name}"` : 'esta máquina';
         const ok = window.confirm(
-            `Enviar ${label} para o inventário de todos os usuários?\n\n` +
+            `Enviar ${quantity} unidade(s) de ${label} para o inventário de todos os usuários?\n\n` +
                 (grantSkipBanned ? '• Contas banidas: ignoradas\n' : '• Inclui contas banidas\n') +
                 (grantSkipIfHas ? '• Quem já tem esta máquina no inventário: ignorado\n' : '• Todos recebem mais uma unidade (pode duplicar)\n') +
                 '\nA operação não desconta POL.'
@@ -274,6 +305,7 @@ export default function AdminMiners() {
             setGrantLoading(true);
             const res = await api.post('/admin/miners/grant-to-all-users', {
                 minerId: id,
+                quantity,
                 skipBanned: grantSkipBanned,
                 skipIfHasMiner: grantSkipIfHas
             });
@@ -319,7 +351,7 @@ export default function AdminMiners() {
                     <div className="min-w-0 space-y-1">
                         <h3 className="text-sm font-black text-white uppercase tracking-widest">Distribuir para todos os jogadores</h3>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                            Coloca <span className="text-slate-400">uma unidade</span> da mineradora escolhida no <strong className="text-slate-300">inventário</strong> de cada usuário (não instala no rack). Não cobra POL.
+                            Coloca <span className="text-slate-400">{grantQuantity} unidade(s)</span> da mineradora escolhida no <strong className="text-slate-300">inventário</strong> de cada usuário (não instala no rack). Não cobra POL.
                         </p>
                     </div>
                 </div>
@@ -353,12 +385,32 @@ export default function AdminMiners() {
                         <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer shrink-0">
                             <input
                                 type="checkbox"
-                                checked={grantSkipIfHas}
-                                onChange={(e) => setGrantSkipIfHas(e.target.checked)}
+                                checked={false}
+                                onChange={() => {}}
+                                disabled
                                 className="rounded border-slate-600"
                             />
-                            Só quem ainda não tem esta máquina no inventário
+                            Só quem ainda não tem esta máquina no inventário (desativado: envia para todos)
                         </label>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                Quantidade
+                            </label>
+                            <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={grantQuantity}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    if (v === '') return setGrantQuantity(1);
+                                    const n = Number(v);
+                                    if (!Number.isFinite(n)) return;
+                                    setGrantQuantity(Math.max(1, Math.floor(n)));
+                                }}
+                                className="w-28 bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-sm text-white"
+                            />
+                        </div>
                     </div>
                     <button
                         type="button"

@@ -91,6 +91,7 @@ export async function createMiner({ name, slug, baseHashRate, price, slotSize, i
 /**
  * Sync catalog miner fields to every user_miners, user_inventory row and shortlink_rewards
  * tied to this miner. Hash on instances = baseHashRate * max(1, level).
+ * Uses bulk UPDATE … FROM (PostgreSQL) so large player bases do not hit transaction timeouts.
  */
 export async function propagateMinerToAllInstances(tx, miner) {
   const minerId = miner.id;
@@ -99,37 +100,34 @@ export async function propagateMinerToAllInstances(tx, miner) {
   const name = miner.name;
   const img = miner.imageUrl ?? null;
 
-  const userMiners = await tx.userMiner.findMany({
-    where: { minerId },
-    select: { id: true, level: true }
-  });
-  for (const um of userMiners) {
-    const lvl = Math.max(1, Number(um.level) || 1);
-    await tx.userMiner.update({
-      where: { id: um.id },
-      data: {
-        hashRate: base * lvl,
-        slotSize: slots,
-        imageUrl: img
-      }
-    });
+  const [rackCount, invCount] = await Promise.all([
+    tx.userMiner.count({ where: { minerId } }),
+    tx.userInventory.count({ where: { minerId } })
+  ]);
+
+  if (rackCount > 0) {
+    await tx.$executeRaw`
+      UPDATE user_miners AS um
+      SET
+        hash_rate = m.base_hash_rate * GREATEST(1, um.level),
+        slot_size = LEAST(2, GREATEST(1, COALESCE(m.slot_size, 1))),
+        image_url = m.image_url
+      FROM miners AS m
+      WHERE um.miner_id = m.id AND m.id = ${minerId}
+    `;
   }
 
-  const inventories = await tx.userInventory.findMany({
-    where: { minerId },
-    select: { id: true, level: true }
-  });
-  for (const row of inventories) {
-    const lvl = Math.max(1, Number(row.level) || 1);
-    await tx.userInventory.update({
-      where: { id: row.id },
-      data: {
-        minerName: name,
-        hashRate: base * lvl,
-        slotSize: slots,
-        imageUrl: img
-      }
-    });
+  if (invCount > 0) {
+    await tx.$executeRaw`
+      UPDATE user_inventory AS ui
+      SET
+        miner_name = m.name,
+        hash_rate = m.base_hash_rate * GREATEST(1, ui.level),
+        slot_size = LEAST(2, GREATEST(1, COALESCE(m.slot_size, 1))),
+        image_url = m.image_url
+      FROM miners AS m
+      WHERE ui.miner_id = m.id AND m.id = ${minerId}
+    `;
   }
 
   const shortlinkUpdated = await tx.shortlinkReward.updateMany({
@@ -143,8 +141,8 @@ export async function propagateMinerToAllInstances(tx, miner) {
   });
 
   return {
-    userMiners: userMiners.length,
-    userInventory: inventories.length,
+    userMiners: rackCount,
+    userInventory: invCount,
     shortlinkRewards: shortlinkUpdated.count
   };
 }
@@ -154,16 +152,19 @@ export async function propagateMinerToAllInstances(tx, miner) {
  * Use after SQL direto no `miners` or to fix drift without opening the edit form.
  */
 export async function propagateCatalogMinerToAllInstances(minerId) {
-  return prisma.$transaction(async (tx) => {
-    const miner = await tx.miner.findUnique({ where: { id: minerId } });
-    if (!miner) {
-      const err = new Error("NOT_FOUND");
-      err.code = "NOT_FOUND";
-      throw err;
-    }
-    const propagation = await propagateMinerToAllInstances(tx, miner);
-    return { miner, propagation };
-  });
+  return prisma.$transaction(
+    async (tx) => {
+      const miner = await tx.miner.findUnique({ where: { id: minerId } });
+      if (!miner) {
+        const err = new Error("NOT_FOUND");
+        err.code = "NOT_FOUND";
+        throw err;
+      }
+      const propagation = await propagateMinerToAllInstances(tx, miner);
+      return { miner, propagation };
+    },
+    { maxWait: 15_000, timeout: 120_000 }
+  );
 }
 
 /**
@@ -172,7 +173,8 @@ export async function propagateCatalogMinerToAllInstances(minerId) {
  * @param {object} patch — optional fields (camelCase or mixed with snake_case handled in controller)
  */
 export async function updateMiner(minerId, patch = {}) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(
+    async (tx) => {
     const existing = await tx.miner.findUnique({ where: { id: minerId } });
     if (!existing) {
       const err = new Error('NOT_FOUND');
@@ -199,7 +201,9 @@ export async function updateMiner(minerId, patch = {}) {
 
     const propagation = await propagateMinerToAllInstances(tx, updated);
     return { miner: updated, propagation };
-  });
+  },
+    { maxWait: 15_000, timeout: 120_000 }
+  );
 }
 
 /**

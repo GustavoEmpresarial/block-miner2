@@ -41,10 +41,15 @@ test("userModel.listUsers calculates total power correctly", async () => {
     {
       id: 1,
       polBalance: 50.5,
-      miners: [{ hashRate: 10 }],
-      gamePowers: [{ hashRate: 5 }],
-      ytPowers: [{ hashRate: 2 }],
-      gpuAccess: [{ gpuHashRate: 3 }]
+      username: "tester",
+      name: "Test",
+      email: "test@test.com",
+      ip: null,
+      walletAddress: null,
+      refCode: "ABC",
+      isBanned: false,
+      createdAt: new Date(),
+      lastLoginAt: null
     }
   ];
   prisma.user.count = async () => 1;
@@ -52,7 +57,6 @@ test("userModel.listUsers calculates total power correctly", async () => {
   try {
     const result = await userModel.listUsers({ page: 1, pageSize: 25 });
     assert.equal(result.total, 1);
-    assert.equal(result.users[0].totalPower, 20);
     assert.equal(result.users[0].polBalance, 50.5);
     
     // Test with query and dates
@@ -64,12 +68,9 @@ test("userModel.listUsers calculates total power correctly", async () => {
   }
 });
 
-test("userModel functions: banUser and getUserByRefCode", async () => {
-  const oldUpdate = prisma.user.update;
+test("userModel related: getUserByRefCode from referralModel", async () => {
   const oldFindUnique = prisma.user.findUnique;
   
-  let updateData;
-  prisma.user.update = async (args) => { updateData = args.data; return { id: 1 }; };
   prisma.user.findUnique = async () => ({ id: 1, username: "ref" });
 
   try {
@@ -77,11 +78,7 @@ test("userModel functions: banUser and getUserByRefCode", async () => {
     
     const user = await getUserByRefCode("REF");
     assert.equal(user.username, "ref");
-    
-    await userModel.banUser(1, true);
-    assert.equal(updateData.isBanned, true);
   } finally {
-    prisma.user.update = oldUpdate;
     prisma.user.findUnique = oldFindUnique;
   }
 });

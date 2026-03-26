@@ -199,13 +199,27 @@ export const createMessage = async (req, res) => {
 export const listMessages = async (req, res) => {
   try {
     const userId = req.user?.id;
+    const userEmail = req.user?.email;
     
     if (!userId) {
       return res.status(401).json({ ok: false, message: "Unauthorized" });
     }
 
     const messages = await prisma.supportMessage.findMany({
-      where: { userId },
+      where: {
+        OR: [
+          { userId },
+          // Permite "retomar" chamados criados sem login quando o email bate com o usuário autenticado
+          ...(userEmail
+            ? [
+                {
+                  userId: null,
+                  email: { equals: userEmail, mode: "insensitive" }
+                }
+              ]
+            : [])
+        ]
+      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -237,7 +251,15 @@ export const getMessage = async (req, res) => {
       }
     });
 
-    if (!message || message.userId !== userId) {
+    if (!message) {
+      return res.status(404).json({ ok: false, message: "Message not found" });
+    }
+
+    const emailMatches =
+      message.userId === null &&
+      normalizeSupportEmail(message.email) === normalizeSupportEmail(req.user?.email);
+
+    if (message.userId !== userId && !emailMatches) {
       return res.status(404).json({ ok: false, message: "Message not found" });
     }
 
@@ -264,7 +286,15 @@ export const replyToMessage = async (req, res) => {
       where: { id: parseInt(id) }
     });
 
-    if (!originalMessage || originalMessage.userId !== userId) {
+    if (!originalMessage) {
+      return res.status(404).json({ ok: false, message: "Support ticket not found" });
+    }
+
+    const emailMatches =
+      originalMessage.userId === null &&
+      normalizeSupportEmail(originalMessage.email) === normalizeSupportEmail(req.user?.email);
+
+    if (originalMessage.userId !== userId && !emailMatches) {
       return res.status(404).json({ ok: false, message: "Support ticket not found" });
     }
 
@@ -277,9 +307,125 @@ export const replyToMessage = async (req, res) => {
       }
     });
 
+    // Atualiza flags para o painel/cliente saber que já houve resposta
+    await prisma.supportMessage.update({
+      where: { id: parseInt(id) },
+      data: {
+        isReplied: true,
+        repliedAt: new Date()
+      }
+    });
+
     res.status(201).json({ ok: true, reply: newReply });
   } catch (error) {
     console.error("[SupportController] Error replying to message:", error);
+    res.status(500).json({ ok: false, message: "Error sending reply" });
+  }
+};
+
+/**
+ * Public: List support messages by email (no auth).
+ * This is intentionally public because the client UI wants "buscar chamados por e-mail"
+ * even before login.
+ */
+export const publicListMessagesByEmail = async (req, res) => {
+  try {
+    const rawEmail = req.query.email || req.body?.email;
+    const email = normalizeSupportEmail(rawEmail);
+    if (!email) return res.status(400).json({ ok: false, message: "Email is required" });
+
+    const messages = await prisma.supportMessage.findMany({
+      where: {
+        email: { equals: email, mode: "insensitive" }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    res.json({ ok: true, messages });
+  } catch (error) {
+    console.error("[SupportController] Error listing messages by email:", error);
+    res.status(500).json({ ok: false, message: "Error listing messages" });
+  }
+};
+
+/**
+ * Public: Get a specific message with replies by ID + email match.
+ */
+export const publicGetMessage = async (req, res) => {
+  try {
+    const rawEmail = req.query.email || req.body?.email;
+    const email = normalizeSupportEmail(rawEmail);
+    const { id } = req.params;
+
+    if (!email) return res.status(400).json({ ok: false, message: "Email is required" });
+    if (!id) return res.status(400).json({ ok: false, message: "Id is required" });
+
+    const message = await prisma.supportMessage.findUnique({
+      where: { id: parseInt(id) },
+      include: {
+        replies: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+
+    if (!message) return res.status(404).json({ ok: false, message: "Message not found" });
+
+    const storedEmail = normalizeSupportEmail(message.email);
+    if (storedEmail !== email) return res.status(404).json({ ok: false, message: "Message not found" });
+
+    res.json({ ok: true, message });
+  } catch (error) {
+    console.error("[SupportController] Error getting public message:", error);
+    res.status(500).json({ ok: false, message: "Error getting message" });
+  }
+};
+
+/**
+ * Public: Reply to a support message by ID + email match.
+ */
+export const publicReplyToMessage = async (req, res) => {
+  try {
+    const rawEmail = req.query.email || req.body?.email;
+    const email = normalizeSupportEmail(rawEmail);
+    const { id } = req.params;
+    const { message: replyContent } = req.body;
+
+    if (!email) return res.status(400).json({ ok: false, message: "Email is required" });
+    if (!replyContent) return res.status(400).json({ ok: false, message: "Message content is required" });
+
+    const originalMessage = await prisma.supportMessage.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!originalMessage) return res.status(404).json({ ok: false, message: "Support ticket not found" });
+
+    const storedEmail = normalizeSupportEmail(originalMessage.email);
+    if (storedEmail !== email) {
+      return res.status(404).json({ ok: false, message: "Support ticket not found" });
+    }
+
+    const newReply = await prisma.supportReply.create({
+      data: {
+        supportMessageId: parseInt(id),
+        senderId: null,
+        message: replyContent,
+        isAdmin: false
+      }
+    });
+
+    await prisma.supportMessage.update({
+      where: { id: parseInt(id) },
+      data: {
+        isReplied: true,
+        repliedAt: new Date()
+      }
+    });
+
+    res.status(201).json({ ok: true, reply: newReply });
+  } catch (error) {
+    console.error("[SupportController] Error replying to public message:", error);
     res.status(500).json({ ok: false, message: "Error sending reply" });
   }
 };

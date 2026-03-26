@@ -1,7 +1,7 @@
-const test = require("node:test");
-const assert = require("node:assert/strict");
+import { test } from "node:test";
+import assert from "node:assert/strict";
 
-const { MiningEngine } = require("../src/miningEngine");
+import { MiningEngine } from "../server/src/miningEngine.js";
 
 test("MiningEngine.distributeRewards distributes proportionally", () => {
   const engine = new MiningEngine();
@@ -12,18 +12,19 @@ test("MiningEngine.distributeRewards distributes proportionally", () => {
   engine.roundWork.set(minerB.id, 300);
   engine.activeMiners = 2;
 
-  const loggedRewards = [];
-  engine.setRewardLogger((payload) => loggedRewards.push(payload));
+  let persistedPayload = null;
+  engine.setPersistBlockRewardsCallback((payload) => { persistedPayload = payload; });
 
   engine.distributeRewards();
 
-  assert.ok(Math.abs(minerA.balance - 0.025) < 1e-12);
-  assert.ok(Math.abs(minerB.balance - 0.075) < 1e-12);
+  assert.ok(Math.abs(minerA.balance - 0.0375) < 1e-12);
+  assert.ok(Math.abs(minerB.balance - 0.1125) < 1e-12);
   assert.equal(engine.blockNumber, 2);
-  assert.equal(engine.lastReward, 0.1);
-  assert.equal(loggedRewards.length, 2);
+  assert.equal(engine.lastReward, 0.15);
+  assert.ok(persistedPayload);
+  assert.equal(persistedPayload.minerRewards.length, 2);
   assert.deepEqual(
-    loggedRewards.map((row) => row.userId).sort((a, b) => a - b),
+    persistedPayload.minerRewards.map((row) => row.userId).sort((a, b) => a - b),
     [101, 202]
   );
 });

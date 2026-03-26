@@ -25,6 +25,7 @@ import Games from './pages/Games';
 import ShortlinkStep from './pages/ShortlinkStep';
 
 import ChatSidebar from './components/ChatSidebar';
+import SupportMiniChat from './components/SupportMiniChat';
 import AdBlockDetector from './components/AdBlockDetector';
 
 import AdminLogin from './pages/AdminLogin';
@@ -162,6 +163,7 @@ function App() {
         }}
       />
       <AdBlockDetector />
+      <SupportMiniChat />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
